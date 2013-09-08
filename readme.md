@@ -1,4 +1,4 @@
 Sleepless
 =======
 
-Sleepless jest to *bardzo* fajny mod.
+Sleepless jest to *bardzo bardzo* fajny mod.
