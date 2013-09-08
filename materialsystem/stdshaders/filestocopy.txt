@@ -1,0 +1,5 @@
+..\..\dx9sdk\utilities\dx_proxy.dll 
+..\..\..\..\Steam\SteamApps\kaitek666\sourcesdk\bin\orangebox\bin\shadercompile.exe 
+..\..\..\..\Steam\SteamApps\kaitek666\sourcesdk\bin\orangebox\bin\shadercompile_dll.dll 
+..\..\..\..\Steam\SteamApps\kaitek666\sourcesdk\bin\orangebox\bin\vstdlib.dll 
+..\..\..\..\Steam\SteamApps\kaitek666\sourcesdk\bin\orangebox\bin\tier0.dll 
