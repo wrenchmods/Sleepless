@@ -14,6 +14,7 @@
 #include "hudelement.h"
 #include "hud_macros.h"
 #include "iclientmode.h"
+#include "shaderapi/ishaderapi.h"
 #include <vgui_controls/controls.h>
 #include <vgui_controls/Panel.h>
 #include <vgui/ISurface.h>
