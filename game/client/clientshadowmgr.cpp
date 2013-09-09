@@ -702,6 +702,7 @@ static ConVar r_shadows_gamecontrol( "r_shadows_gamecontrol", "-1", FCVAR_CHEAT 
 // Oh, and let's take a moment and notice how happy Robin and John must be 
 // owing to the lack of space between this lovely comment and the class name =)
 //-----------------------------------------------------------------------------
+
 class CClientShadowMgr : public IClientShadowMgr
 {
 public:
@@ -1070,9 +1071,6 @@ private:
 	friend class CVisibleShadowList;
 	friend class CVisibleShadowFrustumList;
 
-	CTextureReference m_downSampledNormals;
-	CTextureReference m_downSampledDepth;
-
 	void CalculateRenderTargetsAndSizes( void );
 };
 
@@ -1101,8 +1099,10 @@ public:
 	CVisibleShadowList();
 	int FindShadows( const CViewSetup *pView, int nLeafCount, LeafIndex_t *pLeafList );
 	int GetVisibleShadowCount() const;
+	int GetVisibleBlobbyShadowCount() const;
 
 	const VisibleShadowInfo_t &GetVisibleShadow( int i ) const;
+	const VisibleShadowInfo_t &GetVisibleBlobbyShadow( int i ) const;
 
 private:
 	void EnumShadow( unsigned short clientShadowHandle );
@@ -1110,6 +1110,7 @@ private:
 	void PrioritySort();
 
 	CUtlVector<VisibleShadowInfo_t> m_ShadowsInView;
+	CUtlVector<VisibleShadowInfo_t> m_BlobbyShadowsInView;
 	CUtlVector<int>	m_PriorityIndex;
 };
 
@@ -1140,6 +1141,16 @@ int CVisibleShadowList::GetVisibleShadowCount() const
 const VisibleShadowInfo_t &CVisibleShadowList::GetVisibleShadow( int i ) const
 {
 	return m_ShadowsInView[m_PriorityIndex[i]];
+}
+
+int CVisibleShadowList::GetVisibleBlobbyShadowCount() const
+{
+	return m_BlobbyShadowsInView.Count();
+}
+
+const VisibleShadowInfo_t &CVisibleShadowList::GetVisibleBlobbyShadow( int i ) const
+{
+	return m_BlobbyShadowsInView[i];
 }
 
 
@@ -4289,6 +4300,190 @@ void CClientShadowMgr::SetViewFlashlightState( int nActiveFlashlightCount, Clien
 	}
 }
 
+ALIGN16 static const float pShadowBoundVerts[] = 
+{
+	// +X face
+	 1.0f, -1.0f, -1.0f, 1.0f, 
+	 1.0f,  1.0f, -1.0f, 1.0f, 
+	 1.0f,  1.0f,  1.0f, 1.0f, 
+	 1.0f, -1.0f,  1.0f, 1.0f, 
+
+	// +Y face
+	-1.0f,  1.0f, -1.0f, 1.0f, 
+	-1.0f,  1.0f,  1.0f, 1.0f, 
+	 1.0f,  1.0f,  1.0f, 1.0f, 
+	 1.0f,  1.0f, -1.0f, 1.0f, 
+
+	// -X face
+	-1.0f, -1.0f,  1.0f, 1.0f, 
+	-1.0f,  1.0f,  1.0f, 1.0f, 
+	-1.0f,  1.0f, -1.0f, 1.0f, 
+	-1.0f, -1.0f, -1.0f, 1.0f, 
+
+	// -Y face
+	-1.0f, -1.0f, -1.0f, 1.0f, 
+	 1.0f, -1.0f, -1.0f, 1.0f, 
+	 1.0f, -1.0f,  1.0f, 1.0f, 
+	-1.0f, -1.0f,  1.0f, 1.0f, 
+	
+	// +Z face
+	-1.0f, -1.0f,  1.0f, 1.0f, 
+	 1.0f, -1.0f,  1.0f, 1.0f, 
+	 1.0f,  1.0f,  1.0f, 1.0f, 
+	-1.0f,  1.0f,  1.0f, 1.0f, 
+
+	// -Z face
+	 1.0f, -1.0f, -1.0f, 1.0f, 
+	-1.0f, -1.0f, -1.0f, 1.0f, 
+	-1.0f,  1.0f, -1.0f, 1.0f, 
+	 1.0f,  1.0f, -1.0f, 1.0f
+};
+
+ALIGN16 static const float pShadowBoundNormals[] = 
+{
+	1.0f, 0.0f, 0.0f, 0.0f,
+	0.0f, 1.0f, 0.0f, 0.0f,
+	-1.0f, 0.0f, 0.0f, 0.0f,
+	0.0f, -1.0f, 0.0f, 0.0f,
+
+	0.0f, 0.0f, 1.0f, 0.0f,
+	0.0f, 0.0f, -1.0f, 0.0f,
+
+};
+
+ALIGN16 static const unsigned short pShadowBoundIndices[] = 
+{
+	// box faces
+	0, 2, 1, 0, 3, 2,
+	4, 6, 5, 4, 7, 6,
+	8, 10, 9, 8, 11, 10,
+	12, 14, 13, 12, 15, 14,
+	16, 18, 17, 16, 19, 18,
+	20, 22, 21, 20, 23, 22,
+
+	// degenerate faces on edges
+	2, 7, 1, 2, 6, 7,
+	5, 10, 4, 5, 9, 10,
+	8, 12, 11, 8, 15, 12,
+	14, 0, 13, 14, 3, 0,
+
+	17, 2, 3, 17, 18, 2,
+	18, 5, 6, 18, 19, 5,
+	8, 19, 16, 8, 9, 19,
+	14, 16, 17, 14, 15, 16,
+
+	0, 23, 20, 0, 1, 23,
+	7, 22, 23, 7, 4, 22,
+	11, 21, 22, 11, 22, 10,
+	13, 21, 12, 13, 20, 21
+};
+
+// BuildCubeWithDegenerateEdgeQuads (begin) //
+void CClientShadowMgr::BuildCubeWithDegenerateEdgeQuads( CMeshBuilder& meshBuilder, const matrix3x4_t& objToWorld, const VMatrix& projToShadow, const CClientShadowMgr::ClientShadow_t& shadow )
+{
+	static bool bSIMDDataInitialized = false;
+	static FourVectors srcPositions[6];
+	static FourVectors srcNormals[2];
+
+	if ( !bSIMDDataInitialized )
+	{
+		// convert vertex data into SIMD data
+		const float* RESTRICT pPos = pShadowBoundVerts;
+		const float* RESTRICT pNormal = pShadowBoundNormals;
+		for( int v = 0; v < 6; ++v )
+		{
+			srcPositions[v].LoadAndSwizzleAligned( pPos, pPos+4, pPos+8, pPos+12);
+			pPos += 16;
+		}
+
+		srcNormals[0].LoadAndSwizzleAligned( pNormal, pNormal+4, pNormal+8, pNormal+12);
+		pNormal += 16;
+		srcNormals[1].LoadAndSwizzleAligned( pNormal, pNormal+4, pNormal+4, pNormal+4);
+
+		bSIMDDataInitialized = true;
+	}
+
+	Vector fallOffParams;
+	ComputeFalloffInfo( shadow, &fallOffParams );
+
+	int nBaseVertIdx = meshBuilder.GetCurrentVertex();
+
+	float texCoord[4] = { shadow.m_TexCoordOffset.x, shadow.m_TexCoordOffset.y, shadow.m_TexCoordScale.x, shadow.m_TexCoordScale.y };
+	Vector shadowDir = shadow.m_ShadowDir * shadow.m_MaxDist;
+
+	if ( r_shadow_deferred_simd.GetBool() )
+	{
+		// FIXME: Something in here is buggy
+		FourVectors positions[6];
+		FourVectors normals[2];
+		positions[0] = srcPositions[0];
+		positions[1] = srcPositions[1];
+		positions[2] = srcPositions[2];
+		positions[3] = srcPositions[3];
+		positions[4] = srcPositions[4];
+		positions[5] = srcPositions[5];
+		positions[0].TransformBy( objToWorld );
+		positions[1].TransformBy( objToWorld );
+		positions[2].TransformBy( objToWorld );
+		positions[3].TransformBy( objToWorld );
+		positions[4].TransformBy( objToWorld );
+		positions[5].TransformBy( objToWorld );
+		//FourVectors::TransformManyBy( srcPositions, 6, objToWorld, positions );	// this doesn't work but the above does. What gives???
+		FourVectors::RotateManyBy( srcNormals, 2, objToWorld, normals );
+		normals[0].VectorNormalizeFast();		// optional, will throw asserts in debug if we don't normalize
+		normals[1].VectorNormalizeFast();
+
+		for( int v = 0; v < ARRAYSIZE( pShadowBoundVerts ) / 4; ++v )
+		{
+			meshBuilder.Position3fv( positions[v/4].Vec( v%4 ).Base() );
+			meshBuilder.Normal3fv( normals[v/16].Vec( (v/4)%4 ).Base() );
+			meshBuilder.TexCoord3fv( 0, shadowDir.Base() );
+			meshBuilder.TexCoord4fv( 1, texCoord );
+			meshBuilder.TexCoord4fv( 2, projToShadow[0] );
+			meshBuilder.TexCoord4fv( 3, projToShadow[1] );
+			meshBuilder.TexCoord4fv( 4, projToShadow[2] );
+			meshBuilder.TexCoord4fv( 5, projToShadow[3] );
+			meshBuilder.TexCoord3fv( 6, fallOffParams.Base() );
+			meshBuilder.AdvanceVertex();
+		}
+	}
+	else
+	{
+		const float* pPos = pShadowBoundVerts;
+		const float* pNormal = pShadowBoundNormals;
+		for( int v = 0; v < ARRAYSIZE( pShadowBoundVerts ) / 4; ++v )
+		{
+			Vector pos;
+			Vector normal;
+			VectorTransform( pPos, objToWorld, (float*)&pos );
+			VectorRotate( pNormal, objToWorld, (float*)&normal );
+
+			meshBuilder.Position3fv( pos.Base() );
+			meshBuilder.Normal3fv( normal.Base() );
+			meshBuilder.TexCoord3fv( 0, shadowDir.Base() );
+			meshBuilder.TexCoord4fv( 1, texCoord );
+			meshBuilder.TexCoord4fv( 2, projToShadow[0] );
+			meshBuilder.TexCoord4fv( 3, projToShadow[1] );
+			meshBuilder.TexCoord4fv( 4, projToShadow[2] );
+			meshBuilder.TexCoord4fv( 5, projToShadow[3] );
+			meshBuilder.TexCoord3fv( 6, fallOffParams.Base() );
+			meshBuilder.AdvanceVertex();
+
+			pPos += 4;
+			if ( v % 4 == 3)
+				pNormal += 4;
+		}
+	}
+
+	for( int i = 0; i < ARRAYSIZE( pShadowBoundIndices ) / 2; ++i )
+	{
+		// this causes alignment exception on 360?
+		//meshBuilder.FastIndex2( nBaseVertIdx + pShadowBoundIndices[2*i], nBaseVertIdx + pShadowBoundIndices[2*i+1] );
+		meshBuilder.FastIndex( nBaseVertIdx + pShadowBoundIndices[2*i] );
+		meshBuilder.FastIndex( nBaseVertIdx + pShadowBoundIndices[2*i+1] );
+	}
+}
+// BuildCubeWithDegenerateEdgeQuads (end) //
 
 //-----------------------------------------------------------------------------
 // Re-render shadow depth textures that lie in the leaf list

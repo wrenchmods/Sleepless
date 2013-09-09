@@ -141,6 +141,13 @@ struct matrix3x4_t
 		Init( xAxis, yAxis, zAxis, vecOrigin );
 	}
 
+	inline void SetOrigin( Vector const & p )
+	{
+		m_flMatVal[0][3] = p.x;
+		m_flMatVal[1][3] = p.y;
+		m_flMatVal[2][3] = p.z;
+	} 
+
 	inline void Invalidate( void )
 	{
 		for (int i = 0; i < 3; i++)

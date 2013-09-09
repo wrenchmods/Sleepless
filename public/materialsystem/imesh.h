@@ -187,6 +187,12 @@ struct ModelVertexDX8_t	: public ModelVertexDX7_t
 	Vector4D		m_vecUserData;
 };
 
+struct QuadTessVertex_t
+{
+	Vector4D	m_vTangent;		// last component is Binormal flip and Wrinkle weight
+	Vector4D	m_vUV01;		// UV coordinates for points Interior (0), and Parametric V Edge (1)
+	Vector4D	m_vUV23;		// UV coordinates for points Parametric U Edge (2), and Corner (3)
+};
 
 //-----------------------------------------------------------------------------
 // Utility methods for buffer builders
@@ -2743,6 +2749,8 @@ public:
 	CMeshBuilder();
 	~CMeshBuilder() { Assert(!m_pMesh); }		// if this fires you did a Begin() without an End()
 
+	operator CIndexBuilder&() { return m_IndexBuilder; }
+
 	// This must be called before Begin, if a vertex buffer with a compressed format is to be used
 	void SetCompressionType( VertexCompressionType_t compressionType );
 
@@ -2799,6 +2807,7 @@ public:
 
 	// Advances the current vertex and index by one
 	void AdvanceVertex();
+	template<int nFlags, int nNumTexCoords> void AdvanceVertexF(); 
 	void AdvanceVertices( int nVerts );
 	void AdvanceIndex();
 	void AdvanceIndices( int nIndices );
@@ -2856,6 +2865,8 @@ public:
 	void Color3ubv( unsigned char const* rgb );
 	void Color4ub( unsigned char r, unsigned char g, unsigned char b, unsigned char a );
 	void Color4ubv( unsigned char const* rgba );
+	void Color4Packed( int packedColor );
+	int PackColor4( unsigned char r, unsigned char g, unsigned char b, unsigned char a ); 
 
 	// specular color setting
 	void Specular3f( float r, float g, float b );
@@ -2893,11 +2904,13 @@ public:
 
 	// bone weights
 	void BoneWeight( int idx, float weight );
+	void BoneWeights2( float weight1, float weight2 ); 
 	// bone weights (templatized for code which needs to support compressed vertices)
 	template <VertexCompressionType_t T> void CompressedBoneWeight3fv( const float * pWeights );
 
 	// bone matrix index
 	void BoneMatrix( int idx, int matrixIndex );
+	void BoneMatrices4( int matrixIdx0, int matrixIdx1, int matrixIdx2, int matrixIdx3 ); 
 
 	// Generic per-vertex data
 	void UserData( const float *pData );
@@ -2913,6 +2926,7 @@ public:
 
 	// Fast Index! No need to call advance index, and no random access allowed
 	void FastIndex( unsigned short index );
+	void FastQuad( int index );
 
 	// Fast Vertex! No need to call advance vertex, and no random access allowed. 
 	// WARNING - these are low level functions that are intended only for use
@@ -2929,6 +2943,7 @@ public:
 
 	void FastVertex( const ModelVertexDX8_t &vertex );
 	void FastVertexSSE( const ModelVertexDX8_t &vertex );
+	void FastQuadVertexSSE( const QuadTessVertex_t &vertex ); 
 
 	// Add number of verts and current vert since FastVertexxx routines do not update.
 	void FastAdvanceNVertices(int n);	
@@ -2936,6 +2951,17 @@ public:
 #if defined( _X360 )
 	void VertexDX8ToX360( const ModelVertexDX8_t &vertex );
 #endif
+
+	// this low level function gets you a pointer to the vertex output data. It is dangerous - any
+	// caller using it must understand the vertex layout that it is building. It is for optimized
+	// meshbuilding loops like particle drawing that use special shaders. After writing to the output
+		// data, you shuodl call FastAdvanceNVertices
+		FORCEINLINE void *GetVertexDataPtr( int nWhatSizeIThinkItIs )
+		{
+			if ( m_VertexBuilder.m_VertexSize_Position != nWhatSizeIThinkItIs )
+			return NULL;
+			return m_VertexBuilder.m_pCurrPosition;
+		}
 
 private:
 	// Computes number of verts and indices 
