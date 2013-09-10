@@ -82,6 +82,16 @@
 #include "bonetoworldarray.h"
 #include "cmodel.h"
 #include "rendertexture.h"
+#include "mathlib/mathlib.h"
+#include "flashlighteffect.h"
+#include "debugoverlay_shared.h"
+#include "shaderapi/ishaderapi.h" 
+#include "renderparm.h"
+
+/* FIXME
+#include "clientalphaproperty.h"
+#include "c_env_projectedtexture.h"
+*/
 
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -1020,8 +1030,12 @@ private:
 	void DestroyQueuedShadows();
 
 	// Deferred RTT shadow rendering support
-	static void BuildCubeWithDegenerateEdgeQuads( CMeshBuilder& meshBuilder, const matrix3×4_t& objToWorld, const VMatrix& projToShadow, const CClientShadowMgr::ClientShadow_t& shadow );
-	bool SetupDeferredShadow( const ClientShadow_t& shadow, const Vector& camPos, matrix3×4_t* pObjToWorldMat ) const;
+	static void BuildCubeWithDegenerateEdgeQuads( CMeshBuilder& meshBuilder,
+	const matrix3x4_t& objToWorld,
+	const VMatrix& projToShadow,
+	const CClientShadowMgr::ClientShadow_t& shadow );
+
+	bool SetupDeferredShadow( const ClientShadow_t& shadow,const Vector& camPos, matrix3x4_t* pObjToWorldMat) const;
 	void DownsampleDepthBuffer( IMatRenderContext* pRenderContext, const VMatrix& invViewProjMat );
 	void CompositeDeferredShadows( IMatRenderContext* pRenderContext );
 	static void ComputeFalloffInfo( const ClientShadow_t& shadow, Vector* pShadowFalloffParams );
