@@ -1027,7 +1027,7 @@ private:
 	bool	IsFlashlightTarget( ClientShadowHandle_t shadowHandle, IClientRenderable *pRenderable );
 
 	// Builds a list of active shadows requiring shadow depth renders
-	int		BuildActiveShadowDepthList( const CViewSetup &viewSetup, int nMaxDepthShadows, ClientShadowHandle_t *pActiveDepthShadows );
+	int		BuildActiveShadowDepthList( const CViewSetup &viewSetup, int nMaxDepthShadows, ClientShadowHandle_t *pActiveDepthShadows, int &nNumHighRes );
 
 	// Builds a list of active flashlights
 	int BuildActiveFlashlightList( const CViewSetup &viewSetup, int nMaxFlashlights, ClientShadowHandle_t *pActiveFlashlights );
@@ -3155,6 +3155,88 @@ IClientRenderable *CClientShadowMgr::GetParentShadowEntity( ClientShadowHandle_t
 // ASW
 //-----------------------------------------------------------------------------
 
+///////////////////////////////////////////////////////////////////////
+// Vertex and index data for cube with degenerate faces on each edge
+///////////////////////////////////////////////////////////////////////
+
+ALIGN16 static const float pShadowBoundVerts[] = 
+{
+	// +X face
+	 1.0f, -1.0f, -1.0f, 1.0f, 
+	 1.0f,  1.0f, -1.0f, 1.0f, 
+	 1.0f,  1.0f,  1.0f, 1.0f, 
+	 1.0f, -1.0f,  1.0f, 1.0f, 
+
+	// +Y face
+	-1.0f,  1.0f, -1.0f, 1.0f, 
+	-1.0f,  1.0f,  1.0f, 1.0f, 
+	 1.0f,  1.0f,  1.0f, 1.0f, 
+	 1.0f,  1.0f, -1.0f, 1.0f, 
+
+	// -X face
+	-1.0f, -1.0f,  1.0f, 1.0f, 
+	-1.0f,  1.0f,  1.0f, 1.0f, 
+	-1.0f,  1.0f, -1.0f, 1.0f, 
+	-1.0f, -1.0f, -1.0f, 1.0f, 
+
+	// -Y face
+	-1.0f, -1.0f, -1.0f, 1.0f, 
+	 1.0f, -1.0f, -1.0f, 1.0f, 
+	 1.0f, -1.0f,  1.0f, 1.0f, 
+	-1.0f, -1.0f,  1.0f, 1.0f, 
+	
+	// +Z face
+	-1.0f, -1.0f,  1.0f, 1.0f, 
+	 1.0f, -1.0f,  1.0f, 1.0f, 
+	 1.0f,  1.0f,  1.0f, 1.0f, 
+	-1.0f,  1.0f,  1.0f, 1.0f, 
+
+	// -Z face
+	 1.0f, -1.0f, -1.0f, 1.0f, 
+	-1.0f, -1.0f, -1.0f, 1.0f, 
+	-1.0f,  1.0f, -1.0f, 1.0f, 
+	 1.0f,  1.0f, -1.0f, 1.0f
+};
+
+ALIGN16 static const float pShadowBoundNormals[] = 
+{
+	1.0f, 0.0f, 0.0f, 0.0f,
+	0.0f, 1.0f, 0.0f, 0.0f,
+	-1.0f, 0.0f, 0.0f, 0.0f,
+	0.0f, -1.0f, 0.0f, 0.0f,
+
+	0.0f, 0.0f, 1.0f, 0.0f,
+	0.0f, 0.0f, -1.0f, 0.0f,
+
+};
+
+ALIGN16 static const unsigned short pShadowBoundIndices[] = 
+{
+	// box faces
+	0, 2, 1, 0, 3, 2,
+	4, 6, 5, 4, 7, 6,
+	8, 10, 9, 8, 11, 10,
+	12, 14, 13, 12, 15, 14,
+	16, 18, 17, 16, 19, 18,
+	20, 22, 21, 20, 23, 22,
+
+	// degenerate faces on edges
+	2, 7, 1, 2, 6, 7,
+	5, 10, 4, 5, 9, 10,
+	8, 12, 11, 8, 15, 12,
+	14, 0, 13, 14, 3, 0,
+
+	17, 2, 3, 17, 18, 2,
+	18, 5, 6, 18, 19, 5,
+	8, 19, 16, 8, 9, 19,
+	14, 16, 17, 14, 15, 16,
+
+	0, 23, 20, 0, 1, 23,
+	7, 22, 23, 7, 4, 22,
+	11, 21, 22, 11, 22, 10,
+	13, 21, 12, 13, 20, 21
+};
+
 void CClientShadowMgr::DrawDeferredShadows( const CViewSetup &view, int leafCount, LeafIndex_t* pLeafList )
 {
 	VPROF_BUDGET( __FUNCTION__, VPROF_BUDGETGROUP_SHADOW_RENDERING );
@@ -3288,7 +3370,7 @@ void CClientShadowMgr::DrawDeferredShadows( const CViewSetup &view, int leafCoun
 			// flush
 			meshBuilder.End();
 			pMesh->Draw();
-			meshBuilder.Begin( pMesh, MATERIAL_TRIANGLES, nMaxShadowsPerBatch * ARRAYSIZE( pShadowBoundVerts ) / 4, nMaxShaodwsPerBatch * ARRAYSIZE( pShadowBoundIndices ) );
+			meshBuilder.Begin( pMesh, MATERIAL_TRIANGLES, nMaxShadowsPerBatch * ARRAYSIZE( pShadowBoundVerts ) / 4, nMaxShadowsPerBatch * ARRAYSIZE( pShadowBoundIndices ) );
 			nNumShadowsBatched = 0;
 		}
 	}
@@ -4001,6 +4083,32 @@ staticpropmgr->AddShadowToStaticProp( shadow.m_ShadowHandle, pRenderable );     
 }
 }
 
+//-----------------------------------------------------------------------------
+// Sets the view's active flashlight render state
+//-----------------------------------------------------------------------------
+void CClientShadowMgr::SetViewFlashlightState( int nActiveFlashlightCount, ClientShadowHandle_t* pActiveFlashlights )
+{
+	// NOTE: On the 360, we render the entire scene with the flashlight state
+	// set and don't render flashlights additively in the shadow mgr at a far later time
+	// because the CPU costs are prohibitive
+
+	shadowmgr->PushSinglePassFlashlightStateEnabled( IsX360() );
+
+	if ( m_nMaxDepthTextureShadows > 1 )
+	{
+		AssertOnce( nActiveFlashlightCount <= m_nMaxDepthTextureShadows ); 
+	}
+
+	if ( nActiveFlashlightCount > 0 )
+	{
+		Assert( ( m_Shadows[ pActiveFlashlights[0] ].m_Flags & ( SHADOW_FLAGS_FLASHLIGHT | SHADOW_FLAGS_SIMPLE_PROJECTION ) ) != 0 );
+		shadowmgr->SetSinglePassFlashlightRenderState( m_Shadows[ pActiveFlashlights[0] ].m_ShadowHandle );
+	}
+	else
+	{
+		shadowmgr->SetSinglePassFlashlightRenderState( SHADOW_HANDLE_INVALID );
+	}	
+}
 
 //-----------------------------------------------------------------------------
 // Kicks off rendering of volumetrics for the flashlights
@@ -4029,87 +4137,7 @@ void CClientShadowMgr::DrawVolumetrics( const CViewSetup &viewSetup )
 
 
 
-///////////////////////////////////////////////////////////////////////
-// Vertex and index data for cube with degenerate faces on each edge
-///////////////////////////////////////////////////////////////////////
 
-ALIGN16 static const float pShadowBoundVerts[] = 
-{
-	// +X face
-	 1.0f, -1.0f, -1.0f, 1.0f, 
-	 1.0f,  1.0f, -1.0f, 1.0f, 
-	 1.0f,  1.0f,  1.0f, 1.0f, 
-	 1.0f, -1.0f,  1.0f, 1.0f, 
-
-	// +Y face
-	-1.0f,  1.0f, -1.0f, 1.0f, 
-	-1.0f,  1.0f,  1.0f, 1.0f, 
-	 1.0f,  1.0f,  1.0f, 1.0f, 
-	 1.0f,  1.0f, -1.0f, 1.0f, 
-
-	// -X face
-	-1.0f, -1.0f,  1.0f, 1.0f, 
-	-1.0f,  1.0f,  1.0f, 1.0f, 
-	-1.0f,  1.0f, -1.0f, 1.0f, 
-	-1.0f, -1.0f, -1.0f, 1.0f, 
-
-	// -Y face
-	-1.0f, -1.0f, -1.0f, 1.0f, 
-	 1.0f, -1.0f, -1.0f, 1.0f, 
-	 1.0f, -1.0f,  1.0f, 1.0f, 
-	-1.0f, -1.0f,  1.0f, 1.0f, 
-	
-	// +Z face
-	-1.0f, -1.0f,  1.0f, 1.0f, 
-	 1.0f, -1.0f,  1.0f, 1.0f, 
-	 1.0f,  1.0f,  1.0f, 1.0f, 
-	-1.0f,  1.0f,  1.0f, 1.0f, 
-
-	// -Z face
-	 1.0f, -1.0f, -1.0f, 1.0f, 
-	-1.0f, -1.0f, -1.0f, 1.0f, 
-	-1.0f,  1.0f, -1.0f, 1.0f, 
-	 1.0f,  1.0f, -1.0f, 1.0f
-};
-
-ALIGN16 static const float pShadowBoundNormals[] = 
-{
-	1.0f, 0.0f, 0.0f, 0.0f,
-	0.0f, 1.0f, 0.0f, 0.0f,
-	-1.0f, 0.0f, 0.0f, 0.0f,
-	0.0f, -1.0f, 0.0f, 0.0f,
-
-	0.0f, 0.0f, 1.0f, 0.0f,
-	0.0f, 0.0f, -1.0f, 0.0f,
-
-};
-
-ALIGN16 static const unsigned short pShadowBoundIndices[] = 
-{
-	// box faces
-	0, 2, 1, 0, 3, 2,
-	4, 6, 5, 4, 7, 6,
-	8, 10, 9, 8, 11, 10,
-	12, 14, 13, 12, 15, 14,
-	16, 18, 17, 16, 19, 18,
-	20, 22, 21, 20, 23, 22,
-
-	// degenerate faces on edges
-	2, 7, 1, 2, 6, 7,
-	5, 10, 4, 5, 9, 10,
-	8, 12, 11, 8, 15, 12,
-	14, 0, 13, 14, 3, 0,
-
-	17, 2, 3, 17, 18, 2,
-	18, 5, 6, 18, 19, 5,
-	8, 19, 16, 8, 9, 19,
-	14, 16, 17, 14, 15, 16,
-
-	0, 23, 20, 0, 1, 23,
-	7, 22, 23, 7, 4, 22,
-	11, 21, 22, 11, 22, 10,
-	13, 21, 12, 13, 20, 21
-};
 
 // BuildCubeWithDegenerateEdgeQuads (begin) //
 void CClientShadowMgr::BuildCubeWithDegenerateEdgeQuads( CMeshBuilder& meshBuilder, const matrix3x4_t& objToWorld, const VMatrix& projToShadow, const CClientShadowMgr::ClientShadow_t& shadow )
@@ -4216,6 +4244,126 @@ void CClientShadowMgr::BuildCubeWithDegenerateEdgeQuads( CMeshBuilder& meshBuild
 	}
 }
 // BuildCubeWithDegenerateEdgeQuads (end) //
+
+//-----------------------------------------------------------------------------
+// Re-render shadow depth textures that lie in the leaf list
+//-----------------------------------------------------------------------------
+int CClientShadowMgr::BuildActiveShadowDepthList( const CViewSetup &viewSetup, int nMaxDepthShadows, ClientShadowHandle_t *pActiveDepthShadows, int &nNumHighRes )
+{
+	float fDots[ 1024 ];
+
+	nNumHighRes = 0;
+
+	Frustum_t viewFrustum;
+	GeneratePerspectiveFrustum( viewSetup.origin, viewSetup.angles, viewSetup.zNear, viewSetup.zFar, viewSetup.fov, viewSetup.m_flAspectRatio, viewFrustum );
+
+	// Get a general look position for 
+	Vector vViewForward;
+	AngleVectors( viewSetup.angles, &vViewForward );
+
+	int nActiveDepthShadowCount = 0;
+
+	for ( ClientShadowHandle_t i = m_Shadows.Head(); i != m_Shadows.InvalidIndex(); i = m_Shadows.Next(i) )
+	{
+		if ( nActiveDepthShadowCount >= nMaxDepthShadows && nNumHighRes == nActiveDepthShadowCount )
+		{
+			// Easy out! There's nothing more we can do
+			break;
+		}
+
+		ClientShadow_t& shadow = m_Shadows[i];
+
+		// If this is not a flashlight which should use a shadow depth texture, skip!
+		if ( ( shadow.m_Flags & SHADOW_FLAGS_USE_DEPTH_TEXTURE ) == 0 )
+			continue;
+
+		ASSERT_LOCAL_PLAYER_RESOLVABLE();
+		if ( ( shadow.m_nSplitscreenOwner >= 0 ) && ( shadow.m_nSplitscreenOwner != GET_ACTIVE_SPLITSCREEN_SLOT() ) )
+			continue;
+
+		const FlashlightState_t& flashlightState = shadowmgr->GetFlashlightState( shadow.m_ShadowHandle );
+
+		// Bail if this flashlight doesn't want shadows
+		if ( !flashlightState.m_bEnableShadows )
+			continue;
+
+		// Calculate an AABB around the shadow frustum
+		Vector vecAbsMins, vecAbsMaxs;
+		CalculateAABBFromProjectionMatrix( shadow.m_WorldToShadow, &vecAbsMins, &vecAbsMaxs );
+
+		// FIXME: Could do other sorts of culling here, such as frustum-frustum test, distance etc.
+		// If it's not in the view frustum, move on
+		if ( !flashlightState.m_bOrtho && viewFrustum.CullBox( vecAbsMins, vecAbsMaxs ) )
+		{
+			shadowmgr->SetFlashlightDepthTexture( shadow.m_ShadowHandle, NULL, 0 );
+			continue;
+		}
+
+		if ( nActiveDepthShadowCount >= nMaxDepthShadows )
+		{
+			if ( !flashlightState.m_bShadowHighRes )
+			{
+				// All active shadows are high res
+				static bool s_bOverflowWarning = false;
+				if ( !s_bOverflowWarning )
+				{
+					Warning( "Too many depth textures rendered in a single view!\n" );
+					Assert( 0 );
+					s_bOverflowWarning = true;
+				}
+				shadowmgr->SetFlashlightDepthTexture( shadow.m_ShadowHandle, NULL, 0 );
+				continue;
+			}
+			else
+			{
+				// Lets take the place of other non high res active shadows
+				for ( int j = nActiveDepthShadowCount - 1; j >= 0; --j )
+				{
+					// Find a low res one to replace
+					ClientShadow_t& prevShadow = m_Shadows[ pActiveDepthShadows[ j ] ];
+					const FlashlightState_t& prevFlashlightState = shadowmgr->GetFlashlightState( prevShadow.m_ShadowHandle );
+
+					if ( !prevFlashlightState.m_bShadowHighRes )
+					{
+						pActiveDepthShadows[ j ] = i;
+						++nNumHighRes;
+						break;
+					}
+				}
+
+				continue;
+			}
+		}
+
+		if ( flashlightState.m_bShadowHighRes )
+		{
+			++nNumHighRes;
+		}
+
+		// Calculate the approximate distance to the nearest side
+		Vector vLightDirection = flashlightState.m_vecLightOrigin - viewSetup.origin;
+		VectorNormalize( vLightDirection );
+		fDots[ nActiveDepthShadowCount ] = vLightDirection.Dot( vViewForward );
+
+		pActiveDepthShadows[ nActiveDepthShadowCount++ ] = i;
+	}
+
+	// sort them
+	for ( int i = 0; i < nActiveDepthShadowCount - 1; i++ )
+	{
+		for ( int j = 0; j < nActiveDepthShadowCount - i - 1; j++ )
+		{
+			if ( fDots[ j ] < fDots[ j + 1 ] )
+			{
+				ClientShadowHandle_t nTemp = pActiveDepthShadows[ j ];
+				pActiveDepthShadows[ j ] = pActiveDepthShadows[ j + 1 ];
+				pActiveDepthShadows[ j + 1 ] = nTemp;
+			}
+		}
+	}
+
+	return nActiveDepthShadowCount;
+}
 
 //-----------------------------------------------------------------------------
 // Re-render shadow depth textures that lie in the leaf list

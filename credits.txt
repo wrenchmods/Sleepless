@@ -1,0 +1,39 @@
+==TEXTURES==
+oskutin
+Stene
+TheBestFlash
+CrazyRabbit
+Red Schism
+dDefinder
+Top Hat Waffle
+Riott
+Minecraft
+MANDRAC
+Fish
+Barbarian887
+
+==MODELS==
+Valve Software
+oskutin
+Baolia
+OneFreeMan
+Obersturmbannf
+Wasp
+Mass Effect 2
+AdamGuy61
+Snood
+HGrunts
+Dj Lukis.LT
+
+==SOUNDS==
+Valve
+Amnesia: The Dark Descent
+Razor
+Lost Soul
+Black Mesa: Source Team
+
+==SPECIAL THANKS TO==
+code.google.com/p/gimp-vtf/
+Rock Lobster
+Black Mesa: Source Team
+Valve Software
