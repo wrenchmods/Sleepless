@@ -174,10 +174,16 @@ public:
 
 	virtual bool SupportsShaderModel_3_0() const = 0;
 	virtual bool HasFastVertexTextures() const = 0;
+
+	virtual float GetShadowDepthBias() const = 0;
+	virtual float GetShadowSlopeScaleDepthBias() const = 0;
+
 	virtual int MaxHWMorphBatchCount() const = 0;
 
 	// Does the board actually support this?
 	DEFCONFIGMETHOD( bool, ActuallySupportsPixelShaders_2_b(), true );
+
+	virtual bool SupportsShadowDepthTextures( void ) const = 0;
 
 	virtual bool SupportsHDRMode( HDRType_t nHDRMode ) const = 0;
 

@@ -86,7 +86,7 @@ bool IsReflectiveGlassInView( const CViewSetup& view, cplane_t &plane )
 
 		Vector vecMins, vecMaxs;
 		pReflectiveGlass->GetRenderBoundsWorldspace( vecMins, vecMaxs );
-		if ( R_CullBox( vecMins, vecMaxs, frustum ) )
+		if ( frustum.CullBox( vecMins, vecMaxs ) )
 			continue;
 
 		const model_t *pModel = pReflectiveGlass->GetModel();

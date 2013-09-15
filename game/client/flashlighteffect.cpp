@@ -380,6 +380,81 @@ void CFlashlightEffect::UpdateLightNew(const Vector &vecPos, const Vector &vecFo
 #endif
 }
 
+void CFlashlightEffect::UpdateLightTopDown(const Vector &vecPos, const Vector &vecForward, const Vector &vecRight, const Vector &vecUp )
+{
+	VPROF_BUDGET( "CFlashlightEffect::UpdateLightTopDown", VPROF_BUDGETGROUP_SHADOW_DEPTH_TEXTURING );
+
+	FlashlightState_t state;
+
+	state.m_vecLightOrigin = vecPos;
+
+	Vector vTarget = vecPos + vecForward * r_flashlightfar.GetFloat();
+
+	// Work with these local copies of the basis for the rest of the function
+	Vector vDir   = vTarget - vecPos;
+	Vector vRight = vecRight;
+	Vector vUp    = vecUp;
+	VectorNormalize( vDir   );
+	VectorNormalize( vRight );
+	VectorNormalize( vUp    );
+
+	// Orthonormalize the basis, since the flashlight texture projection will require this later...
+	vUp -= DotProduct( vDir, vUp ) * vDir;
+	VectorNormalize( vUp );
+	vRight -= DotProduct( vDir, vRight ) * vDir;
+	VectorNormalize( vRight );
+	vRight -= DotProduct( vUp, vRight ) * vUp;
+	VectorNormalize( vRight );
+
+	AssertFloatEquals( DotProduct( vDir, vRight ), 0.0f, 1e-3 );
+	AssertFloatEquals( DotProduct( vDir, vUp    ), 0.0f, 1e-3 );
+	AssertFloatEquals( DotProduct( vRight, vUp  ), 0.0f, 1e-3 );
+
+	BasisToQuaternion( vDir, vRight, vUp, state.m_quatOrientation );
+
+	state.m_fConstantAtten = r_flashlightconstant.GetFloat();
+	state.m_fQuadraticAtten = r_flashlightquadratic.GetFloat();
+	state.m_fLinearAtten = r_flashlightlinear.GetFloat();
+	state.m_fHorizontalFOVDegrees = r_flashlightfov.GetFloat();
+	state.m_fVerticalFOVDegrees = r_flashlightfov.GetFloat();
+
+	state.m_Color[0] = 1.0f;
+	state.m_Color[1] = 1.0f;
+	state.m_Color[2] = 1.0f;
+	state.m_Color[3] = r_flashlightambient.GetFloat();
+	state.m_NearZ = r_flashlightnear.GetFloat() + m_flCurrentPullBackDist;		// Push near plane out so that we don't clip the world when the flashlight pulls back 
+	state.m_FarZ = state.m_FarZAtten = r_flashlightfar.GetFloat();	// Strictly speaking, these are different, but the game can treat them the same
+	state.m_bEnableShadows = state.m_bEnableShadows && r_flashlightdepthtexture.GetBool();
+	state.m_flShadowMapResolution = r_flashlightdepthres.GetInt();
+
+	state.m_pSpotlightTexture = m_FlashlightTexture;
+	state.m_nSpotlightTextureFrame = 0;
+
+	state.m_flShadowAtten = r_flashlightshadowatten.GetFloat();
+	state.m_flShadowSlopeScaleDepthBias = g_pMaterialSystemHardwareConfig->GetShadowSlopeScaleDepthBias();
+	state.m_flShadowDepthBias = g_pMaterialSystemHardwareConfig->GetShadowDepthBias();
+
+	// @Deferred - Biohazard
+	UpdateLightProjection( state );
+
+	// Kill the old flashlight method if we have one.
+	// FIXME: This doesn't compile
+//	LightOffOld();
+
+#ifndef NO_TOOLFRAMEWORK
+	if ( clienttools->IsInRecordingMode() )
+	{
+		KeyValues *msg = new KeyValues( "FlashlightState" );
+		msg->SetFloat( "time", gpGlobals->curtime );
+		msg->SetInt( "entindex", m_nEntIndex );
+		msg->SetInt( "flashlightHandle", m_FlashlightHandle );
+		msg->SetPtr( "flashlightState", &state );
+		ToolFramework_PostToolMessage( HTOOLHANDLE_INVALID, msg );
+		msg->deleteThis();
+	}
+#endif
+}
+
 //-----------------------------------------------------------------------------
 // Purpose: Do the headlight
 //-----------------------------------------------------------------------------

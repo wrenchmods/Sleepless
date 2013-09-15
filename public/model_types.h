@@ -29,6 +29,8 @@
 // Not a studio flag, but used to flag model as using shadow depth material override
 #define STUDIO_SHADOWDEPTHTEXTURE		0x40000000
 
+#define STUDIO_SHADOWTEXTURE			0x20000000
+
 
 enum modtype_t
 {

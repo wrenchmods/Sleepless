@@ -929,32 +929,6 @@ void UTIL_StringToVector( float *pVector, const char *pString )
 	UTIL_StringToFloatArray( pVector, 3, pString );
 }
 
-void UTIL_StringToIntArray( int *pVector, int count, const char *pString )
-{
-	char *pstr, *pfront, tempString[128];
-	int	j;
-
-	Q_strncpy( tempString, pString, sizeof(tempString) );
-	pstr = pfront = tempString;
-
-	for ( j = 0; j < count; j++ )			// lifted from pr_edict.c
-	{
-		pVector[j] = atoi( pfront );
-
-		while ( *pstr && *pstr != ' ' )
-			pstr++;
-		if (!*pstr)
-			break;
-		pstr++;
-		pfront = pstr;
-	}
-
-	for ( j++; j < count; j++ )
-	{
-		pVector[j] = 0;
-	}
-}
-
 void UTIL_StringToColor32( color32 *color, const char *pString )
 {
 	int tmp[4];

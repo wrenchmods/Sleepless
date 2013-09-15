@@ -244,6 +244,8 @@ public:
 	virtual void				GetViewAngles( QAngle& va ) = 0;
 	// Set current view orientation from va
 	virtual void				SetViewAngles( QAngle& va ) = 0;
+
+	virtual bool				CullBox( const Vector& mins, const Vector& maxs ) = 0;
 	
 	// Retrieve the current game's maxclients setting
 	virtual int					GetMaxClients( void ) = 0;
@@ -279,7 +281,6 @@ public:
 	virtual int					IsBoxInViewCluster( const Vector& mins, const Vector& maxs ) = 0;
 	
 	// Returns true if the specified box is outside of the view frustum and should be culled
-	virtual bool				CullBox( const Vector& mins, const Vector& maxs ) = 0;
 
 	// Allow the sound system to paint additional data (during lengthy rendering operations) to prevent stuttering sound.
 	virtual void				Sound_ExtraUpdate( void ) = 0;

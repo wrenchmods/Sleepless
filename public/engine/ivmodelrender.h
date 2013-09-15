@@ -142,6 +142,8 @@ public:
 	// Removes all the decals on a model instance
 	virtual void RemoveAllDecals( ModelInstanceHandle_t handle ) = 0;
 
+	virtual bool GetBrightestShadowingLightSource( const Vector &vecCenter, Vector& lightPos, Vector& lightBrightness, bool bAllowNonTaggedLights ) = 0;
+
 	// Remove all decals from all models
 	virtual void RemoveAllDecalsFromAllModels() = 0;
 

@@ -44,6 +44,11 @@ enum ShadowType_t
 	SHADOWS_RENDER_TO_DEPTH_TEXTURE,
 };
 
+struct RenderableInstance_t
+{
+	uint8 m_nAlpha;
+};
+
 
 // This provides a way for entities to know when they've entered or left the PVS.
 // Normally, server entities can use NotifyShouldTransmit to get this info, but client-only

@@ -35,10 +35,14 @@ protected:
 
 	// @Deferred - Biohazard
 	virtual void UpdateLightProjection( FlashlightState_t &state );
+	void UpdateLightTopDown(const Vector &vecPos, const Vector &vecDir, const Vector &vecRight, const Vector &vecUp);
 
 	void LightOff();
 	void LightOffOld();
 	void LightOffNew();
+
+	float m_flCurrentPullBackDist;
+	float m_FarZAtten;
 
 	void UpdateLightNew(const Vector &vecPos, const Vector &vecDir, const Vector &vecRight, const Vector &vecUp);
 	void UpdateLightOld(const Vector &vecPos, const Vector &vecDir, int nDistance);

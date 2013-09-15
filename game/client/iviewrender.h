@@ -15,6 +15,12 @@
 
 #include "ivrenderview.h"
 
+#define MAX_DEPTH_TEXTURE_SHADOWS 1
+#define MAX_DEPTH_TEXTURE_HIGHRES_SHADOWS 0
+
+#define MAX_DEPTH_TEXTURE_SHADOWS_TOOLS 8
+#define MAX_DEPTH_TEXTURE_HIGHRES_SHADOWS_TOOLS 0
+
 
 // These are set as it draws reflections, refractions, etc, so certain effects can avoid 
 // drawing themselves in reflections.

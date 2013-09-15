@@ -3764,7 +3764,7 @@ void C_BaseEntity::CreateShadow()
 				flags |= SHADOW_FLAGS_USE_RENDER_TO_TEXTURE;
 			if (shadowType == SHADOWS_RENDER_TO_TEXTURE_DYNAMIC)
 				flags |= SHADOW_FLAGS_ANIMATING_SOURCE;
-			m_ShadowHandle = g_pClientShadowMgr->CreateShadow(GetClientHandle(), flags);
+			m_ShadowHandle = g_pClientShadowMgr->CreateShadow(GetClientHandle(), entindex(), flags );
 		}
 	}
 }

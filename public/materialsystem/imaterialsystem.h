@@ -522,6 +522,7 @@ struct FlashlightState_t
 	float m_fQuadraticAtten;
 	float m_fLinearAtten;
 	float m_fConstantAtten;
+	float m_FarZAtten;
 	float m_Color[4];
 	ITexture *m_pSpotlightTexture;
 	int m_nSpotlightTextureFrame;
@@ -1556,6 +1557,19 @@ private:
 
 };
 
+class CMatRenderDataReference
+{
+public:
+	CMatRenderDataReference();
+	CMatRenderDataReference( IMatRenderContext* pRenderContext );
+	~CMatRenderDataReference();
+	void Lock( IMatRenderContext *pRenderContext );
+	void Release();
+
+private:
+	IMatRenderContext *m_pRenderContext;
+};
+
 //-----------------------------------------------------------------------------
 // Helper class for begin/end of pix event via constructor/destructor 
 //-----------------------------------------------------------------------------
@@ -1578,6 +1592,11 @@ public:
 private:
 	IMatRenderContext *m_pRenderContext;
 };
+
+inline CMatRenderDataReference::CMatRenderDataReference()
+{
+	m_pRenderContext = NULL;
+}
 
 
 #define PIX_ENABLE 0		// set this to 1 and build engine/studiorender to enable pix events in the engine

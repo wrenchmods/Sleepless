@@ -610,7 +610,7 @@ bool CClientTools::GetLocalPlayerEyePosition( Vector& org, QAngle& ang, float &f
 //-----------------------------------------------------------------------------
 ClientShadowHandle_t CClientTools::CreateShadow( CBaseHandle h, int nFlags )
 {
-	return g_pClientShadowMgr->CreateShadow( h, nFlags );
+	return g_pClientShadowMgr->CreateShadow( h, nFlags, NULL );
 }
 
 void CClientTools::DestroyShadow( ClientShadowHandle_t h )
