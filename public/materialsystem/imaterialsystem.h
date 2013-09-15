@@ -512,6 +512,13 @@ struct FlashlightState_t
 	float m_FarZ;
 	float m_fHorizontalFOVDegrees;
 	float m_fVerticalFOVDegrees;
+
+	bool  m_bOrtho;
+	float m_fOrthoLeft;
+	float m_fOrthoRight;
+	float m_fOrthoTop;
+	float m_fOrthoBottom;
+
 	float m_fQuadraticAtten;
 	float m_fLinearAtten;
 	float m_fConstantAtten;
@@ -529,6 +536,7 @@ struct FlashlightState_t
 	float m_flShadowJitterSeed;
 	float m_flShadowAtten;
 	int   m_nShadowQuality;
+	bool  m_bShadowHighRes;
 
 	// Getters for scissor members
 	bool DoScissor() { return m_bScissor; }

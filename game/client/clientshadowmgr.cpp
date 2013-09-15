@@ -4277,10 +4277,6 @@ int CClientShadowMgr::BuildActiveShadowDepthList( const CViewSetup &viewSetup, i
 		if ( ( shadow.m_Flags & SHADOW_FLAGS_USE_DEPTH_TEXTURE ) == 0 )
 			continue;
 
-		ASSERT_LOCAL_PLAYER_RESOLVABLE();
-		if ( ( shadow.m_nSplitscreenOwner >= 0 ) && ( shadow.m_nSplitscreenOwner != GET_ACTIVE_SPLITSCREEN_SLOT() ) )
-			continue;
-
 		const FlashlightState_t& flashlightState = shadowmgr->GetFlashlightState( shadow.m_ShadowHandle );
 
 		// Bail if this flashlight doesn't want shadows
@@ -4376,8 +4372,9 @@ void CClientShadowMgr::ComputeShadowDepthTextures( const CViewSetup &viewSetup )
 	PIXEVENT( pRenderContext, "Shadow Depth Textures" );
 
 	// Build list of active render-to-texture shadows
+	int iNumHighRes = 0;
 	ClientShadowHandle_t pActiveDepthShadows[1024];
-	int nActiveDepthShadowCount = BuildActiveShadowDepthList( viewSetup, ARRAYSIZE( pActiveDepthShadows ), pActiveDepthShadows );
+	int nActiveDepthShadowCount = BuildActiveShadowDepthList( viewSetup, ARRAYSIZE( pActiveDepthShadows ), pActiveDepthShadows, iNumHighRes );
 
 	// Iterate over all existing textures and allocate shadow textures
 	bool bDebugFrustum = r_flashlightdrawfrustum.GetBool();
@@ -4451,6 +4448,7 @@ static void SetupBonesOnBaseAnimating( C_BaseAnimating *&pBaseAnimating )
 
 void CClientShadowMgr::ComputeShadowTextures( const CViewSetup &view, int leafCount, LeafIndex_t* pLeafList )
 {
+
 	VPROF_BUDGET( "CClientShadowMgr::ComputeShadowTextures", VPROF_BUDGETGROUP_SHADOW_RENDERING );
 
 	if ( !m_RenderToTextureActive || (r_shadows.GetInt() == 0) || r_shadows_gamecontrol.GetInt() == 0 )
@@ -5007,6 +5005,134 @@ void DeferredShadowDownsampleToggleCallback( IConVar *var, const char *pOldValue
 {
 	s_ClientShadowMgr.ShutdownDeferredShadows();
 	s_ClientShadowMgr.InitDeferredShadows();
+}
+
+//-----------------------------------------------------------------------------
+// This gets called with every shadow that potentially will need to re-render
+//-----------------------------------------------------------------------------
+bool CClientShadowMgr::BuildSetupListForRenderToTextureShadow( unsigned short clientShadowHandle, float flArea )
+{
+	ClientShadow_t& shadow = m_Shadows[clientShadowHandle];
+	bool bDirtyTexture = (shadow.m_Flags & SHADOW_FLAGS_TEXTURE_DIRTY) != 0;
+	bool bNeedsRedraw = m_ShadowAllocator.UseTexture( shadow.m_ShadowTexture, bDirtyTexture, flArea );
+	if ( bNeedsRedraw || bDirtyTexture )
+	{
+		shadow.m_Flags |= SHADOW_FLAGS_TEXTURE_DIRTY;
+
+		if ( !m_ShadowAllocator.HasValidTexture( shadow.m_ShadowTexture ) )
+			return false;
+
+		// shadow to be redrawn; for now, we'll always do it.
+		IClientRenderable *pRenderable = ClientEntityList().GetClientRenderableFromHandle( shadow.m_Entity );
+
+		if ( BuildSetupShadowHierarchy( pRenderable, shadow ) )
+			return true;
+	}
+	return false;
+}
+
+//-----------------------------------------------------------------------------
+// This gets called with every shadow that potentially will need to re-render
+//-----------------------------------------------------------------------------
+bool CClientShadowMgr::DrawRenderToTextureShadow( unsigned short clientShadowHandle, float flArea )
+{
+	ClientShadow_t& shadow = m_Shadows[clientShadowHandle];
+
+	// If we were previously using the LOD shadow, set the material
+	bool bPreviouslyUsingLODShadow = ( shadow.m_Flags & SHADOW_FLAGS_USING_LOD_SHADOW ) != 0; 
+	shadow.m_Flags &= ~SHADOW_FLAGS_USING_LOD_SHADOW;
+	if ( bPreviouslyUsingLODShadow )
+	{
+		shadowmgr->SetShadowMaterial( shadow.m_ShadowHandle, m_RenderShadow, m_RenderModelShadow, (void*)clientShadowHandle );
+	}
+
+	// Mark texture as being used...
+	bool bDirtyTexture = (shadow.m_Flags & SHADOW_FLAGS_TEXTURE_DIRTY) != 0;
+	bool bDrewTexture = false;
+	bool bNeedsRedraw = m_ShadowAllocator.UseTexture( shadow.m_ShadowTexture, bDirtyTexture, flArea );
+
+	if ( !m_ShadowAllocator.HasValidTexture( shadow.m_ShadowTexture ) )
+	{
+		DrawRenderToTextureShadowLOD( clientShadowHandle );
+		return false;
+	}
+
+	if ( bNeedsRedraw || bDirtyTexture )
+	{
+		// shadow to be redrawn; for now, we'll always do it.
+		IClientRenderable *pRenderable = ClientEntityList().GetClientRenderableFromHandle( shadow.m_Entity );
+
+		CMatRenderContextPtr pRenderContext( materials );
+		
+		// Sets the viewport state
+		int x, y, w, h;
+		m_ShadowAllocator.GetTextureRect( shadow.m_ShadowTexture, x, y, w, h );
+		pRenderContext->Viewport( IsX360() ? 0 : x, IsX360() ? 0 : y, w, h ); 
+
+		// Clear the selected viewport only (don't need to clear depth)
+		pRenderContext->ClearBuffers( true, false );
+
+		pRenderContext->MatrixMode( MATERIAL_VIEW );
+		pRenderContext->LoadMatrix( shadow.m_WorldToTexture );
+
+		if ( DrawShadowHierarchy( pRenderable, shadow ) )
+		{
+			bDrewTexture = true;
+			if ( IsX360() )
+			{
+				// resolve render target to system memory texture
+				Rect_t srcRect = { 0, 0, w, h };
+				Rect_t dstRect = { x, y, w, h };
+				pRenderContext->CopyRenderTargetToTextureEx( m_ShadowAllocator.GetTexture(), 0, &srcRect, &dstRect );
+			}
+		}
+		else
+		{
+			// NOTE: Think the flags reset + texcoord set should only happen in DrawShadowHierarchy
+			// but it's 2 days before 360 ship.. not going to change this now.
+			DevMsg( "Didn't draw shadow hierarchy.. bad shadow texcoords probably going to happen..grab Brian!\n" );
+		}
+
+		// Only clear the dirty flag if the caster isn't animating
+		if ( (shadow.m_Flags & SHADOW_FLAGS_ANIMATING_SOURCE) == 0 )
+		{
+			shadow.m_Flags &= ~SHADOW_FLAGS_TEXTURE_DIRTY;
+		}
+
+		SetRenderToTextureShadowTexCoords( shadow.m_ShadowHandle, x, y, w, h );
+	}
+	else if ( bPreviouslyUsingLODShadow )
+	{
+		// In this case, we were previously using the LOD shadow, but we didn't
+		// have to reconstitute the texture. In this case, we need to reset the texcoord
+		int x, y, w, h;
+		m_ShadowAllocator.GetTextureRect( shadow.m_ShadowTexture, x, y, w, h );
+		SetRenderToTextureShadowTexCoords( shadow.m_ShadowHandle, x, y, w, h );
+	}
+
+	return bDrewTexture;
+}
+
+
+//-----------------------------------------------------------------------------
+// "Draws" the shadow LOD, which really means just set up the blobby shadow
+//-----------------------------------------------------------------------------
+void CClientShadowMgr::DrawRenderToTextureShadowLOD( unsigned short clientShadowHandle )
+{
+	if ( r_shadow_deferred.GetBool() )
+	{
+		return;
+	}
+
+	ClientShadow_t &shadow = m_Shadows[clientShadowHandle];
+
+	if ( (shadow.m_Flags & SHADOW_FLAGS_USING_LOD_SHADOW) == 0 )
+	{
+		shadowmgr->SetShadowMaterial( shadow.m_ShadowHandle, m_SimpleShadow, m_SimpleShadow, (void*)CLIENTSHADOW_INVALID_HANDLE );
+		shadowmgr->SetShadowTexCoord( shadow.m_ShadowHandle, 0, 0, 1, 1 );
+		ClearExtraClipPlanes( shadow.m_ShadowHandle );
+		shadow.m_Flags |= SHADOW_FLAGS_USING_LOD_SHADOW;
+	}
 }
 
 //------------------------------------------------------------------

@@ -101,6 +101,7 @@
 // @Deferred - Biohazard
 // for cookie string table
 #include "deferred/deferred_shared_common.h"
+#include "deferred/deferred_shared_common.cpp"
 
 extern IToolFrameworkServer *g_pToolFrameworkServer;
 extern IParticleSystemQuery *g_pParticleSystemQuery;

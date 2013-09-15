@@ -75,7 +75,7 @@ enum
 
 extern int SignbitsForPlane( cplane_t *out );
 
-class Frustum_t
+class ALIGN16 Frustum_t
 {
 public:
 	void SetPlane( int i, int nType, const Vector &vecNormal, float dist )
@@ -89,6 +89,11 @@ public:
 
 	inline const cplane_t *GetPlane( int i ) const { return &m_Plane[i]; }
 	inline const Vector &GetAbsNormal( int i ) const { return m_AbsNormal[i]; }
+
+	Frustum_t();
+	// returns false if the box is within the frustum, true if it is outside
+	bool CullBox( const Vector &mins, const Vector &maxs ) const;
+	bool CullBoxCenterExtents( const Vector &center, const Vector &extents ) const;
 
 private:
 	cplane_t	m_Plane[FRUSTUM_NUMPLANES];
@@ -106,6 +111,7 @@ void GeneratePerspectiveFrustum( const Vector& origin, const Vector &forward, co
 
 // Cull the world-space bounding box to the specified frustum.
 bool R_CullBox( const Vector& mins, const Vector& maxs, const Frustum_t &frustum );
+
 bool R_CullBoxSkipNear( const Vector& mins, const Vector& maxs, const Frustum_t &frustum );
 
 struct matrix3x4_t
