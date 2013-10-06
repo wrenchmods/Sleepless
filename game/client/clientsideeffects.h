@@ -59,7 +59,6 @@ public:
 extern IEffectsList *clienteffects;
 
 class IMaterialSystem;
-extern IMaterialSystem *materials;
 
 //Actual function references
 void FX_AddCube( const Vector &mins, const Vector &maxs, const Vector &vColor, float life, const char *materialName );

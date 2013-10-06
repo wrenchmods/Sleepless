@@ -178,6 +178,8 @@ public:
 
 	SimpleParticle*	AddSimpleParticle( PMaterialHandle hMaterial, const Vector &vOrigin, float flDieTime=3, unsigned char uchSize=10 );
 	
+	void			SetShouldDrawForSplitScreenUser( int nSlot );
+
 // Overridables for variants like CEmberEffect.
 protected:
 					CSimpleEmitter( const char *pDebugName = NULL );
@@ -191,6 +193,9 @@ protected:
 
 	float			m_flNearClipMin;
 	float			m_flNearClipMax;
+
+	int				m_nSplitScreenPlayerSlot;
+
 
 private:
 	CSimpleEmitter( const CSimpleEmitter & ); // not defined, not accessible

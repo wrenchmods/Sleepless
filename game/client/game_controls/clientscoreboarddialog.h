@@ -12,8 +12,9 @@
 #endif
 
 #include <vgui_controls/EditablePanel.h>
+#include <vgui_controls/Label.h>
 #include <game/client/iviewport.h>
-#include "gameeventlistener.h"
+#include "GameEventListener.h"
 
 #define TYPE_NOTEAM			0	// NOTEAM must be zero :)
 #define TYPE_TEAM			1	// a section for a single team	
@@ -53,6 +54,7 @@ public:
 	vgui::VPANEL GetVPanel( void ) { return BaseClass::GetVPanel(); }
   	virtual bool IsVisible() { return BaseClass::IsVisible(); }
   	virtual void SetParent( vgui::VPANEL parent ) { BaseClass::SetParent( parent ); }
+	virtual bool WantsBackgroundBlurred( void ) { return false; }
  	
 	// IGameEventListener interface:
 	virtual void FireGameEvent( IGameEvent *event);
@@ -76,6 +78,7 @@ protected:
 	static bool StaticPlayerSortFunc(vgui::SectionedListPanel *list, int itemID1, int itemID2);
 
 	virtual void ApplySchemeSettings(vgui::IScheme *pScheme);
+	virtual void ApplySettings(KeyValues *inResourceData);
 
 	virtual void PostApplySchemeSettings( vgui::IScheme *pScheme );
 
@@ -90,10 +93,11 @@ protected:
 	int s_VoiceImage[5];
 	int TrackerImage;
 	int	m_HLTVSpectators;
+	int m_ReplaySpectators;
 	float m_fNextUpdateTime;
 
 	void MoveLabelToFront(const char *textEntryName);
-	void MoveToCenterOfScreen();
+	void PositionScoreboard();
 
 	vgui::ImageList				*m_pImageList;
 	int							m_iImageAvatars[MAX_PLAYERS+1];
@@ -112,6 +116,7 @@ private:
 	IViewPort	*m_pViewPort;
 	ButtonCode_t m_nCloseKey;
 
+	vgui::Label::Alignment m_alignment;
 
 	// methods
 	void FillScoreBoard();

@@ -12,7 +12,6 @@
 #pragma once
 #endif
 
-#include "ivguicenterprint.h"
 #include <vgui/vgui.h>
 
 //-----------------------------------------------------------------------------
@@ -24,7 +23,7 @@ class Panel;
 }
 
 class CCenterStringLabel;
-class CCenterPrint : public ICenterPrint
+class CCenterPrint
 {
 private:
 	CCenterStringLabel	*vguiCenterString;
@@ -43,6 +42,6 @@ public:
 	virtual void		Clear( void );
 };
 
-extern CCenterPrint *internalCenterPrint;
+extern CCenterPrint *GetCenterPrint();
 
 #endif // VGUICENTERPRINT_H

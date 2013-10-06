@@ -1,9 +1,9 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
 //
 // Purpose: 
 //
 // $NoKeywords: $
-//=============================================================================//
+//===========================================================================//
 
 #include "cbase.h"
 
@@ -19,16 +19,16 @@
 #include "IEffects.h"
 #include "c_entitydissolve.h"
 #include "movevars_shared.h"
-#include "ClientEffectPrecacheSystem.h"
+#include "precache_register.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-CLIENTEFFECT_REGISTER_BEGIN( PrecacheEffectBuild )
-CLIENTEFFECT_MATERIAL( "effects/tesla_glow_noz" )
-CLIENTEFFECT_MATERIAL( "effects/spark" )
-CLIENTEFFECT_MATERIAL( "effects/combinemuzzle2" )
-CLIENTEFFECT_REGISTER_END()
+PRECACHE_REGISTER_BEGIN( GLOBAL, PrecacheEffectBuild )
+PRECACHE( MATERIAL,"effects/tesla_glow_noz" )
+PRECACHE( MATERIAL,"effects/spark" )
+PRECACHE( MATERIAL,"effects/combinemuzzle2" )
+PRECACHE_REGISTER_END()
 
 //-----------------------------------------------------------------------------
 // Networking
@@ -225,10 +225,12 @@ void C_EntityDissolve::BuildTeslaEffect( mstudiobbox_t *pHitBox, const matrix3x4
 	{
 		if ( !EffectOccluded( tr.endpos ) )
 		{
+			int nSlot = GET_ACTIVE_SPLITSCREEN_SLOT();
+
 			// Move it towards the camera
 			Vector vecFlash = tr.endpos;
 			Vector vecForward;
-			AngleVectors( MainViewAngles(), &vecForward );
+			AngleVectors( MainViewAngles(nSlot), &vecForward );
 			vecFlash -= (vecForward * 8);
 
 			g_pEffects->EnergySplash( vecFlash, -vecForward, false );
@@ -245,9 +247,9 @@ void C_EntityDissolve::BuildTeslaEffect( mstudiobbox_t *pHitBox, const matrix3x4
 				pParticle->m_vecVelocity = vec3_origin;
 				Vector color( 1,1,1 );
 				float  colorRamp = RandomFloat( 0.75f, 1.25f );
-				pParticle->m_uchColor[0]	= min( 1.0f, color[0] * colorRamp ) * 255.0f;
-				pParticle->m_uchColor[1]	= min( 1.0f, color[1] * colorRamp ) * 255.0f;
-				pParticle->m_uchColor[2]	= min( 1.0f, color[2] * colorRamp ) * 255.0f;
+				pParticle->m_uchColor[0]	= MIN( 1.0f, color[0] * colorRamp ) * 255.0f;
+				pParticle->m_uchColor[1]	= MIN( 1.0f, color[1] * colorRamp ) * 255.0f;
+				pParticle->m_uchColor[2]	= MIN( 1.0f, color[2] * colorRamp ) * 255.0f;
 				pParticle->m_uchStartSize	= RandomFloat( 6,13 );
 				pParticle->m_uchEndSize		= pParticle->m_uchStartSize - 2;
 				pParticle->m_uchStartAlpha	= 255;
@@ -529,7 +531,8 @@ void C_EntityDissolve::ClientThink( void )
 
 	// Setup the entity fade
 	pAnimating->SetRenderMode( kRenderTransColor );
-	pAnimating->SetRenderColor( color.r, color.g, color.b, color.a );
+	pAnimating->SetRenderColor( color.r, color.g, color.b );
+	pAnimating->SetRenderAlpha( color.a );
 
 	if ( GetModelFadeOutPercentage() <= 0.2f )
 	{
@@ -568,7 +571,7 @@ void C_EntityDissolve::ClientThink( void )
 // Input  : flags - 
 // Output : int
 //-----------------------------------------------------------------------------
-int C_EntityDissolve::DrawModel( int flags )
+int C_EntityDissolve::DrawModel( int flags, const RenderableInstance_t &instance )
 {
 	// See if we should draw
 	if ( gpGlobals->frametime == 0 || m_bReadyToDraw == false )

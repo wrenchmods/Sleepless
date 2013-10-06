@@ -39,6 +39,10 @@ typedef unsigned long HCursor;
 #define VGUI_CS_INSERTCHAR                   0x2000
 #define VGUI_CS_NOMOVECARET                  0x4000
 
+#define MESSAGE_CURSOR_POS -1
+#define MESSAGE_CURRENT_KEYFOCUS -2
+
+
 class IInput : public IBaseInterface
 {
 public:
@@ -50,6 +54,7 @@ public:
 
 	// focus
 	virtual VPANEL GetFocus() = 0;
+	virtual VPANEL GetCalculatedFocus() = 0;// to handle cases where the focus changes inside a frame.
 	virtual VPANEL GetMouseOver() = 0;		// returns the panel the mouse is currently over, ignoring mouse capture
 
 	// mouse state
@@ -178,9 +183,9 @@ public:
 	virtual bool	ShouldModalSubTreeReceiveMessages() const = 0;
 
 	virtual VPANEL 	GetMouseCapture() = 0;
-};
 
-#define VGUI_INPUT_INTERFACE_VERSION "VGUI_Input005"
+	virtual VPANEL  GetMouseFocus() = 0;
+};
 
 } // namespace vgui
 

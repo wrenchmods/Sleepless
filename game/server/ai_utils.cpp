@@ -522,9 +522,6 @@ bool CAI_FreePass::ShouldAllowFVisible(bool bBaseResult )
 
 
 //-----------------------------------------------------------------------------
-//-----------------------------------------------------------------------------
-
-string_t g_iszFuncBrushClassname = NULL_STRING;
 
 //-----------------------------------------------------------------------------
 CTraceFilterNav::CTraceFilterNav( CAI_BaseNPC *pProber, bool bIgnoreTransientEntities, const IServerEntity *passedict, int collisionGroup, bool bAllowPlayerAvoid ) : 
@@ -547,14 +544,6 @@ bool CTraceFilterNav::ShouldHitEntity( IHandleEntity *pHandleEntity, int content
 
 	if ( m_pProber->GetMoveProbe()->ShouldBrushBeIgnored( pEntity ) == true )
 		return false;
-
-#ifdef HL1_DLL 
-	if ( ( contentsMask & CONTENTS_MOVEABLE ) == 0 )
-	{
-		if ( pEntity->ClassMatches( "func_pushable" ) )
-			return false;
-	}
-#endif
 
 	if ( m_bIgnoreTransientEntities && (pEntity->IsPlayer() || pEntity->IsNPC() ) )
 		return false;

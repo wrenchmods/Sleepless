@@ -341,21 +341,26 @@ void C_BaseTeamObjectiveResource::ClientThink()
 
 						if ( !m_bWarnedOnFinalCap[i] )
 						{
-							// If this the local player's team, warn him
-							C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
-							if ( pPlayer )
+							FOR_EACH_VALID_SPLITSCREEN_PLAYER( hh )
 							{
-								if ( m_iCappingTeam[i] != TEAM_UNASSIGNED && 
-									pPlayer->GetTeamNumber() != m_iCappingTeam[i] && 
-									GetCapWarningLevel( i ) == CP_WARN_FINALCAP )
-								{
-									// Prevent spam
-									if ( gpGlobals->curtime > ( m_flLastCapWarningTime[i] + 5 ) )
-									{
-										pPlayer->EmitSound( GetWarnSound( i ) );
+								ACTIVE_SPLITSCREEN_PLAYER_GUARD( hh );
 
-										m_bWarnedOnFinalCap[i] = true;
-										m_flLastCapWarningTime[i] = gpGlobals->curtime;
+								// If this the local player's team, warn him
+								C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
+								if ( pPlayer )
+								{
+									if ( m_iCappingTeam[i] != TEAM_UNASSIGNED && 
+										pPlayer->GetTeamNumber() != m_iCappingTeam[i] && 
+										GetCapWarningLevel( i ) == CP_WARN_FINALCAP )
+									{
+										// Prevent spam
+										if ( gpGlobals->curtime > ( m_flLastCapWarningTime[i] + 5 ) )
+										{
+											pPlayer->EmitSound( GetWarnSound( i ) );
+
+											m_bWarnedOnFinalCap[i] = true;
+											m_flLastCapWarningTime[i] = gpGlobals->curtime;
+										}
 									}
 								}
 							}

@@ -13,6 +13,8 @@
 
 #include "mathlib/vector.h"
 
+class IClientRenderable;
+
 //-----------------------------------------------------------------------------
 // Dynamic light structure
 //-----------------------------------------------------------------------------
@@ -56,6 +58,14 @@ struct dlight_t
 	Vector	m_Direction;		// center of the light cone
 	float	m_InnerAngle;
 	float	m_OuterAngle;
+
+	// If this ptr is set, the dlight will only affect this particular client renderable 
+	const IClientRenderable* m_pExclusiveLightReceiver;
+
+	dlight_t()
+		: m_pExclusiveLightReceiver( NULL )
+	{
+	}
 
 	// see comments above about HL2_BROKEN_MIN_LIGHTING_VALUE and MIN_LIGHTING_VALUE
 	// THIS SHOULD ONLY GET CALLED FROM THE ENGINE

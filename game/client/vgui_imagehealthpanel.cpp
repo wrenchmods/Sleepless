@@ -5,11 +5,16 @@
 // $Revision: $
 // $NoKeywords: $
 //=============================================================================//
+
 #include "cbase.h"
 #include "vgui_imagehealthpanel.h"
 #include "commanderoverlay.h"
 #include <KeyValues.h>
 #include "mapdata.h"
+
+// NOTE: This has to be the last file included!
+#include "tier0/memdbgon.h"
+
 
 bool IsLocalPlayerInTactical( void );
 

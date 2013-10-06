@@ -195,6 +195,7 @@ enum ButtonCode_t
 	KEY_XBUTTON_START,
 	KEY_XBUTTON_STICK1,
 	KEY_XBUTTON_STICK2,
+	KEY_XBUTTON_INACTIVE_START,
 
 	KEY_XSTICK1_RIGHT = JOYSTICK_FIRST_AXIS_BUTTON,	// XAXIS POSITIVE
 	KEY_XSTICK1_LEFT,							// XAXIS NEGATIVE
@@ -261,6 +262,84 @@ inline bool IsJoystickPOVCode( ButtonCode_t code )
 inline bool IsJoystickAxisCode( ButtonCode_t code )
 {
 	return ( code >= JOYSTICK_FIRST_AXIS_BUTTON ) && ( code <= JOYSTICK_LAST_AXIS_BUTTON );
+}
+
+inline ButtonCode_t GetBaseButtonCode( ButtonCode_t code )
+{
+	if ( IsJoystickButtonCode( code ) )
+	{
+		int offset = ( code - JOYSTICK_FIRST_BUTTON ) % JOYSTICK_MAX_BUTTON_COUNT;
+		return (ButtonCode_t)( JOYSTICK_FIRST_BUTTON + offset );
+	}
+
+	if ( IsJoystickPOVCode( code ) )
+	{
+		int offset = ( code - JOYSTICK_FIRST_POV_BUTTON ) % JOYSTICK_POV_BUTTON_COUNT;
+		return (ButtonCode_t)( JOYSTICK_FIRST_POV_BUTTON + offset );
+	}
+
+	if ( IsJoystickAxisCode( code ) )
+	{
+		int offset = ( code - JOYSTICK_FIRST_AXIS_BUTTON ) % JOYSTICK_AXIS_BUTTON_COUNT;
+		return (ButtonCode_t)( JOYSTICK_FIRST_AXIS_BUTTON + offset );
+	}
+
+	return code;
+}
+
+inline int GetJoystickForCode( ButtonCode_t code )
+{
+	if ( !IsJoystickCode( code ) )
+		return 0;
+
+	if ( IsJoystickButtonCode( code ) )
+	{
+		int offset = ( code - JOYSTICK_FIRST_BUTTON ) / JOYSTICK_MAX_BUTTON_COUNT;
+		return offset;
+	}
+	if ( IsJoystickPOVCode( code ) )
+	{
+		int offset = ( code - JOYSTICK_FIRST_POV_BUTTON ) / JOYSTICK_POV_BUTTON_COUNT;
+		return offset;
+	}
+	if ( IsJoystickAxisCode( code ) )
+	{
+		int offset = ( code - JOYSTICK_FIRST_AXIS_BUTTON ) / JOYSTICK_AXIS_BUTTON_COUNT;
+		return offset;
+	}
+
+	return 0;
+}
+
+inline ButtonCode_t ButtonCodeToJoystickButtonCode( ButtonCode_t code, int nDesiredJoystick )
+{
+	if ( !IsJoystickCode( code ) || nDesiredJoystick == 0 )
+		return code;
+
+	nDesiredJoystick = clamp( nDesiredJoystick, 0, MAX_JOYSTICKS - 1 );
+
+	code = GetBaseButtonCode( code );
+
+	// Now upsample it
+	if ( IsJoystickButtonCode( code ) )
+	{
+		int nOffset = code - JOYSTICK_FIRST_BUTTON;
+		return JOYSTICK_BUTTON( nDesiredJoystick, nOffset );
+	}
+
+	if ( IsJoystickPOVCode( code ) )
+	{
+		int nOffset = code - JOYSTICK_FIRST_POV_BUTTON;
+		return JOYSTICK_POV_BUTTON( nDesiredJoystick, nOffset );
+	}
+
+	if ( IsJoystickAxisCode( code ) )
+	{
+		int nOffset = code - JOYSTICK_FIRST_AXIS_BUTTON;
+		return JOYSTICK_AXIS_BUTTON( nDesiredJoystick, nOffset );
+	}
+
+	return code;
 }
 
 #endif // BUTTONCODE_H

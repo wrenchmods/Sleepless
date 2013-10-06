@@ -53,7 +53,10 @@ public:
 	bool	IsLoopback() const;	// true if engine loopback buffers are used
 	bool	IsReservedAdr() const; // true, if this is a private LAN IP
 	bool	IsValid() const;	// ip & port != 0
+	bool	IsBaseAdrValid() const;	// ip != 0
+
 	void    SetFromSocket( int hSocket );
+
 	// These function names are decorated because the Xbox360 defines macros for ntohl and htonl
  	unsigned long addr_ntohl() const;
  	unsigned long addr_htonl() const;

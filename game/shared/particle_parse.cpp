@@ -21,7 +21,7 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-#define PARTICLES_MANIFEST_FILE				"particles/particles_manifest.txt"
+extern void StartParticleEffect( const CEffectData &data, int nSplitScreenPlayerSlot = -1 );
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -37,8 +37,11 @@ int GetAttachTypeFromString( const char *pszString )
 		"start_at_origin",		// PATTACH_ABSORIGIN = 0,
 		"follow_origin",		// PATTACH_ABSORIGIN_FOLLOW,
 		"start_at_customorigin",// PATTACH_CUSTOMORIGIN,
+		"follow_customorigin",  // PATTACH_CUSTOMORIGIN_FOLLOW,
 		"start_at_attachment",	// PATTACH_POINT,
 		"follow_attachment",	// PATTACH_POINT_FOLLOW,
+		"follow_eyes",			// PATTACH_EYES_FOLLOW,
+		"world_origin",			// PATTACH_WORLDORIGIN
 	};
 
 	for ( int i = 0; i < MAX_PATTACH_TYPES; i++ )
@@ -49,36 +52,6 @@ int GetAttachTypeFromString( const char *pszString )
 
 	return -1;
 }
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-// Input  : list - 
-//-----------------------------------------------------------------------------
-void GetParticleManifest( CUtlVector<CUtlString>& list )
-{
-	// Open the manifest file, and read the particles specified inside it
-	KeyValues *manifest = new KeyValues( PARTICLES_MANIFEST_FILE );
-	if ( manifest->LoadFromFile( filesystem, PARTICLES_MANIFEST_FILE, "GAME" ) )
-	{
-		for ( KeyValues *sub = manifest->GetFirstSubKey(); sub != NULL; sub = sub->GetNextKey() )
-		{
-			if ( !Q_stricmp( sub->GetName(), "file" ) )
-			{
-				list.AddToTail( sub->GetString() );
-				continue;
-			}
-
-			Warning( "CParticleMgr::Init:  Manifest '%s' with bogus file type '%s', expecting 'file'\n", PARTICLES_MANIFEST_FILE, sub->GetName() );
-		}
-	}
-	else
-	{
-		Warning( "PARTICLE SYSTEM: Unable to load manifest file '%s'\n", PARTICLES_MANIFEST_FILE );
-	}
-
-	manifest->deleteThis();
-}
-
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -100,53 +73,7 @@ void ParseParticleEffects( bool bLoadSheets )
 
 	g_pParticleSystemMgr->DecommitTempMemory();
 }
-//-----------------------------------------------------------------------------
-// Purpose: loads per-map manifest!
-//-----------------------------------------------------------------------------
-void ParseParticleEffectsMap( const char *pMapName, bool bLoadSheets )
-{
-	MEM_ALLOC_CREDIT();
 
-	g_pParticleSystemMgr->ShouldLoadSheets( bLoadSheets );
-
-	CUtlVector<CUtlString> files;
-
-	const char *mapManifestFilename = NULL;
-	if ( pMapName && *pMapName )
-	{
-#ifdef CLIENT_DLL
-#define UTIL_VarArgs VarArgs //Tony; goddamnit.
-#endif
-		mapManifestFilename = UTIL_VarArgs( "particles/particles_%s.txt", pMapName );
-	}
-
-	// Open the manifest file, and read the particles specified inside it
-	KeyValues *manifest = new KeyValues( mapManifestFilename );
-	if ( manifest->LoadFromFile( filesystem, mapManifestFilename, "GAME" ) )
-	{
-		for ( KeyValues *sub = manifest->GetFirstSubKey(); sub != NULL; sub = sub->GetNextKey() )
-		{
-			if ( !Q_stricmp( sub->GetName(), "file" ) )
-			{
-				files.AddToTail( sub->GetString() );
-				continue;
-			}
-
-			Warning( "CParticleMgr::LevelInit:  Manifest '%s' with bogus file type '%s', expecting 'file'\n", mapManifestFilename, sub->GetName() );
-		}
-	}
-	else
-		//Tony; don't print a warning, and don't proceed any further if the file doesn't exist!
-		return;
-
-	int nCount = files.Count();
-	for ( int i = 0; i < nCount; ++i )
-	{
-		g_pParticleSystemMgr->ReadParticleConfigFile( files[i], true, true );
-	}
-
-	g_pParticleSystemMgr->DecommitTempMemory();
-}
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -173,7 +100,7 @@ void PrecacheStandardParticleSystems( )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-void DispatchParticleEffect( const char *pszParticleName, ParticleAttachment_t iAttachType, CBaseEntity *pEntity, const char *pszAttachmentName, bool bResetAllParticlesOnEntity )
+void DispatchParticleEffect( const char *pszParticleName, ParticleAttachment_t iAttachType, CBaseEntity *pEntity, const char *pszAttachmentName, bool bResetAllParticlesOnEntity, int nSplitScreenPlayerSlot /*= -1*/, IRecipientFilter *filter /*= NULL*/ )
 {
 	int iAttachment = -1;
 	if ( pEntity && pEntity->GetBaseAnimating() )
@@ -187,15 +114,20 @@ void DispatchParticleEffect( const char *pszParticleName, ParticleAttachment_t i
 		}
 	}
 
-	DispatchParticleEffect( pszParticleName, iAttachType, pEntity, iAttachment, bResetAllParticlesOnEntity );
+	DispatchParticleEffect( pszParticleName, iAttachType, pEntity, iAttachment, bResetAllParticlesOnEntity, nSplitScreenPlayerSlot, filter );
 }
 
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-void DispatchParticleEffect( const char *pszParticleName, ParticleAttachment_t iAttachType, CBaseEntity *pEntity, int iAttachmentPoint, bool bResetAllParticlesOnEntity )
+void DispatchParticleEffect( const char *pszParticleName, ParticleAttachment_t iAttachType, CBaseEntity *pEntity, int iAttachmentPoint, bool bResetAllParticlesOnEntity, int nSplitScreenPlayerSlot /*= -1*/, IRecipientFilter *filter /*= NULL*/ )
 {
 	CEffectData	data;
+
+	if ( pEntity )
+	{
+		data.m_vOrigin = pEntity->GetAbsOrigin();
+	}
 
 	data.m_nHitBox = GetParticleSystemIndex( pszParticleName );
 	if ( pEntity )
@@ -215,14 +147,107 @@ void DispatchParticleEffect( const char *pszParticleName, ParticleAttachment_t i
 		data.m_fFlags |= PARTICLE_DISPATCH_RESET_PARTICLES;
 	}
 
+	// Avoid an unnecessary string search, also behaves better w/ precache checks
+#ifndef CLIENT_DLL
+	if ( filter )
+		DispatchEffect( *filter, 0.0f, "ParticleEffect", data );
+	else
+		DispatchEffect( "ParticleEffect", data );
+#else
+	StartParticleEffect( data, nSplitScreenPlayerSlot );
+#endif
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void DispatchParticleEffectLink( const char *pszParticleName, ParticleAttachment_t iAttachType, CBaseEntity *pEntity, CBaseEntity *pOtherEntity, int iAttachmentPoint, bool bResetAllParticlesOnEntity, int nSplitScreenPlayerSlot /*= -1*/ )
+{
+	CEffectData	data;
+
+	if ( pEntity )
+	{
+		data.m_vOrigin = pEntity->GetAbsOrigin();
+	}
+
+	data.m_nHitBox = GetParticleSystemIndex( pszParticleName );
+	if ( pEntity && pOtherEntity )
+	{
+#ifdef CLIENT_DLL
+		data.m_hEntity = pEntity;
+#else
+		data.m_nEntIndex = pEntity->entindex();
+#endif
+		data.m_nOtherEntIndex = pOtherEntity->entindex();
+
+		data.m_fFlags |= PARTICLE_DISPATCH_FROM_ENTITY;
+	}
+	data.m_nDamageType = iAttachType;
+	data.m_nAttachmentIndex = iAttachmentPoint;
+
+	if ( bResetAllParticlesOnEntity )
+	{
+		data.m_fFlags |= PARTICLE_DISPATCH_RESET_PARTICLES;
+	}
+
+	// Avoid an unnecessary string search, also behaves better w/ precache checks
+#ifndef CLIENT_DLL
 	DispatchEffect( "ParticleEffect", data );
+#else
+	StartParticleEffect( data, nSplitScreenPlayerSlot );
+#endif
 }
 
 
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-void DispatchParticleEffect( int iEffectIndex, Vector vecOrigin, Vector vecStart, QAngle vecAngles, CBaseEntity *pEntity )
+void DispatchParticleEffect( int nEffectIndex, const Vector &vecOrigin, const QAngle &vecAngles, ParticleAttachment_t iAttachType, CBaseEntity *pEntity, int nSplitScreenPlayerSlot /*= -1*/ )
+{
+	CEffectData	data;
+
+	data.m_nHitBox = nEffectIndex;
+	data.m_vOrigin = vecOrigin;
+	data.m_vAngles = vecAngles;
+
+	if ( pEntity )
+	{
+#ifdef CLIENT_DLL
+		data.m_hEntity = pEntity;
+#else
+		data.m_nEntIndex = pEntity->entindex();
+#endif
+		data.m_fFlags |= PARTICLE_DISPATCH_FROM_ENTITY;
+		data.m_nDamageType = iAttachType;
+	}
+	else
+	{
+#ifdef CLIENT_DLL
+		data.m_hEntity = NULL;
+#else
+		data.m_nEntIndex = 0;
+#endif
+	}
+
+#ifndef CLIENT_DLL
+	DispatchEffect( "ParticleEffect", data );
+#else
+	// Avoid an unnecessary search, also behaves better w/ precache checks...
+	StartParticleEffect( data, nSplitScreenPlayerSlot );
+#endif
+}
+
+void DispatchParticleEffect( const char *pszParticleName, const Vector &vecOrigin, const QAngle &vecAngles, ParticleAttachment_t iAttachType, CBaseEntity *pEntity, int nSplitScreenPlayerSlot /*= -1*/ )
+{
+	int nEffectIndex = GetParticleSystemIndex( pszParticleName );
+	DispatchParticleEffect( nEffectIndex, vecOrigin, vecAngles, iAttachType, pEntity, nSplitScreenPlayerSlot );
+}
+
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void DispatchParticleEffect( int iEffectIndex, Vector vecOrigin, Vector vecStart, QAngle vecAngles, CBaseEntity *pEntity, int nSplitScreenPlayerSlot /*= -1*/ )
 {
 	CEffectData	data;
 
@@ -250,26 +275,31 @@ void DispatchParticleEffect( int iEffectIndex, Vector vecOrigin, Vector vecStart
 #endif
 	}
 
+#ifndef CLIENT_DLL
 	DispatchEffect( "ParticleEffect", data );
+#else
+	// Avoid an unnecessary search, also behaves better w/ precache checks...
+	StartParticleEffect( data, nSplitScreenPlayerSlot );
+#endif
 }
 
 
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-void DispatchParticleEffect( const char *pszParticleName, Vector vecOrigin, QAngle vecAngles, CBaseEntity *pEntity )
+void DispatchParticleEffect( const char *pszParticleName, Vector vecOrigin, QAngle vecAngles, CBaseEntity *pEntity, int nSplitScreenPlayerSlot /*= -1*/ )
 {
 	int iIndex = GetParticleSystemIndex( pszParticleName );
-	DispatchParticleEffect( iIndex, vecOrigin, vecOrigin, vecAngles, pEntity );
+	DispatchParticleEffect( iIndex, vecOrigin, vecOrigin, vecAngles, pEntity, nSplitScreenPlayerSlot );
 }
 
 //-----------------------------------------------------------------------------
 // Purpose: Yet another overload, lets us supply vecStart
 //-----------------------------------------------------------------------------
-void DispatchParticleEffect( const char *pszParticleName, Vector vecOrigin, Vector vecStart, QAngle vecAngles, CBaseEntity *pEntity )
+void DispatchParticleEffect( const char *pszParticleName, Vector vecOrigin, Vector vecStart, QAngle vecAngles, CBaseEntity *pEntity, int nSplitScreenPlayerSlot /*= -1*/ )
 {
 	int iIndex = GetParticleSystemIndex( pszParticleName );
-	DispatchParticleEffect( iIndex, vecOrigin, vecStart, vecAngles, pEntity );
+	DispatchParticleEffect( iIndex, vecOrigin, vecStart, vecAngles, pEntity, nSplitScreenPlayerSlot );
 }
 
 //-----------------------------------------------------------------------------
@@ -290,6 +320,28 @@ void StopParticleEffects( CBaseEntity *pEntity )
 
 	DispatchEffect( "ParticleEffectStop", data );
 }
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void StopParticleEffect( CBaseEntity *pEntity, const char *pszParticleName )
+{
+	CEffectData	data;
+
+	if ( pEntity )
+	{
+#ifdef CLIENT_DLL
+		data.m_hEntity = pEntity;
+#else
+		data.m_nEntIndex = pEntity->entindex();
+#endif
+	}
+
+	data.m_nHitBox = GetParticleSystemIndex( pszParticleName );
+
+	DispatchEffect( "ParticleEffectStop", data );
+}
+
 
 #ifndef CLIENT_DLL
 

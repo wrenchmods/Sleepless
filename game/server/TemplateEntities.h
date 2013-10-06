@@ -18,7 +18,7 @@
 class CBaseEntity;
 class CPointTemplate;
 
-int			Templates_Add(CBaseEntity *pEntity, const char *pszMapData, int nLen);
+int			Templates_Add(CBaseEntity *pEntity, const char *pszMapData, int nLen, int nHammerID=-1);
 string_t	Templates_FindByIndex( int iIndex );
 int			Templates_GetStringSize( int iIndex );
 string_t	Templates_FindByTargetName(const char *pszName);
@@ -29,6 +29,9 @@ void		Templates_ReconnectIOForGroup( CPointTemplate *pGroup );
 void		Templates_StartUniqueInstance( void );
 bool		Templates_IndexRequiresEntityIOFixup( int iIndex );
 char		*Templates_GetEntityIOFixedMapData( int iIndex );
+
+// Used by Foundry.
+void		Templates_RemoveByHammerID( int nHammerID );
 
 // Save / Restore
 ISaveRestoreBlockHandler *GetTemplateSaveRestoreBlockHandler( void );

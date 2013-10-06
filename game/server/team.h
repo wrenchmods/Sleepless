@@ -42,7 +42,7 @@ public:
 	virtual int			GetTeamNumber( void ) const;
 	virtual const char *GetName( void );
 	virtual void		UpdateClientData( CBasePlayer *pPlayer );
-	virtual bool		ShouldTransmitToPlayer( CBasePlayer* pRecipient, CBaseEntity* pEntity );
+	virtual int		ShouldTransmitToPlayer( CBasePlayer* pRecipient, CBaseEntity* pEntity );
 
 	//-----------------------------------------------------------------------------
 	// Spawnpoints
@@ -95,5 +95,5 @@ public:
 extern CUtlVector< CTeam * > g_Teams;
 extern CTeam *GetGlobalTeam( int iIndex );
 extern int GetNumberOfTeams( void );
-
+extern const char* GetTeamName( int iTeam );
 #endif // TEAM_H

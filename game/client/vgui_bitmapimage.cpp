@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -188,7 +188,7 @@ void BitmapImage::Paint()
 	DoPaint( m_pPanelSize );
 }
 
-void BitmapImage::SetColor( Color& clr )
+void BitmapImage::SetColor( const Color& clr )
 {
 	m_clr = clr;
 }

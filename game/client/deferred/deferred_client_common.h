@@ -196,7 +196,7 @@ FORCEINLINE bool IntersectFrustumWithFrustum( VMatrix &invScreenToWorld_a, VMatr
 		}
 
 		fltx4 _fourWs = ReplicateX4( _w );
-		_pointx4[0][i] = _pointx4[0][i] *_fourWs;
+		_pointx4[0][i] = _pointx4[0][i] * _fourWs;
 
 		_pointx4[1][i] = FourDotProducts( _invScreenToWorldAInSSE, _normPos[i] );
 

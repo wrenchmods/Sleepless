@@ -360,24 +360,24 @@ void CAI_Spotlight::UpdateSpotlightEndpoint( void )
 	// Fade out spotlight end if past max length.  
 	if (m_flSpotlightCurLength > 2*m_flSpotlightMaxLength)
 	{
-		m_hSpotlightTarget->SetRenderColorA( 0 );
+		m_hSpotlightTarget->SetRenderAlpha( 0 );
 		m_hSpotlight->SetFadeLength(m_flSpotlightMaxLength);
 	}
 	else if (m_flSpotlightCurLength > m_flSpotlightMaxLength)		
 	{
-		m_hSpotlightTarget->SetRenderColorA( (1-((m_flSpotlightCurLength-m_flSpotlightMaxLength)/m_flSpotlightMaxLength)) );
+		m_hSpotlightTarget->SetRenderAlpha( (1-((m_flSpotlightCurLength-m_flSpotlightMaxLength)/m_flSpotlightMaxLength)) );
 		m_hSpotlight->SetFadeLength(m_flSpotlightMaxLength);
 	}
 	else
 	{
-		m_hSpotlightTarget->SetRenderColorA( 1.0 );
+		m_hSpotlightTarget->SetRenderAlpha( 1.0 );
 		m_hSpotlight->SetFadeLength(m_flSpotlightCurLength);
 	}
 
 	// Adjust end width to keep beam width constant
 	float flNewWidth = SPOTLIGHT_WIDTH * ( flBeamLength / m_flSpotlightMaxLength );
 	
-	flNewWidth = min( 100, flNewWidth );
+	flNewWidth = MIN( 100, flNewWidth );
 
 	m_hSpotlight->SetWidth(flNewWidth);
 	m_hSpotlight->SetEndWidth(flNewWidth);

@@ -1,4 +1,4 @@
-//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
+//===== Copyright ï¿½ 1996-2005, Valve Corporation, All rights reserved. ======//
 //
 // Purpose: 
 //
@@ -58,6 +58,7 @@ public:
 	virtual void ColorPrint( const Color& clr, const char *pMessage );
 	virtual void Print( const char *pMessage );
 	virtual void DPrint( const char *pMessage );
+	virtual void GetConsoleText( char *pchText, size_t bufSize ) const;
 
 	// clears the console
 	void Clear();
@@ -71,6 +72,8 @@ public:
 	bool TextEntryHasFocus() const;
 	void TextEntryRequestFocus();
 
+
+
 private:
 	enum
 	{
@@ -82,7 +85,7 @@ private:
 	public:
 		CompletionItem( void );
 		CompletionItem( const CompletionItem& src );
-		CompletionItem& CompletionItem::operator =( const CompletionItem& src );
+		CompletionItem& operator =( const CompletionItem& src );
 		~CompletionItem( void );
 		const char *GetItemText( void );
 		const char *GetCommand( void ) const;

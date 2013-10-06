@@ -10,6 +10,7 @@
 #pragma once
 #endif
 
+class CStudioHdr;
 
 // ------------------------------------------------------------------------------------------------ //
 // CSequenceTransitioner declaration.

@@ -13,6 +13,10 @@
 #include "team_control_point_master.h"
 #include "teamplayroundbased_gamerules.h"
 
+// NOTE: This has to be the last file included!
+#include "tier0/memdbgon.h"
+
+
 extern ConVar mp_capstyle;
 extern ConVar mp_blockstyle;
 extern ConVar mp_capdeteriorate_time;
@@ -75,7 +79,6 @@ LINK_ENTITY_TO_CLASS( trigger_capture_area, CTriggerAreaCapture );
 CTriggerAreaCapture::CTriggerAreaCapture()
 {
 	m_TeamData.SetSize( GetNumberOfTeams() );
-	m_bStartTouch = false;
 }
 
 //-----------------------------------------------------------------------------
@@ -183,9 +186,7 @@ void CTriggerAreaCapture::StartTouch(CBaseEntity *pOther)
 		// Call capture think immediately to make it update our area's player counts.
 		// If we don't do this, the player can receive the above event telling him he's
 		// in a zone, but the objective resource still thinks he's not.
-		m_bStartTouch = true;
 		CaptureThink();
-		m_bStartTouch = false;
 
 		if ( m_bCapturing )
 		{
@@ -197,7 +198,7 @@ void CTriggerAreaCapture::StartTouch(CBaseEntity *pOther)
 				if ( flRate > 0.0f )
 				{
 					CBaseMultiplayerPlayer *pPlayer = ToBaseMultiplayerPlayer(pOther);
-					if ( pPlayer && pPlayer->GetTeamNumber() == m_nCapturingTeam )
+					if ( pPlayer )
 					{
 						pPlayer->StartScoringEscortPoints( flRate );
 					}
@@ -470,7 +471,7 @@ void CTriggerAreaCapture::CaptureThink( void )
 				flPercentToGo = m_fTimeRemaining / ((m_flCapTime * 2) * m_TeamData[m_nCapturingTeam].iNumRequiredToCap);
 			}
 
-			if ( ( flPercentToGo <= 0.5 || TeamplayGameRules()->PointsMayAlwaysBeBlocked() ) && m_hPoint )
+			if ( flPercentToGo <= 0.5 && m_hPoint )
 			{
 				// find the first player that is not on the capturing team
 				// they have just broken a cap and should be rewarded		
@@ -498,8 +499,7 @@ void CTriggerAreaCapture::CaptureThink( void )
 							continue;
 
 						// If this guy's was a blocker, but not valid now, remove him from the list
-						if ( m_Blockers[i].iCapAttemptNumber != m_iCapAttemptNumber || !IsTouching(m_Blockers[i].hPlayer) ||
-							 ( TeamplayGameRules()->PointsMayAlwaysBeBlocked() && m_Blockers[i].flNextBlockTime < gpGlobals->curtime && m_bStartTouch ) )
+						if ( m_Blockers[i].iCapAttemptNumber != m_iCapAttemptNumber || !IsTouching(m_Blockers[i].hPlayer) )
 						{
 							m_Blockers.Remove(i);
 							continue;
@@ -517,7 +517,6 @@ void CTriggerAreaCapture::CaptureThink( void )
 						int iNew = m_Blockers.AddToTail();
 						m_Blockers[iNew].hPlayer = pBlockingPlayer;
 						m_Blockers[iNew].iCapAttemptNumber = m_iCapAttemptNumber;
-						m_Blockers[iNew].flNextBlockTime = gpGlobals->curtime + 10.0f;
 					}
 				}
 			}

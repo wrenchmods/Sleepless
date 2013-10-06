@@ -34,8 +34,11 @@
 #define SIZE_AMMO_357_LARGE			20
 #define SIZE_AMMO_CROSSBOW			6
 #define	SIZE_AMMO_AR2_ALTFIRE		1
+#define SIZE_AMMO_FLECHETTE			60
+#define SIZE_AMMO_URANIUM			30
 
 #define SF_ITEM_START_CONSTRAINED	0x00000001
+#define SF_ITEM_MUST_EXIST			0x00000002		// prevent the procedural population system from modifying this item
 
 
 class CItem : public CBaseAnimating, public CDefaultPlayerPickupVPhysics
@@ -44,9 +47,12 @@ public:
 	DECLARE_CLASS( CItem, CBaseAnimating );
 
 	CItem();
+	virtual ~CItem();
 
 	virtual void Spawn( void );
 	virtual void Precache();
+
+	virtual bool HasBloatedCollision( void ) const { return true; } // Does this item increase its collision box to make it easier to pick up?
 
 	virtual CBaseEntity* Respawn( void );
 	void ItemTouch( CBaseEntity *pOther );
@@ -71,12 +77,6 @@ public:
 	void	SetOriginalSpawnAngles( const QAngle& angles ) { m_vOriginalSpawnAngles = angles; }
 	bool	CreateItemVPhysicsObject( void );
 	bool	ItemCanBeTouchedByPlayer( CBasePlayer *pPlayer );
-
-#if defined( HL2MP )
-	void	FallThink( void );
-	float  m_flNextResetCheckTime;
-#endif
-
 	DECLARE_DATADESC();
 private:
 	void ComeToRest( void );

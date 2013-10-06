@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright ï¿½ 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: Draws a timer in the format "Minutes:Seconds"
 // Seconds are padded with zeros
@@ -37,7 +37,7 @@ void CHudBaseTimer::PaintTime(HFont font, int xpos, int ypos, int mins, int secs
 {
 	surface()->DrawSetTextFont(font);
 	wchar_t unicode[6];
-	swprintf(unicode, L"%d:%.2d", mins, secs);
+	V_snwprintf(unicode, ARRAYSIZE(unicode), L"%d:%.2d", mins, secs);
 	
 	surface()->DrawSetTextPos(xpos, ypos);
 	surface()->DrawUnicodeString( unicode );

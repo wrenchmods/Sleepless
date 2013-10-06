@@ -87,20 +87,30 @@ public:
 
 	void			SetAutohideButtons( bool bAutohide ) { m_bAutoHideButtons = bAutohide; }
 
+	void			UseImages( const char *pszUpArrow, const char *pszDownArrow, const char *pszLine, const char *pszBox );
+
 	/* MESSAGES SENT:
 		"ScrollBarSliderMoved"
 			"position" - new value of the slider
+		"ScrollBarSliderReleased"
+			"position" - final position of slider
 	*/
 
 protected:
 
 	virtual void PerformLayout();
 	virtual void SendSliderMoveMessage(int value);
+	virtual void SendScrollBarSliderReleasedMessage(int value);
 	virtual void ApplySchemeSettings(IScheme *pScheme);
 	virtual void OnSizeChanged(int wide, int tall);
 
 	MESSAGE_FUNC_INT( OnSliderMoved, "ScrollBarSliderMoved", position );
+	MESSAGE_FUNC_INT( OnSliderReleased, "ScrollBarSliderReleased", position );
+
 	virtual void RespondToScrollArrow(int const direction);
+
+	virtual void UpdateButtonsForImages( void );
+	virtual void UpdateSliderImages( void );
 
 private:
 	Button* _button[2];
@@ -109,6 +119,11 @@ private:
 	int		_scrollDelay; // used to control delays in scrolling
 	bool	_respond;
 	CPanelAnimationVar( bool, m_bAutoHideButtons, "autohide_buttons", "0" );
+
+	vgui::ImagePanel	*m_pUpArrow;
+	vgui::ImagePanel	*m_pLine;
+	vgui::ImagePanel	*m_pDownArrow;
+	vgui::ImagePanel	*m_pBox;
 };
 
 }

@@ -15,7 +15,7 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-void ReleaseRenderTargets( void );
+void ReleaseRenderTargets( int nChangeFlags );
 
 void AddReleaseFunc( void )
 {
@@ -243,8 +243,11 @@ ITexture *GetTeenyTexture( int which )
 	return s_TeenyTextures[which];
 }
 
-void ReleaseRenderTargets( void )
+void ReleaseRenderTargets( int nChangeFlags )
 {
+	if ( nChangeFlags & MATERIAL_RESTORE_VERTEX_FORMAT_CHANGED )
+		return;
+
 	s_pPowerOfTwoFrameBufferTexture.Shutdown();
 	s_pCameraTexture.Shutdown();
 	s_pWaterReflectionTexture.Shutdown();

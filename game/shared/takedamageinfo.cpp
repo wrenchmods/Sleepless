@@ -28,6 +28,7 @@ BEGIN_SIMPLE_DATADESC( CTakeDamageInfo )
 	DEFINE_FIELD( m_iDamageCustom, FIELD_INTEGER),
 	DEFINE_FIELD( m_iDamageStats, FIELD_INTEGER),
 	DEFINE_FIELD( m_iAmmoType, FIELD_INTEGER),
+	DEFINE_FIELD( m_flRadius, FIELD_FLOAT),
 END_DATADESC()
 
 void CTakeDamageInfo::Init( CBaseEntity *pInflictor, CBaseEntity *pAttacker, CBaseEntity *pWeapon, const Vector &damageForce, const Vector &damagePosition, const Vector &reportedPosition, float flDamage, int bitsDamageType, int iCustomDamage )
@@ -56,6 +57,7 @@ void CTakeDamageInfo::Init( CBaseEntity *pInflictor, CBaseEntity *pAttacker, CBa
 	m_vecDamagePosition = damagePosition;
 	m_vecReportedPosition = reportedPosition;
 	m_iAmmoType = -1;
+	m_flRadius = 0.0f;
 }
 
 CTakeDamageInfo::CTakeDamageInfo()
@@ -205,12 +207,14 @@ void ApplyMultiDamage( void )
 	if ( !g_MultiDamage.GetTarget() )
 		return;
 
-#ifndef CLIENT_DLL
+#ifdef GAME_DLL
 	const CBaseEntity *host = te->GetSuppressHost();
 	te->SetSuppressHost( NULL );
+#endif
 		
 	g_MultiDamage.GetTarget()->TakeDamage( g_MultiDamage );
 
+#ifdef GAME_DLL
 	te->SetSuppressHost( (CBaseEntity*)host );
 #endif
 
@@ -237,7 +241,7 @@ void AddMultiDamage( const CTakeDamageInfo &info, CBaseEntity *pEntity )
 	g_MultiDamage.SetDamageForce( g_MultiDamage.GetDamageForce() + info.GetDamageForce() );
 	g_MultiDamage.SetDamagePosition( info.GetDamagePosition() );
 	g_MultiDamage.SetReportedPosition( info.GetReportedPosition() );
-	g_MultiDamage.SetMaxDamage( max( g_MultiDamage.GetMaxDamage(), info.GetDamage() ) );
+	g_MultiDamage.SetMaxDamage( MAX( g_MultiDamage.GetMaxDamage(), info.GetMaxDamage() ) );
 	g_MultiDamage.SetAmmoType( info.GetAmmoType() );
 
 	bool bHasPhysicsForceDamage = !g_pGameRules->Damage_NoPhysicsForce( info.GetDamageType() );

@@ -1,4 +1,4 @@
-//====== Copyright © 1996-2005, Valve Corporation, All rights reserved. =======
+//====== Copyright 1996-2005, Valve Corporation, All rights reserved. =======
 //
 // Purpose: 
 //
@@ -11,7 +11,7 @@
 #endif
 
 #include "GameEventListener.h"
-#include "hl2orange.spa.h"
+//#include "hl2orange.spa.h"
 #include "iachievementmgr.h"
 
 class CAchievementMgr;
@@ -68,6 +68,14 @@ public:
 	virtual void PrintAdditionalStatus() {}		// for debugging, achievements may report additional status in achievement_status concmd
 	virtual void OnSteamUserStatsStored() {}
 	virtual void UpdateAchievement( int nData ) {}
+	virtual void SetUserSlot( int nUserSlot ) { m_nUserSlot = nUserSlot; }
+	virtual void ClearAchievementData();
+	virtual const char *GetIconPath() { return NULL; }
+	void SetDisplayOrder( int iDisplayOrder ) { m_iDisplayOrder = iDisplayOrder; }
+	int GetDisplayOrder( ) { return m_iDisplayOrder; }
+
+	virtual void ReadProgress( IPlayerLocal *pPlayer ) {}
+	virtual bool WriteProgress( IPlayerLocal *pPlayer ) { return false; }
 
 protected:
 	virtual void FireGameEvent( IGameEvent *event );
@@ -110,6 +118,8 @@ protected:
 	int			m_iProgressShown;						// # of progress msgs we've shown
 	uint64		m_iComponentBits;						// bitfield of components achieved
 	CAchievementMgr *m_pAchievementMgr;					// our achievement manager
+	int			m_nUserSlot;
+	int			m_iDisplayOrder;						// Order in which the achievement is displayed in the UI
 
 	friend class CAchievementMgr;
 public:
@@ -191,21 +201,25 @@ public:
 	static CBaseAchievementHelper *s_pFirst;
 };
 
-#define DECLARE_ACHIEVEMENT_( className, achievementID, achievementName, gameDirFilter, iPointValue, bHidden ) \
-static CBaseAchievement *Create_##className##( void )					\
+#define DECLARE_ACHIEVEMENT_( className, achievementID, achievementName, gameDirFilter, iPointValue, bHidden, iDisplayOrder ) \
+static CBaseAchievement *Create_##className( void )					\
 {																		\
 	CBaseAchievement *pAchievement = new className( );					\
 	pAchievement->SetAchievementID( achievementID );					\
 	pAchievement->SetName( achievementName );							\
 	pAchievement->SetPointValue( iPointValue );							\
 	pAchievement->SetHideUntilAchieved( bHidden );						\
+	pAchievement->SetDisplayOrder( iDisplayOrder );						\
 	if ( gameDirFilter ) pAchievement->SetGameDirFilter( gameDirFilter ); \
 	return pAchievement;												\
 };																		\
-static CBaseAchievementHelper g_##className##_Helper( Create_##className## );
+static CBaseAchievementHelper g_##className##_Helper( Create_##className );
 
 #define DECLARE_ACHIEVEMENT( className, achievementID, achievementName, iPointValue ) \
 	DECLARE_ACHIEVEMENT_( className, achievementID, achievementName, NULL, iPointValue, false )
+
+#define DECLARE_ACHIEVEMENT_ORDER( className, achievementID, achievementName, iPointValue, iDisplayOrder ) \
+	DECLARE_ACHIEVEMENT_( className, achievementID, achievementName, NULL, iPointValue, false, iDisplayOrder )
 
 #define DECLARE_MAP_EVENT_ACHIEVEMENT_( achievementID, achievementName, gameDirFilter, iPointValue, bHidden ) \
 class CAchievement##achievementID : public CMapAchievement {};		\

@@ -19,15 +19,16 @@
 #endif
 
 
-#include "appframework/tier3app.h"
+#include "appframework/matsysapp.h"
 
+FORWARD_DECLARE_HANDLE( InputContextHandle_t );
 
 //-----------------------------------------------------------------------------
 // The application object
 //-----------------------------------------------------------------------------
-class CVguiMatSysApp : public CVguiSteamApp
+class CVguiMatSysApp : public CMatSysApp
 {
-	typedef CVguiSteamApp BaseClass;
+	typedef CMatSysApp BaseClass;
 
 public:
 	CVguiMatSysApp();
@@ -35,36 +36,15 @@ public:
 	// Methods of IApplication
 	virtual bool Create();
 	virtual bool PreInit();
+	virtual bool PostInit();
+	virtual void PreShutdown();
 	virtual void PostShutdown();
 	virtual void Destroy();
 
-protected:
-	void AppPumpMessages();
-
-	// Sets the video mode
-	bool SetVideoMode( );
-
-	// Returns the window
-	void* GetAppWindow();
-
-	// Gets the window size
-	int GetWindowWidth() const;
-	int GetWindowHeight() const;
-
-	// Sets up the game path
-	bool SetupSearchPaths( const char *pStartingDir, bool bOnlyUseStartingDir, bool bIsTool );
+	InputContextHandle_t GetAppInputContext();
 
 private:
-	// Returns the app name
-	virtual const char *GetAppName() = 0;
-	virtual bool AppUsesReadPixels() { return false; }
-
-	// Creates the app window
-	virtual void *CreateAppWindow( char const *pTitle, bool bWindowed, int w, int h );
-
-	void *m_HWnd;
-	int m_nWidth;
-	int m_nHeight;
+	InputContextHandle_t m_hAppInputContext;
 };
 
 

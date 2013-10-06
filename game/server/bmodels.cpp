@@ -12,11 +12,14 @@
 #include "engine/IEngineSound.h"
 #include "globals.h"
 #include "filters.h"
-
+						 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-//Tony; moved the spawnflags to util.h to prevent more mistakes in the future.
+#define		SF_BRUSH_ACCDCC	16// brush should accelerate and decelerate when toggled
+#define		SF_BRUSH_HURT		32// rotating brush that inflicts pain based on rotation speed
+#define		SF_ROTATING_NOT_SOLID	64	// some special rotating objects are not solid.
+
 // =================== FUNC_WALL ==============================================
 class CFuncWall : public CBaseEntity
 {
@@ -418,7 +421,6 @@ public:
 	DECLARE_SERVERCLASS();
 
 protected:
-
 	bool SpinDown( float flTargetSpeed );
 	float GetMoveSpeed( float flSpeed );
 
@@ -510,22 +512,31 @@ void SendProxy_FuncRotatingOrigin( const SendProp *pProp, const void *pStruct, c
 	SendProxy_Origin( pProp, pStruct, pData, pOut, iElement, objectID );
 }
 
-extern void SendProxy_Angles( const SendProp *pProp, const void *pStruct, const void *pData, DVariant *pOut, int iElement, int objectID );
-void SendProxy_FuncRotatingAngles( const SendProp *pProp, const void *pStruct, const void *pData, DVariant *pOut, int iElement, int objectID )
+void SendProxy_FuncRotatingAngle( const SendProp *pProp, const void *pStruct, const void *pData, DVariant *pOut, int iElement, int objectID)
 {
 	CFuncRotating *entity = (CFuncRotating*)pStruct;
 	Assert( entity );
+
+	vec_t const *qa = (vec_t *)pData;
+	vec_t const *ea = entity->GetLocalAngles().Base();
+
+	// Assert its actually an index into m_angRotation if not this won't work
+
+	Assert( (uintp)qa >= (uintp)ea && (uintp)qa < (uintp)ea + sizeof( QAngle ));
+
 	if ( entity->HasSpawnFlags(SF_BRUSH_ROTATE_CLIENTSIDE) )
 	{
 		const QAngle *a = &entity->m_vecClientAngles;
-		pOut->m_Vector[ 0 ] = anglemod( a->x );
-		pOut->m_Vector[ 1 ] = anglemod( a->y );
-		pOut->m_Vector[ 2 ] = anglemod( a->z );
+
+		pOut->m_Float = anglemod( (*a)[ qa - ea ] );
 		return;
 	}
 
-	SendProxy_Angles( pProp, pStruct, pData, pOut, iElement, objectID );
+	pOut->m_Float = anglemod( *qa );
+
+	Assert( IsFinite( pOut->m_Float ) );
 }
+
 
 extern void SendProxy_SimulationTime( const SendProp *pProp, const void *pStruct, const void *pVarData, DVariant *pOut, int iElement, int objectID );
 void SendProxy_FuncRotatingSimulationTime( const SendProp *pProp, const void *pStruct, const void *pVarData, DVariant *pOut, int iElement, int objectID )
@@ -547,7 +558,10 @@ IMPLEMENT_SERVERCLASS_ST(CFuncRotating, DT_FuncRotating)
 	SendPropExclude( "DT_BaseEntity", "m_flSimulationTime" ),
 
 	SendPropVector(SENDINFO(m_vecOrigin), -1,  SPROP_COORD|SPROP_CHANGES_OFTEN, 0.0f, HIGH_DEFAULT, SendProxy_FuncRotatingOrigin ),
-	SendPropQAngles(SENDINFO(m_angRotation), 13, SPROP_CHANGES_OFTEN, SendProxy_FuncRotatingAngles ),
+	SendPropAngle( SENDINFO_VECTORELEM(m_angRotation, 0), 13, SPROP_CHANGES_OFTEN, SendProxy_FuncRotatingAngle ),
+	SendPropAngle( SENDINFO_VECTORELEM(m_angRotation, 1), 13, SPROP_CHANGES_OFTEN, SendProxy_FuncRotatingAngle ),
+	SendPropAngle( SENDINFO_VECTORELEM(m_angRotation, 2), 13, SPROP_CHANGES_OFTEN, SendProxy_FuncRotatingAngle ),
+
 	SendPropInt(SENDINFO(m_flSimulationTime), SIMULATION_TIME_WINDOW_BITS, SPROP_UNSIGNED|SPROP_CHANGES_OFTEN|SPROP_ENCODED_AGAINST_TICKCOUNT, SendProxy_FuncRotatingSimulationTime),
 END_SEND_TABLE()
 
@@ -581,9 +595,7 @@ bool CFuncRotating::KeyValue( const char *szKeyName, const char *szValue )
 //-----------------------------------------------------------------------------
 void CFuncRotating::Spawn( )
 {
-#ifdef TF_DLL
-	AddSpawnFlags( SF_BRUSH_ROTATE_CLIENTSIDE );
-#endif
+
 
 	//
 	// Maintain compatibility with previous maps.
@@ -769,17 +781,12 @@ void CFuncRotating::HurtTouch ( CBaseEntity *pOther )
 	// calculate damage based on rotation speed
 	m_flBlockDamage = GetLocalAngularVelocity().Length() / 10;
 
-#ifdef HL1_DLL
-	if( m_flBlockDamage > 0 )
-#endif
-	{
-		pOther->TakeDamage( CTakeDamageInfo( this, this, m_flBlockDamage, DMG_CRUSH ) );
-	
-		Vector vecNewVelocity = pOther->GetAbsOrigin() - WorldSpaceCenter();
-		VectorNormalize(vecNewVelocity);
-		vecNewVelocity *= m_flBlockDamage;
-		pOther->SetAbsVelocity( vecNewVelocity );
-	}
+	pOther->TakeDamage( CTakeDamageInfo( this, this, m_flBlockDamage, DMG_CRUSH ) );
+
+	Vector vecNewVelocity = pOther->GetAbsOrigin() - WorldSpaceCenter();
+	VectorNormalize(vecNewVelocity);
+	vecNewVelocity *= m_flBlockDamage;
+	pOther->SetAbsVelocity( vecNewVelocity );
 }
 
 
@@ -1295,10 +1302,7 @@ void CFuncRotating::InputToggle( inputdata_t &inputdata )
 //-----------------------------------------------------------------------------
 void CFuncRotating::Blocked( CBaseEntity *pOther )
 {
-#ifdef HL1_DLL
-	if( m_flBlockDamage > 0 )
-#endif
-		pOther->TakeDamage( CTakeDamageInfo( this, this, m_flBlockDamage, DMG_CRUSH ) );
+	pOther->TakeDamage( CTakeDamageInfo( this, this, m_flBlockDamage, DMG_CRUSH ) );
 }
 
 
@@ -1397,6 +1401,9 @@ bool CFuncVPhysicsClip::EntityPassesFilter( CBaseEntity *pOther )
 
 	if ( pFilter )
 		return pFilter->PassesFilter( this, pOther );
+
+	if ( !pOther->VPhysicsGetObject() )
+		return false;
 
 	if ( pOther->GetMoveType() == MOVETYPE_VPHYSICS && pOther->VPhysicsGetObject()->IsMoveable() )
 		return true;

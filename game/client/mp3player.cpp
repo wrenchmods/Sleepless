@@ -1870,7 +1870,7 @@ void CMP3Player::RestoreDirectory( KeyValues *dir, SoundDirectory_t *sd )
 		}
 		else if ( !Q_stricmp( kv->GetName(), "gamesounds" ) )
 		{
-			sd->m_bGameSound = kv->GetInt() ? true : false;
+			sd->m_bGameSound = kv->GetBool();
 		}
 		else if ( !Q_stricmp( kv->GetName(), "dirname" ) )
 		{
@@ -2303,6 +2303,7 @@ void CMP3Player::ShowFileOpenDialog( bool saving )
 	m_hSaveLoadPlaylist = new FileOpenDialog( this, "Choose Playlist", !saving );
 	if ( m_hSaveLoadPlaylist.Get() )
 	{
+		m_hSaveLoadPlaylist->SetDeleteSelfOnClose( false );
 		m_hSaveLoadPlaylist->SetStartDirectory( "resource/" );
 		m_hSaveLoadPlaylist->AddFilter( "*.txt", "Playlists", true );
 		m_hSaveLoadPlaylist->DoModal( m_bSavingFile );

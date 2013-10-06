@@ -274,6 +274,8 @@ public:
 
 	void InputDisplay( inputdata_t &inputdata );
 	void Display( CBaseEntity *pActivator );
+	void InputSetText ( inputdata_t &inputdata );
+	void SetText( const char* pszStr );
 
 	void Use( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value )
 	{
@@ -307,6 +309,7 @@ BEGIN_DATADESC( CGameText )
 
 	// Inputs
 	DEFINE_INPUTFUNC( FIELD_VOID, "Display", InputDisplay ),
+	DEFINE_INPUTFUNC( FIELD_STRING, "SetText", InputSetText ),
 
 END_DATADESC()
 
@@ -317,7 +320,7 @@ bool CGameText::KeyValue( const char *szKeyName, const char *szValue )
 	if (FStrEq(szKeyName, "color"))
 	{
 		int color[4];
-		UTIL_StringToIntArray( color, 4, szValue );
+		V_StringToIntArray( color, 4, szValue );
 		m_textParms.r1 = color[0];
 		m_textParms.g1 = color[1];
 		m_textParms.b1 = color[2];
@@ -326,7 +329,7 @@ bool CGameText::KeyValue( const char *szKeyName, const char *szValue )
 	else if (FStrEq(szKeyName, "color2"))
 	{
 		int color[4];
-		UTIL_StringToIntArray( color, 4, szValue );
+		V_StringToIntArray( color, 4, szValue );
 		m_textParms.r2 = color[0];
 		m_textParms.g2 = color[1];
 		m_textParms.b2 = color[2];
@@ -367,6 +370,16 @@ void CGameText::Display( CBaseEntity *pActivator )
 			UTIL_HudMessage( ToBasePlayer( pActivator ), m_textParms, MessageGet() );
 		}
 	}
+}
+
+void CGameText::InputSetText( inputdata_t &inputdata )
+{
+	SetText( inputdata.value.String() );
+}
+
+void CGameText::SetText( const char* pszStr )
+{
+	m_iszMessage = AllocPooledString( pszStr );
 }
 
 
@@ -624,7 +637,7 @@ bool CGamePlayerEquip::KeyValue( const char *szKeyName, const char *szValue )
 
 				m_weaponNames[i] = AllocPooledString(tmp);
 				m_weaponCount[i] = atoi(szValue);
-				m_weaponCount[i] = max(1,m_weaponCount[i]);
+				m_weaponCount[i] = MAX(1,m_weaponCount[i]);
 				return true;
 			}
 		}

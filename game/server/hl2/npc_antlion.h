@@ -169,7 +169,7 @@ public:
 
 	void	ClearBurrowPoint( const Vector &origin );
 
-	void	Flip( bool bZapped = false );
+	void Flip( bool bZapped = false, Vector vForce = vec3_origin );
 
 	bool CanBecomeRagdoll();
 

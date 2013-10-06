@@ -1,4 +1,4 @@
-//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
+//===== Copyright 1996-2005, Valve Corporation, All rights reserved. ======//
 //
 // Purpose: 
 //
@@ -6,14 +6,15 @@
 //===========================================================================//
 #include "cbase.h"
 #include "view_shared.h"
+#include "c_func_brush.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-class C_FuncReflectiveGlass : public C_BaseEntity
+class C_FuncReflectiveGlass : public C_FuncBrush
 {
 public:
-	DECLARE_CLASS( C_FuncReflectiveGlass, C_BaseEntity );
+	DECLARE_CLASS( C_FuncReflectiveGlass, C_FuncBrush );
 	DECLARE_CLIENTCLASS();
 
 // C_BaseEntity.
@@ -34,7 +35,7 @@ END_RECV_TABLE()
 // Globals
 //-----------------------------------------------------------------------------
 C_EntityClassList<C_FuncReflectiveGlass> g_ReflectiveGlassList;
-C_FuncReflectiveGlass *C_EntityClassList<C_FuncReflectiveGlass>::m_pClassList = NULL;
+template<> C_FuncReflectiveGlass *C_EntityClassList<C_FuncReflectiveGlass>::m_pClassList = NULL;
 
 C_FuncReflectiveGlass* GetReflectiveGlassList()
 {

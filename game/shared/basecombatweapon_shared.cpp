@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright ï¿½ 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -11,7 +11,8 @@
 #include "SoundEmitterSystem/isoundemittersystembase.h"
 #include "physics_saverestore.h"
 #include "datacache/imdlcache.h"
-
+#include "tier0/vprof.h"
+#include "collisionutils.h"
 
 #if !defined( CLIENT_DLL )
 
@@ -20,10 +21,6 @@
 #include "eventqueue.h"
 #include "fmtstr.h"
 #include "gameweaponmanager.h"
-
-#ifdef HL2MP
-	#include "hl2mp_gamerules.h"
-#endif
 
 #endif
 
@@ -71,9 +68,7 @@ CBaseCombatWeapon::CBaseCombatWeapon()
 
 	m_hWeaponFileInfo = GetInvalidWeaponInfoHandle();
 
-#if defined( TF_DLL )
-	UseClientSideAnimation();
-#endif
+
 }
 
 //-----------------------------------------------------------------------------
@@ -108,6 +103,7 @@ void CBaseCombatWeapon::Activate( void )
 #endif
 
 }
+
 void CBaseCombatWeapon::GiveDefaultAmmo( void )
 {
 	// If I use clips, set my clips to the default
@@ -145,6 +141,8 @@ void CBaseCombatWeapon::Spawn( void )
 	RemoveEFlags( EFL_USE_PARTITION_WHEN_NOT_SOLID );
 
 	m_iState = WEAPON_NOT_CARRIED;
+	SetGlobalFadeScale( 0.0f );
+
 	// Assume 
 	m_nViewModelIndex = 0;
 
@@ -153,6 +151,11 @@ void CBaseCombatWeapon::Spawn( void )
 	SetModel( GetWorldModel() );
 
 #if !defined( CLIENT_DLL )
+	if ( GetWpnData().szAIAddOn[ 0 ] != '\0' )
+	{
+		SetAIAddOn( AllocPooledString( GetWpnData().szAIAddOn ) );
+	}
+
 	if( IsX360() )
 	{
 		AddEffects( EF_ITEM_BLINK );
@@ -201,6 +204,7 @@ void CBaseCombatWeapon::Precache( void )
 	Assert( Q_strlen( GetClassname() ) > 0 );
 	// Msg( "Client got %s\n", GetClassname() );
 #endif
+
 	m_iPrimaryAmmoType = m_iSecondaryAmmoType = -1;
 
 	// Add this weapon to the weapon registry, and get our index into it
@@ -256,7 +260,17 @@ void CBaseCombatWeapon::Precache( void )
 		Warning( "Error reading weapon data file for: %s\n", GetClassname() );
 	//	Remove( );	//don't remove, this gets released soon!
 	}
+
+	const char *pszTracerName = GetTracerType();
+	if ( pszTracerName )
+	{
+		PrecacheEffect( pszTracerName );
+	}
+
+	PrecacheEffect( "ParticleTracer" );
+	PrecacheParticleSystem( "weapon_tracers" );
 }
+
 
 //-----------------------------------------------------------------------------
 // Purpose: Get my data in the file weapon info array
@@ -504,17 +518,6 @@ CBaseCombatCharacter	*CBaseCombatWeapon::GetOwner() const
 //-----------------------------------------------------------------------------
 void CBaseCombatWeapon::SetOwner( CBaseCombatCharacter *owner )
 {
-#ifndef CLIENT_DLL
-	if ( !owner )
-	{ 
-		// Make sure the weapon updates its state when it's removed from the player
-		// We have to force an active state change, because it's being dropped and won't call UpdateClientData()
-		int iOldState = m_iState;
-		m_iState = WEAPON_NOT_CARRIED;
-		OnActiveStateChanged( iOldState );
-	}
-#endif
-
 	m_hOwner = owner;
 	
 #ifndef CLIENT_DLL
@@ -605,7 +608,6 @@ float CBaseCombatWeapon::GetWeaponIdleTime( void )
 void CBaseCombatWeapon::Drop( const Vector &vecVelocity )
 {
 #if !defined( CLIENT_DLL )
-
 	// Once somebody drops a gun, it's fair game for removal when/if
 	// a game_weapon_manager does a cleanup on surplus weapons in the
 	// world.
@@ -701,10 +703,6 @@ void CBaseCombatWeapon::OnPickedUp( CBaseCombatCharacter *pNewOwner )
 		m_OnNPCPickup.FireOutput(pNewOwner, this);
 	}
 
-#ifdef HL2MP
-	HL2MPRules()->RemoveLevelDesignerPlacedObject( this );
-#endif
-
 	// Someone picked me up, so make it so that I can't be removed.
 	SetRemoveable( false );
 #endif
@@ -727,6 +725,10 @@ void CBaseCombatWeapon::MakeTracer( const Vector &vecTracerSrc, const trace_t &t
 	}
 
 	const char *pszTracerName = GetTracerType();
+	if ( !pszTracerName )
+	{
+		 pszTracerName = "weapon_tracers";
+	}
 
 	Vector vNewSrc = vecTracerSrc;
 	int iEntIndex = pOwner->entindex();
@@ -734,20 +736,22 @@ void CBaseCombatWeapon::MakeTracer( const Vector &vecTracerSrc, const trace_t &t
 	if ( g_pGameRules->IsMultiplayer() )
 	{
 		iEntIndex = entindex();
+#ifdef CLIENT_DLL
+		C_BasePlayer *player = ToBasePlayer( pOwner );
+		if ( C_BasePlayer::IsLocalPlayer( player ) )
+		{
+			CBaseEntity *vm = player->GetViewModel();
+			if ( vm )
+			{
+				iEntIndex = vm->entindex();
+			}
+		}
+#endif
 	}
 
 	int iAttachment = GetTracerAttachment();
 
-	switch ( iTracerType )
-	{
-	case TRACER_LINE:
-		UTIL_Tracer( vNewSrc, tr.endpos, iEntIndex, iAttachment, 0.0f, true, pszTracerName );
-		break;
-
-	case TRACER_LINE_AND_WHIZ:
-		UTIL_Tracer( vNewSrc, tr.endpos, iEntIndex, iAttachment, 0.0f, true, pszTracerName );
-		break;
-	}
+	UTIL_ParticleTracer( pszTracerName, vNewSrc, tr.endpos, iEntIndex, iAttachment, true );
 }
 
 //-----------------------------------------------------------------------------
@@ -977,7 +981,8 @@ void CBaseCombatWeapon::SetActivity( Activity act, float duration )
 		{
 			// FIXME: does this even make sense in non-shoot animations?
 			m_flPlaybackRate = SequenceDuration( sequence ) / duration;
-			m_flPlaybackRate = min( m_flPlaybackRate, 12.0);  // FIXME; magic number!, network encoding range
+			m_flPlaybackRate = fpmin( m_flPlaybackRate, 12.0);  // FIXME; magic number!, network encoding range
+			Assert( IsFinite( m_flPlaybackRate ) );
 		}
 		else
 		{
@@ -995,14 +1000,7 @@ int CBaseCombatWeapon::UpdateClientData( CBasePlayer *pPlayer )
 
 	if ( pPlayer->GetActiveWeapon() == this )
 	{
-		if ( pPlayer->m_fOnTarget ) 
-		{
-			iNewState = WEAPON_IS_ONTARGET;
-		}
-		else
-		{
-			iNewState = WEAPON_IS_ACTIVE;
-		}
+		iNewState = WEAPON_IS_ACTIVE;
 	}
 	else
 	{
@@ -1011,9 +1009,7 @@ int CBaseCombatWeapon::UpdateClientData( CBasePlayer *pPlayer )
 
 	if ( m_iState != iNewState )
 	{
-		int iOldState = m_iState;
 		m_iState = iNewState;
-		OnActiveStateChanged( iOldState );
 	}
 	return 1;
 }
@@ -1265,7 +1261,13 @@ bool CBaseCombatWeapon::IsWeaponVisible( void )
 	{
 		vm = pOwner->GetViewModel( m_nViewModelIndex );
 		if ( vm )
+		{
+#ifdef CLIENT_DLL
+			return !vm->IsDormant() && !vm->IsEffectActive(EF_NODRAW);
+#else
 			return ( !vm->IsEffectActive(EF_NODRAW) );
+#endif
+		}
 	}
 
 	return false;
@@ -1303,7 +1305,9 @@ bool CBaseCombatWeapon::ReloadOrSwitchWeapons( void )
 		{
 			// if we're successfully reloading, we're done
 			if ( Reload() )
+			{
 				return true;
+			}
 		}
 	}
 
@@ -1618,7 +1622,7 @@ void CBaseCombatWeapon::ItemPostFrame( void )
 	// -----------------------
 	//  Reload pressed / Clip Empty
 	// -----------------------
-	if ( pOwner->m_nButtons & IN_RELOAD && UsesClipsForAmmo1() && !m_bInReload ) 
+	if ( (pOwner->m_nButtons & IN_RELOAD) && UsesClipsForAmmo1() && !m_bInReload ) 
 	{
 		// reload when reload is pressed, or if no buttons are down and weapon is empty.
 		Reload();
@@ -1631,7 +1635,7 @@ void CBaseCombatWeapon::ItemPostFrame( void )
 	if (!((pOwner->m_nButtons & IN_ATTACK) || (pOwner->m_nButtons & IN_ATTACK2) || (pOwner->m_nButtons & IN_RELOAD)))
 	{
 		// no fire buttons down or reloading
-		if ( !ReloadOrSwitchWeapons() && ( m_bInReload == false ) )
+		if ( ( m_bInReload == false ) && !ReloadOrSwitchWeapons() )
 		{
 			WeaponIdle();
 		}
@@ -1832,7 +1836,7 @@ bool CBaseCombatWeapon::DefaultReload( int iClipSize1, int iClipSize2, int iActi
 	if ( UsesClipsForAmmo1() )
 	{
 		// need to reload primary clip?
-		int primary	= min(iClipSize1 - m_iClip1, pOwner->GetAmmoCount(m_iPrimaryAmmoType));
+		int primary	= MIN(iClipSize1 - m_iClip1, pOwner->GetAmmoCount(m_iPrimaryAmmoType));
 		if ( primary != 0 )
 		{
 			bReload = true;
@@ -1842,7 +1846,7 @@ bool CBaseCombatWeapon::DefaultReload( int iClipSize1, int iClipSize2, int iActi
 	if ( UsesClipsForAmmo2() )
 	{
 		// need to reload secondary clip?
-		int secondary = min(iClipSize2 - m_iClip2, pOwner->GetAmmoCount(m_iSecondaryAmmoType));
+		int secondary = MIN(iClipSize2 - m_iClip2, pOwner->GetAmmoCount(m_iSecondaryAmmoType));
 		if ( secondary != 0 )
 		{
 			bReload = true;
@@ -1994,7 +1998,7 @@ void CBaseCombatWeapon::FinishReload( void )
 		// If I use primary clips, reload primary
 		if ( UsesClipsForAmmo1() )
 		{
-			int primary	= min( GetMaxClip1() - m_iClip1, pOwner->GetAmmoCount(m_iPrimaryAmmoType));	
+			int primary	= MIN( GetMaxClip1() - m_iClip1, pOwner->GetAmmoCount(m_iPrimaryAmmoType));	
 			m_iClip1 += primary;
 			pOwner->RemoveAmmo( primary, m_iPrimaryAmmoType);
 		}
@@ -2002,7 +2006,7 @@ void CBaseCombatWeapon::FinishReload( void )
 		// If I use secondary clips, reload secondary
 		if ( UsesClipsForAmmo2() )
 		{
-			int secondary = min( GetMaxClip2() - m_iClip2, pOwner->GetAmmoCount(m_iSecondaryAmmoType));
+			int secondary = MIN( GetMaxClip2() - m_iClip2, pOwner->GetAmmoCount(m_iSecondaryAmmoType));
 			m_iClip2 += secondary;
 			pOwner->RemoveAmmo( secondary, m_iSecondaryAmmoType );
 		}
@@ -2075,12 +2079,12 @@ void CBaseCombatWeapon::PrimaryAttack( void )
 	// Make sure we don't fire more than the amount in the clip
 	if ( UsesClipsForAmmo1() )
 	{
-		info.m_iShots = min( info.m_iShots, m_iClip1 );
+		info.m_iShots = MIN( info.m_iShots, m_iClip1 );
 		m_iClip1 -= info.m_iShots;
 	}
 	else
 	{
-		info.m_iShots = min( info.m_iShots, pPlayer->GetAmmoCount( m_iPrimaryAmmoType ) );
+		info.m_iShots = MIN( info.m_iShots, pPlayer->GetAmmoCount( m_iPrimaryAmmoType ) );
 		pPlayer->RemoveAmmo( info.m_iShots, m_iPrimaryAmmoType );
 	}
 
@@ -2093,7 +2097,7 @@ void CBaseCombatWeapon::PrimaryAttack( void )
 	info.m_vecSpread = pPlayer->GetAttackSpread( this );
 #else
 	//!!!HACKHACK - what does the client want this function for? 
-	info.m_vecSpread = GetActiveWeapon()->GetBulletSpread();
+	info.m_vecSpread = pPlayer->GetActiveWeapon()->GetBulletSpread();
 #endif // CLIENT_DLL
 
 	pPlayer->FireBullets( info );
@@ -2106,6 +2110,82 @@ void CBaseCombatWeapon::PrimaryAttack( void )
 
 	//Add our view kick in
 	AddViewKick();
+}
+
+void CBaseCombatWeapon::BaseForceFire( CBaseCombatCharacter *pOperator, CBaseEntity *pTarget )
+{
+	// Ensure we have enough rounds in the clip
+	m_iClip1++;
+
+	// If my clip is empty (and I use clips) start reload
+	if ( UsesClipsForAmmo1() && !m_iClip1 ) 
+	{
+		Reload();
+		return;
+	}
+
+	pOperator->DoMuzzleFlash();
+
+	SendWeaponAnim( GetPrimaryAttackActivity() );
+
+	// player "shoot" animation
+	//pOperator->SetAnimation( PLAYER_ATTACK1 );
+
+	FireBulletsInfo_t info;
+
+	QAngle	angShootDir;
+	GetAttachment( LookupAttachment( "muzzle" ), info.m_vecSrc, angShootDir );
+
+	if ( pTarget )
+	{
+		info.m_vecDirShooting = pTarget->WorldSpaceCenter() - info.m_vecSrc;
+		VectorNormalize( info.m_vecDirShooting );
+	}
+	else
+	{
+		AngleVectors( angShootDir, &info.m_vecDirShooting );
+	}
+
+	// To make the firing framerate independent, we may have to fire more than one bullet here on low-framerate systems, 
+	// especially if the weapon we're firing has a really fast rate of fire.
+	info.m_iShots = 0;
+	float fireRate = GetFireRate();
+
+	while ( m_flNextPrimaryAttack <= gpGlobals->curtime )
+	{
+		// MUST call sound before removing a round from the clip of a CMachineGun
+		WeaponSound(SINGLE, m_flNextPrimaryAttack);
+		m_flNextPrimaryAttack = m_flNextPrimaryAttack + fireRate;
+		info.m_iShots++;
+		if ( !fireRate )
+			break;
+	}
+
+	// Make sure we don't fire more than the amount in the clip
+	if ( UsesClipsForAmmo1() )
+	{
+		info.m_iShots = MIN( info.m_iShots, m_iClip1 );
+		m_iClip1 -= info.m_iShots;
+	}
+	else
+	{
+		info.m_iShots = MIN( info.m_iShots, pOperator->GetAmmoCount( m_iPrimaryAmmoType ) );
+		pOperator->RemoveAmmo( info.m_iShots, m_iPrimaryAmmoType );
+	}
+
+	info.m_flDistance = MAX_TRACE_LENGTH;
+	info.m_iAmmoType = m_iPrimaryAmmoType;
+	info.m_iTracerFreq = 2;
+
+#if !defined( CLIENT_DLL )
+	// Fire the bullets
+	info.m_vecSpread = pOperator->GetAttackSpread( this );
+#else
+	//!!!HACKHACK - what does the client want this function for? 
+	info.m_vecSpread = GetBulletSpread();
+#endif // CLIENT_DLL
+
+	pOperator->FireBullets( info );
 }
 
 //-----------------------------------------------------------------------------
@@ -2130,7 +2210,7 @@ void CBaseCombatWeapon::MaintainIdealActivity( void )
 }
 
 //-----------------------------------------------------------------------------
-// Purpose: Sets the ideal activity for the weapon to be in, allowing for transitional animations inbetween
+// Purpose: Sets the ideal activity for the weapon to be in, allowing for transitional animations in between
 // Input  : ideal - activity to end up at, ideally
 //-----------------------------------------------------------------------------
 bool CBaseCombatWeapon::SetIdealActivity( Activity ideal )
@@ -2229,6 +2309,79 @@ Activity CBaseCombatWeapon::ActivityOverride( Activity baseAct, bool *pRequired 
 	return baseAct;
 }
 
+class CWeaponList : public CAutoGameSystem
+{
+public:
+	CWeaponList( char const *name ) : CAutoGameSystem( name )
+	{
+	}
+
+
+	virtual void LevelShutdownPostEntity()  
+	{ 
+		m_list.Purge();
+	}
+
+	void AddWeapon( CBaseCombatWeapon *pWeapon )
+	{
+		m_list.AddToTail( pWeapon );
+	}
+
+	void RemoveWeapon( CBaseCombatWeapon *pWeapon )
+	{
+		m_list.FindAndRemove( pWeapon );
+	}
+	CUtlLinkedList< CBaseCombatWeapon * > m_list;
+};
+
+CWeaponList g_WeaponList( "CWeaponList" );
+
+#ifndef CLIENT_DLL
+void OnBaseCombatWeaponCreated( CBaseCombatWeapon *pWeapon )
+{
+	g_WeaponList.AddWeapon( pWeapon );
+}
+
+void OnBaseCombatWeaponDestroyed( CBaseCombatWeapon *pWeapon )
+{
+	g_WeaponList.RemoveWeapon( pWeapon );
+}
+#endif
+
+#ifdef CLIENT_DLL
+CUtlLinkedList< CBaseCombatWeapon * >& CBaseCombatWeapon::GetWeaponList( void )
+{
+	return g_WeaponList.m_list;
+}
+#else
+int CBaseCombatWeapon::GetAvailableWeaponsInBox( CBaseCombatWeapon **pList, int listMax, const Vector &mins, const Vector &maxs )
+{
+	// linear search all weapons
+	int count = 0;
+	int index = g_WeaponList.m_list.Head();
+	while ( index != g_WeaponList.m_list.InvalidIndex() )
+	{
+		CBaseCombatWeapon *pWeapon = g_WeaponList.m_list[index];
+		// skip any held weapon
+		if ( !pWeapon->GetOwner() )
+		{
+			// restrict to mins/maxs
+			if ( IsPointInBox( pWeapon->GetAbsOrigin(), mins, maxs ) )
+			{
+				if ( count < listMax )
+				{
+					pList[count] = pWeapon;
+					count++;
+				}
+			}
+		}
+		index = g_WeaponList.m_list.Next( index );
+	}
+
+	return count;
+}
+#endif
+
 
 #if defined( CLIENT_DLL )
 
@@ -2238,7 +2391,7 @@ BEGIN_PREDICTION_DATA( CBaseCombatWeapon )
 	// Networked
 	DEFINE_PRED_FIELD( m_hOwner, FIELD_EHANDLE, FTYPEDESC_INSENDTABLE ),
 	// DEFINE_FIELD( m_hWeaponFileInfo, FIELD_SHORT ),
-	DEFINE_PRED_FIELD( m_iState, FIELD_INTEGER, FTYPEDESC_INSENDTABLE ),			 
+	DEFINE_PRED_FIELD( m_iState, FIELD_INTEGER, FTYPEDESC_INSENDTABLE ),	
 	DEFINE_PRED_FIELD( m_iViewModelIndex, FIELD_INTEGER, FTYPEDESC_INSENDTABLE | FTYPEDESC_MODELINDEX ),
 	DEFINE_PRED_FIELD( m_iWorldModelIndex, FIELD_INTEGER, FTYPEDESC_INSENDTABLE | FTYPEDESC_MODELINDEX ),
 	DEFINE_PRED_FIELD_TOL( m_flNextPrimaryAttack, FIELD_FLOAT, FTYPEDESC_INSENDTABLE, TD_MSECTOLERANCE ),	
@@ -2254,7 +2407,6 @@ BEGIN_PREDICTION_DATA( CBaseCombatWeapon )
 
 	// Not networked
 
-	DEFINE_PRED_FIELD( m_flTimeWeaponIdle, FIELD_FLOAT, FTYPEDESC_INSENDTABLE ),
 	DEFINE_FIELD( m_bInReload, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_bFireOnEmpty, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_flNextEmptySoundTime, FIELD_FLOAT ),
@@ -2435,9 +2587,7 @@ BEGIN_NETWORK_TABLE_NOBASE( CBaseCombatWeapon, DT_LocalActiveWeaponData )
 	SendPropInt( SENDINFO( m_nNextThinkTick ) ),
 	SendPropTime( SENDINFO( m_flTimeWeaponIdle ) ),
 
-#if defined( TF_DLL )
-	SendPropExclude( "DT_AnimTimeMustBeFirst" , "m_flAnimTime" ),
-#endif
+
 
 #else
 	RecvPropTime( RECVINFO( m_flNextPrimaryAttack ) ),
@@ -2459,9 +2609,7 @@ BEGIN_NETWORK_TABLE_NOBASE( CBaseCombatWeapon, DT_LocalWeaponData )
 
 	SendPropInt( SENDINFO( m_nViewModelIndex ), VIEWMODEL_INDEX_BITS, SPROP_UNSIGNED ),
 
-#if defined( TF_DLL )
-	SendPropExclude( "DT_AnimTimeMustBeFirst" , "m_flAnimTime" ),
-#endif
+
 
 #else
 	RecvPropIntWithMinusOneFlag( RECVINFO(m_iClip1 )),
@@ -2480,7 +2628,7 @@ BEGIN_NETWORK_TABLE(CBaseCombatWeapon, DT_BaseCombatWeapon)
 	SendPropDataTable("LocalActiveWeaponData", 0, &REFERENCE_SEND_TABLE(DT_LocalActiveWeaponData), SendProxy_SendActiveLocalWeaponDataTable ),
 	SendPropModelIndex( SENDINFO(m_iViewModelIndex) ),
 	SendPropModelIndex( SENDINFO(m_iWorldModelIndex) ),
-	SendPropInt( SENDINFO(m_iState ), 8, SPROP_UNSIGNED ),
+	SendPropInt( SENDINFO( m_iState ), 2, SPROP_UNSIGNED ),
 	SendPropEHandle( SENDINFO(m_hOwner) ),
 #else
 	RecvPropDataTable("LocalWeaponData", 0, 0, &REFERENCE_RECV_TABLE(DT_LocalWeaponData)),
@@ -2491,3 +2639,32 @@ BEGIN_NETWORK_TABLE(CBaseCombatWeapon, DT_BaseCombatWeapon)
 	RecvPropEHandle( RECVINFO(m_hOwner ) ),
 #endif
 END_NETWORK_TABLE()
+#if defined( CLIENT_DLL )
+
+int Studio_FindAttachment( const CStudioHdr *pStudioHdr, const char *pAttachmentName );
+
+int CBaseCombatWeapon::LookupAttachment( const char *pAttachmentName )
+{
+	int newIndex = GetWorldModelIndex();
+	if ( newIndex != m_nModelIndex )
+	{
+		const model_t *pWorldModel = modelinfo->GetModel( newIndex );
+		if ( pWorldModel )
+		{
+			MDLHandle_t hStudioHdr = modelinfo->GetCacheHandle( pWorldModel );
+			if ( MDLHANDLE_INVALID != hStudioHdr )
+			{
+				const studiohdr_t *pStudioHdr = mdlcache->GetStudioHdr( hStudioHdr );
+				if ( pStudioHdr )
+				{
+					CStudioHdr studioHdrContainer( pStudioHdr, mdlcache );
+					int iRet = Studio_FindAttachment( &studioHdrContainer, pAttachmentName ) + 1;
+					return iRet;
+				}
+			}
+		}
+	}
+
+	return BaseClass::LookupAttachment( pAttachmentName );
+}
+#endif

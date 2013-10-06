@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright (c) 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: Draws the death notices
 //
@@ -33,7 +33,7 @@ public:
 	bool ShouldDraw( void );
 	virtual void Paint();
 
-	virtual void CHudDeathNotice::ApplySchemeSettings( vgui::IScheme *scheme );
+	virtual void ApplySchemeSettings( vgui::IScheme *scheme );
 
 	void FireGameEvent( KeyValues * event);
 
@@ -58,7 +58,7 @@ DECLARE_HUDELEMENT( CHudDeathNotice );
 CHudDeathNotice::CHudDeathNotice( const char *pElementName ) :
 	CHudElement( pElementName ), BaseClass( NULL, "HudDeathNotice" )
 {
-	vgui::Panel *pParent = g_pClientMode->GetViewport();
+	vgui::Panel *pParent = GetClientMode()->GetViewport();
 	SetParent( pParent );
 
 	SetHiddenBits( HIDEHUD_MISCSTATUS );
@@ -108,7 +108,7 @@ void CHudDeathNotice::Init( void )
 //-----------------------------------------------------------------------------
 void CHudDeathNotice::VidInit( void )
 {
-	m_iconD_skull = gHUD.GetIcon( "d_skull" );
+	m_iconD_skull = HudIcons().GetIcon( "d_skull" );
 }
 
 //-----------------------------------------------------------------------------
@@ -145,7 +145,7 @@ void CHudDeathNotice::Paint()
 			continue;
 		}
 
-		rgDeathNoticeList[i].flDisplayTime = min( rgDeathNoticeList[i].flDisplayTime, gpGlobals->curtime + DEATHNOTICE_DISPLAY_TIME );
+		rgDeathNoticeList[i].flDisplayTime = MIN( rgDeathNoticeList[i].flDisplayTime, gpGlobals->curtime + DEATHNOTICE_DISPLAY_TIME );
 
 		// Draw the death notice
 		y = DEATHNOTICE_TOP + (20 * i) + 100;  //!!!
@@ -241,7 +241,7 @@ void CHudDeathNotice::FireGameEvent( KeyValues * event)
 		rgDeathNoticeList[i].iTeamKill = true;
 
 	// try and find the death identifier in the icon list
-	rgDeathNoticeList[i].iconDeath = gHUD.GetIcon( killedwith );
+	rgDeathNoticeList[i].iconDeath = HudIcons().GetIcon( killedwith );
 	if ( !rgDeathNoticeList[i].iconDeath )
 	{
 		// can't find it, so use the default skull & crossbones icon

@@ -76,8 +76,8 @@ enum {
 	WINREASON_STALEMATE,
 	WINREASON_TIMELIMIT,
 	WINREASON_WINLIMIT,
-// 	WINREASON_HUNTED_DEAD,
-// 	WINREASON_HUNTED_ESCAPED,
+	WINREASON_HUNTED_DEAD,
+	WINREASON_HUNTED_ESCAPED,
 };
 
 enum stalemate_reasons_t
@@ -419,7 +419,7 @@ private:
 #endif // CLIENT_DLL
 
 public:
-	bool WouldChangeUnbalanceTeams( int iNewTeam, int iCurrentTeam  );
+	bool WouldChangeUnbalanceTeams( int iNumPlayersToMove, int iNewTeam, int iCurrentTeam  );
 	bool AreTeamsUnbalanced( int &iHeaviestTeam, int &iLightestTeam );
 
 protected:

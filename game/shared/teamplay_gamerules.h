@@ -100,8 +100,6 @@ public:
 	virtual bool ShouldScrambleTeams( void ){ return m_bScrambleTeams; }
 	virtual void HandleScrambleTeams( void ){ return; }
 
-	virtual bool PointsMayAlwaysBeBlocked(){ return false; }
-	
 protected:
 	bool m_DisableDeathMessages;
 

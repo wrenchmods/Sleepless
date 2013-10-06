@@ -34,6 +34,12 @@ enum
 // safe handle to a panel - can be converted to and from a VPANEL
 typedef unsigned long HPanel;
 
+class IMessageContextIdHandler
+{
+public:
+	virtual void SetMessageContextId( int id ) = 0;
+};
+
 //-----------------------------------------------------------------------------
 // Purpose: Interface to core vgui components
 //-----------------------------------------------------------------------------
@@ -95,9 +101,11 @@ public:
 
 	// data accessor for above
 	virtual bool GetShouldVGuiControlSleep() = 0;
-};
 
-#define VGUI_IVGUI_INTERFACE_VERSION "VGUI_ivgui008"
+	// Resets a particular context, use DEFAULT_VGUI_CONTEXT
+	// to get the one normally used by VGUI
+	virtual void ResetContext( HContext context ) = 0;
+};
 
 };
 

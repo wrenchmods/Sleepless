@@ -54,7 +54,7 @@ private:
 
 	// The client forwards this call so the game rules manager can create the appropriate
 	// game rules class.
-	void InstallStringTableCallback_GameRules();
+	void InstallStringTableCallback_GameRules( const char *tableName );
 
 #else
 

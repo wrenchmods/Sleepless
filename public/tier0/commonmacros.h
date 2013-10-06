@@ -32,12 +32,16 @@
 
 #define SETBITS(iBitVector, bits)		((iBitVector) |= (bits))
 #define CLEARBITS(iBitVector, bits)		((iBitVector) &= ~(bits))
-#define FBitSet(iBitVector, bit)		((iBitVector) & (bit))
+#define FBitSet(iBitVector, bits)		((iBitVector) & (bits))
 
 inline bool IsPowerOfTwo( int value )
 {
 	return (value & ( value - 1 )) == 0;
 }
+
+#ifndef REFERENCE
+#define REFERENCE(arg) ((void)arg)
+#endif
 
 #define CONST_INTEGER_AS_STRING(x) #x //Wraps the integer in quotes, allowing us to form constant strings with it
 #define __HACK_LINE_AS_STRING__(x) CONST_INTEGER_AS_STRING(x) //__LINE__ can only be converted to an actual number by going through this, otherwise the output is literally "__LINE__"
@@ -142,3 +146,4 @@ char (*RtlpNumberOf( UNALIGNED T (&)[N] ))[N];
 #define _ARRAYSIZE(A)   RTL_NUMBER_OF_V1(A)
 
 #endif // COMMONMACROS_H
+

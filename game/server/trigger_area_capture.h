@@ -127,7 +127,6 @@ private:
 	{
 		CHandle<CBaseMultiplayerPlayer>	hPlayer;
 		int						iCapAttemptNumber;
-		float					flNextBlockTime;
 	};
 	CUtlVector<blockers_t>	m_Blockers;
 
@@ -155,7 +154,6 @@ private:
 	string_t m_iszCapPointName;			//name of the cap point that we're linked to
 
 	int	m_iCapAttemptNumber;	// number used to keep track of discrete cap attempts, for block tracking
-	bool m_bStartTouch;
 
 	DECLARE_DATADESC();
 };

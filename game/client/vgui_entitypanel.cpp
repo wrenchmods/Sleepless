@@ -5,6 +5,7 @@
 // $Revision: $
 // $NoKeywords: $
 //=============================================================================//
+
 #include "cbase.h"
 #include "vgui_EntityPanel.h"
 #include "ienginevgui.h"
@@ -16,6 +17,10 @@
 #include <vgui/IVGui.h>
 #include "cdll_util.h"
 #include "view.h"
+
+// NOTE: This has to be the last file included!
+#include "tier0/memdbgon.h"
+
 
 //-----------------------------------------------------------------------------
 // constructor
@@ -102,7 +107,7 @@ void CEntityPanel::ComputeAndSetSize( void )
 		// Get distance to entity
 		float flDistance = (m_pBaseEntity->GetRenderOrigin() - MainViewOrigin()).Length();
 		flDistance *= 2;
-  		m_flScale = 0.25 + max( 0, 2.0 - (flDistance / 2048) );
+  		m_flScale = 0.25 + MAX( 0, 2.0 - (flDistance / 2048) );
 	}
 
 	// Update the size

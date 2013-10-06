@@ -23,7 +23,7 @@ enum debughistorycategories_t
 	MAX_HISTORY_CATEGORIES,
 };
 
-#define DISABLE_DEBUG_HISTORY
+#undef DISABLE_DEBUG_HISTORY
 
 #if defined(DISABLE_DEBUG_HISTORY)
 #define ADD_DEBUG_HISTORY( category, line )		((void)0)
@@ -31,5 +31,7 @@ enum debughistorycategories_t
 #define ADD_DEBUG_HISTORY( category, line )		AddDebugHistoryLine( category, line )
 void AddDebugHistoryLine( int iCategory, const char *pszLine );
 #endif
+
+void ClearDebugHistory();
 
 #endif // ENV_DEBUGHISTORY_H

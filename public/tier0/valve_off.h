@@ -27,4 +27,7 @@
 #undef _expand
 #undef free
 
-#endif
+#endif // STEAM
+
+// Allow long to be used in 3rd-party headers
+#undef long

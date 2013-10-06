@@ -16,6 +16,10 @@
 #include "saverestore_utlvector.h"
 #include "dt_utlvector_send.h"
 
+#include "datacache/imdlcache.h"
+
+#include "toolframework/itoolframework.h"
+
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
@@ -249,6 +253,21 @@ void CBaseAnimatingOverlay::VerifyOrder( void )
 }
 
 
+//-----------------------------------------------------------------------------
+// Purpose: Sets the entity's model, clearing animation data
+// Input  : *szModelName - 
+//-----------------------------------------------------------------------------
+void CBaseAnimatingOverlay::SetModel( const char *szModelName )
+{
+	for ( int j=0; j<m_AnimOverlay.Count(); ++j )
+	{
+		m_AnimOverlay[j].Init( this );
+	}
+
+	BaseClass::SetModel( szModelName );
+}
+
+
 //------------------------------------------------------------------------------
 // Purpose : advance the animation frame up to the current time
 //			 if an flInterval is passed in, only advance animation that number of seconds
@@ -349,7 +368,7 @@ void CBaseAnimatingOverlay::DispatchAnimEvents ( CBaseAnimating *eventHandler )
 
 	for ( int i = 0; i < m_AnimOverlay.Count(); i++ )
 	{
-		if (m_AnimOverlay[ i ].IsActive())
+		if (m_AnimOverlay[ i ].IsActive() && !m_AnimOverlay[ i ].NoEvents() )
 		{
 			m_AnimOverlay[ i ].DispatchAnimEvents( eventHandler, this );
 		}
@@ -394,7 +413,7 @@ void CAnimationLayer::DispatchAnimEvents( CBaseAnimating *eventHandler, CBaseAni
 		if (flEnd >= flLastVisibleCycle || flEnd < 0.0) 
 		{
 			m_bSequenceFinished = true;
-			flEnd = 1.0f;
+			flEnd = 1.01f;
 		}
 	}
 	m_flLastEventCheck = flEnd;
@@ -423,13 +442,18 @@ void CAnimationLayer::DispatchAnimEvents( CBaseAnimating *eventHandler, CBaseAni
 		}
 
 		// Msg( "dispatch %d (%d : %.2f)\n", index - 1, event.event, event.eventtime );
+		event.m_bHandledByScript = eventHandler->HandleScriptedAnimEvent( &event );
+		if ( eventHandler->HandleBehaviorAnimEvent( &event ) )
+		{
+			event.m_bHandledByScript = true;
+		}
 		eventHandler->HandleAnimEvent( &event );
 	}
 }
 
 
 
-void CBaseAnimatingOverlay::GetSkeleton( CStudioHdr *pStudioHdr, Vector pos[], Quaternion q[], int boneMask )
+void CBaseAnimatingOverlay::GetSkeleton( CStudioHdr *pStudioHdr, Vector pos[], QuaternionAligned q[], int boneMask )
 {
 	if(!pStudioHdr)
 	{
@@ -442,9 +466,10 @@ void CBaseAnimatingOverlay::GetSkeleton( CStudioHdr *pStudioHdr, Vector pos[], Q
 		return;
 	}
 
-	InitPose( pStudioHdr, pos, q, boneMask );
+	IBoneSetup boneSetup( pStudioHdr, boneMask, GetPoseParameterArray() );
+	boneSetup.InitPose( pos, q );
 
-	AccumulatePose( pStudioHdr, m_pIk, pos, q, GetSequence(), GetCycle(), GetPoseParameterArray(), boneMask, 1.0, gpGlobals->curtime );
+	boneSetup.AccumulatePose( pos, q, GetSequence(), GetCycle(), 1.0, gpGlobals->curtime, m_pIk );
 
 	// sort the layers
 	int layer[MAX_OVERLAYS];
@@ -467,7 +492,7 @@ void CBaseAnimatingOverlay::GetSkeleton( CStudioHdr *pStudioHdr, Vector pos[], Q
 		{
 			CAnimationLayer &pLayer = m_AnimOverlay[layer[i]];
 			// UNDONE: Is it correct to use overlay weight for IK too?
-			AccumulatePose( pStudioHdr, m_pIk, pos, q, pLayer.m_nSequence, pLayer.m_flCycle, GetPoseParameterArray(), boneMask, pLayer.m_flWeight, gpGlobals->curtime );
+			boneSetup.AccumulatePose( pos, q, pLayer.m_nSequence, pLayer.m_flCycle, pLayer.m_flWeight, gpGlobals->curtime, m_pIk );
 		}
 	}
 
@@ -475,13 +500,13 @@ void CBaseAnimatingOverlay::GetSkeleton( CStudioHdr *pStudioHdr, Vector pos[], Q
 	{
 		CIKContext auto_ik;
 		auto_ik.Init( pStudioHdr, GetAbsAngles(), GetAbsOrigin(), gpGlobals->curtime, 0, boneMask );
-		CalcAutoplaySequences( pStudioHdr, &auto_ik, pos, q, GetPoseParameterArray(), boneMask, gpGlobals->curtime );
+		boneSetup.CalcAutoplaySequences( pos, q, gpGlobals->curtime, &auto_ik );
 	}
 	else
 	{
-		CalcAutoplaySequences( pStudioHdr, NULL, pos, q, GetPoseParameterArray(), boneMask, gpGlobals->curtime );
+		boneSetup.CalcAutoplaySequences( pos, q, gpGlobals->curtime, NULL );
 	}
-	CalcBoneAdj( pStudioHdr, pos, q, GetEncodedControllerArray(), boneMask );
+	boneSetup.CalcBoneAdj( pos, q, GetEncodedControllerArray() );
 }
 
 
@@ -564,6 +589,7 @@ int CBaseAnimatingOverlay::AddGesture( Activity activity, bool autokill /*= true
 		return FindGestureLayer( activity );
 	}
 
+	MDLCACHE_CRITICAL_SECTION();
 	int seq = SelectWeightedSequence( activity );
 	if ( seq <= 0 )
 	{
@@ -685,7 +711,7 @@ int CBaseAnimatingOverlay::AllocateLayer( int iPriority )
 		{
 			if (m_AnimOverlay[i].m_nPriority <= iPriority)
 			{
-				iNewOrder = max( iNewOrder, m_AnimOverlay[i].m_nOrder + 1 );
+				iNewOrder = MAX( iNewOrder, m_AnimOverlay[i].m_nOrder + 1 );
 			}
 		}
 		else if (m_AnimOverlay[ i ].IsDying())
@@ -711,6 +737,7 @@ int CBaseAnimatingOverlay::AllocateLayer( int iPriority )
 
 		iOpenLayer = m_AnimOverlay.AddToTail();
 		m_AnimOverlay[iOpenLayer].Init( this );
+		m_AnimOverlay[iOpenLayer].NetworkStateChanged();
 	}
 
 	// make sure there's always an empty unused layer so that history slots will be available on the client when it is used
@@ -720,6 +747,7 @@ int CBaseAnimatingOverlay::AllocateLayer( int iPriority )
 		{
 			i = m_AnimOverlay.AddToTail();
 			m_AnimOverlay[i].Init( this );
+			m_AnimOverlay[i].NetworkStateChanged();
 		}
 	}
 
@@ -779,7 +807,7 @@ void CBaseAnimatingOverlay::SetLayerPriority( int iLayer, int iPriority )
 		{
 			if (m_AnimOverlay[i].m_nPriority <= iPriority)
 			{
-				iNewOrder = max( iNewOrder, m_AnimOverlay[i].m_nOrder + 1 );
+				iNewOrder = MAX( iNewOrder, m_AnimOverlay[i].m_nOrder + 1 );
 			}
 		}
 	}
@@ -1040,6 +1068,23 @@ void CBaseAnimatingOverlay::SetLayerNoRestore( int iLayer, bool bNoRestore )
 	}
 }
 
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CBaseAnimatingOverlay::SetLayerNoEvents( int iLayer, bool bNoEvents )
+{
+	if (!IsValidLayer( iLayer ))
+		return;
+
+	if (bNoEvents)
+	{
+		m_AnimOverlay[iLayer].m_fFlags |= ANIM_LAYER_NOEVENTS;
+	}
+	else
+	{
+		m_AnimOverlay[iLayer].m_fFlags &= ~ANIM_LAYER_NOEVENTS;
+	}
+}
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -1120,10 +1165,12 @@ void CBaseAnimatingOverlay::SetNumAnimOverlays( int num )
 	if ( m_AnimOverlay.Count() < num )
 	{
 		m_AnimOverlay.AddMultipleToTail( num - m_AnimOverlay.Count() );
+		NetworkStateChanged();
 	}
 	else if ( m_AnimOverlay.Count() > num )
 	{
 		m_AnimOverlay.RemoveMultiple( num, m_AnimOverlay.Count() - num );
+		NetworkStateChanged();
 	}
 }
 
@@ -1137,5 +1184,3 @@ bool CBaseAnimatingOverlay::HasActiveLayer( void )
 
 	return false;
 }
-
-//-----------------------------------------------------------------------------

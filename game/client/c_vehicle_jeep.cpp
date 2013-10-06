@@ -54,7 +54,7 @@ C_PropJeep::~C_PropJeep()
 	}
 }
 
-void C_PropJeep::Simulate( void )
+bool C_PropJeep::Simulate( void )
 {
 	// The dim light is the flashlight.
 	if ( m_bHeadlightIsOn )
@@ -65,7 +65,7 @@ void C_PropJeep::Simulate( void )
 			m_pHeadlight = new CHeadlightEffect;
 
 			if ( m_pHeadlight == NULL )
-				return;
+				return true;
 
 			m_pHeadlight->TurnOn();
 		}
@@ -92,6 +92,7 @@ void C_PropJeep::Simulate( void )
 	}
 
 	BaseClass::Simulate();
+	return true;
 }
 
 //-----------------------------------------------------------------------------
@@ -133,6 +134,7 @@ void C_PropJeep::UpdateViewAngles( C_BasePlayer *pLocalPlayer, CUserCmd *pCmd )
 //-----------------------------------------------------------------------------
 void C_PropJeep::DampenEyePosition( Vector &vecVehicleEyePos, QAngle &vecVehicleEyeAngles )
 {
+#ifdef HL2_CLIENT_DLL
 	// Get the frametime. (Check to see if enough time has passed to warrent dampening).
 	float flFrameTime = gpGlobals->frametime;
 
@@ -149,6 +151,7 @@ void C_PropJeep::DampenEyePosition( Vector &vecVehicleEyePos, QAngle &vecVehicle
 
 	// Blend up/down motion.
 	DampenUpMotion( vecVehicleEyePos, vecVehicleEyeAngles, flFrameTime );
+#endif
 }
 
 
@@ -321,4 +324,4 @@ void WheelDustCallback( const CEffectData &data )
 	}
 }
 
-DECLARE_CLIENT_EFFECT( "WheelDust", WheelDustCallback );
+DECLARE_CLIENT_EFFECT( WheelDust, WheelDustCallback );

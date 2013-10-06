@@ -18,9 +18,7 @@
 #include "clientmode_shared.h"
 #include "c_baseplayer.h"
 #include "c_team.h"
-#if defined ( TF_DLL )
 #include "tf_shareddefs.h"
-#endif
 
 #include "hud_basedeathnotice.h"
 
@@ -39,7 +37,7 @@ using namespace vgui;
 CHudBaseDeathNotice::CHudBaseDeathNotice( const char *pElementName ) :
 	CHudElement( pElementName ), BaseClass( NULL, "HudDeathNotice" )
 {
-	vgui::Panel *pParent = g_pClientMode->GetViewport();
+	vgui::Panel *pParent = GetClientMode()->GetViewport();
 	SetParent( pParent );
 
 }
@@ -419,8 +417,6 @@ void CHudBaseDeathNotice::FireGameEvent( IGameEvent *event )
 		// print a log message
 		Msg( "%s defended %s for team #%d\n", m_DeathNotices[iMsg].Killer.szName, m_DeathNotices[iMsg].Victim.szName, m_DeathNotices[iMsg].Killer.iTeam );
 	}
-//Tony; this is tf2 specific, it should be moved to hud_tfdeathnotice!!
-#if defined ( TF_DLL )
 	else if ( FStrEq( "teamplay_flag_event", pszEventName ) )
 	{
 		const char *pszMsgKey = NULL;
@@ -466,7 +462,6 @@ void CHudBaseDeathNotice::FireGameEvent( IGameEvent *event )
 		if ( iLocalPlayerIndex == iPlayerIndex )
 			m_DeathNotices[iMsg].bLocalPlayerInvolved = true;
 	}
-#endif
 
 	OnGameEvent( event, m_DeathNotices[iMsg] );
 
@@ -483,11 +478,7 @@ void CHudBaseDeathNotice::FireGameEvent( IGameEvent *event )
 		if ( !m_DeathNotices[iMsg].iconDeath )
 		{
 			// Can't find it, so use the default skull & crossbones icon
-#if defined ( TF_DLL )
 			m_DeathNotices[iMsg].iconDeath = GetIcon( "d_skull_tf", m_DeathNotices[iMsg].bLocalPlayerInvolved );
-#else
-			m_DeathNotices[iMsg].iconDeath = GetIcon( "d_skull", m_DeathNotices[iMsg].bLocalPlayerInvolved );
-#endif
 		}
 	}
 }
@@ -530,7 +521,7 @@ void CHudBaseDeathNotice::DrawText( int x, int y, HFont hFont, Color clr, const 
 	surface()->DrawSetTextPos( x, y );
 	surface()->DrawSetTextColor( clr );
 	surface()->DrawSetTextFont( hFont );	//reset the font, draw icon can change it
-	surface()->DrawUnicodeString( szText, vgui::FONT_DRAW_NONADDITIVE );
+	surface()->DrawUnicodeString( szText, FONT_DRAW_NONADDITIVE );
 }
 
 //-----------------------------------------------------------------------------
@@ -579,13 +570,13 @@ CHudTexture *CHudBaseDeathNotice::GetIcon( const char *szIcon, bool bInvert )
 		// change prefix from d_ to dneg_
 		char szIconTmp[255] = "dneg_";
 		V_strcat( szIconTmp, szIcon+2, ARRAYSIZE( szIconTmp ) );
-		CHudTexture *pIcon = gHUD.GetIcon( szIconTmp );
+		CHudTexture *pIcon = HudIcons().GetIcon( szIconTmp );
 		// return inverted version if found
 		if ( pIcon )
 			return pIcon;
 		// if we didn't find the inverted version, keep going and try the normal version
 	}
-	return gHUD.GetIcon( szIcon );
+	return HudIcons().GetIcon( szIcon );
 }
 
 //-----------------------------------------------------------------------------

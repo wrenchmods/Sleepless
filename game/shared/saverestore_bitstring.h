@@ -45,7 +45,7 @@ public:
 			pBitString->ClearAll();
 		}
 		int numIntsInStream = CalcNumIntsForBits( numBits );
-		int readSize = min( pBitString->GetNumDWords(), numIntsInStream );
+		int readSize = MIN( pBitString->GetNumDWords(), numIntsInStream );
 		pRestore->ReadInt( pBitString->Base(), numIntsInStream );
 
 		numIntsInStream -= readSize;
@@ -89,7 +89,7 @@ ISaveRestoreOps *GetBitstringDataOps(BITSTRING *)
 //-------------------------------------
 
 #define DEFINE_BITSTRING(name) \
-	{ FIELD_CUSTOM, #name, { offsetof(classNameTypedef,name), 0 }, 1, FTYPEDESC_SAVE, NULL, GetBitstringDataOps(&(((classNameTypedef *)0)->name)), NULL }
+	{ FIELD_CUSTOM, #name, offsetof(classNameTypedef,name), 1, FTYPEDESC_SAVE, NULL, GetBitstringDataOps(&(((classNameTypedef *)0)->name)), NULL }
 
 #endif // SAVERESTORE_BITSTRING_H
 

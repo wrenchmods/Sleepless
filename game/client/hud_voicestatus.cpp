@@ -7,26 +7,20 @@
 #include "cbase.h"
 #include "hudelement.h"
 #include <vgui_controls/Panel.h>
-#include <vgui/IScheme.h>
+#include <vgui/isurface.h>
 #include <vgui/ILocalize.h>
-#include <vgui/ISurface.h>
-#include <vgui/IVGui.h>
-#include <vgui_controls/ImageList.h>
 #include "c_baseplayer.h"
 #include "voice_status.h"
 #include "clientmode_shared.h"
 #include "c_playerresource.h"
 #include "voice_common.h"
-#include <igameresources.h>
+#include "bitvec.h"
 
-#include "vgui_avatarimage.h"
-
-// memdbgon must be the last include file in a .cpp file!!!
+// NOTE: This has to be the last file included!
 #include "tier0/memdbgon.h"
 
 ConVar *sv_alltalk = NULL;
 
-using namespace vgui;
 //=============================================================================
 // Icon for the local player using voice
 //=============================================================================
@@ -56,11 +50,11 @@ DECLARE_HUDELEMENT( CHudVoiceSelfStatus );
 CHudVoiceSelfStatus::CHudVoiceSelfStatus( const char *pName ) :
 	vgui::Panel( NULL, "HudVoiceSelfStatus" ), CHudElement( pName )
 {
-	SetParent( g_pClientMode->GetViewport() );
+	SetParent( GetClientMode()->GetViewport() );
 
 	m_pVoiceIcon = NULL;
 
-	SetHiddenBits( 0 );
+	SetHiddenBits( HIDEHUD_MISCSTATUS );
 
 	m_clrIcon = Color(255,255,255,255);
 }
@@ -70,21 +64,24 @@ void CHudVoiceSelfStatus::ApplySchemeSettings(vgui::IScheme *pScheme)
 {
 	BaseClass::ApplySchemeSettings( pScheme );
 
-#ifdef HL2MP
-	SetBgColor( Color( 0, 0, 0, 0 ) );
-#endif
-
-	SetPaintBackgroundEnabled( false );
 }
 
 void CHudVoiceSelfStatus::VidInit( void )
 {
-	m_pVoiceIcon = gHUD.GetIcon( "voice_self" );
+	m_pVoiceIcon = HudIcons().GetIcon( "voice_self" );
 }
 
 bool CHudVoiceSelfStatus::ShouldDraw()
 {
-	return GetClientVoiceMgr()->IsLocalPlayerSpeaking();
+	C_BasePlayer *player = C_BasePlayer::GetLocalPlayer();
+
+	if ( !player )
+		return false;
+
+	if ( GetClientVoiceMgr()->IsLocalPlayerSpeaking( player->GetSplitScreenPlayerSlot() ) == false )
+		return false;
+
+	return CHudElement::ShouldDraw();	
 }
 
 void CHudVoiceSelfStatus::Paint()
@@ -95,6 +92,18 @@ void CHudVoiceSelfStatus::Paint()
 	int x, y, w, h;
 	GetBounds( x, y, w, h );
 
+	C_BasePlayer *player = C_BasePlayer::GetLocalPlayer();
+
+	if ( player &&
+		GetClientVoiceMgr()->IsLocalPlayerSpeakingAboveThreshold( player->GetSplitScreenPlayerSlot() ) )
+	{
+		m_clrIcon[3] = 255;
+	}
+	else
+	{
+		// NOTE: Merge issue. This number should either be 0 or 255, dunno!
+		m_clrIcon[3] = 0;
+	}
 	m_pVoiceIcon->DrawSelf( 0, 0, w, h, m_clrIcon );
 }
 
@@ -108,15 +117,7 @@ public:
 	DECLARE_CLASS_SIMPLE( CHudVoiceStatus, vgui::Panel );
 
 	CHudVoiceStatus( const char *name );
-	~CHudVoiceStatus()
-	{
-		if ( NULL != m_pImageList )
-		{
-			delete m_pImageList;
-			m_pImageList = NULL;
-		}
-	};
-	virtual void PostApplySchemeSettings( vgui::IScheme *pScheme );
+
 	virtual bool ShouldDraw();	
 	virtual void Paint();
 	virtual void VidInit();
@@ -125,20 +126,14 @@ public:
 	virtual void ApplySchemeSettings(vgui::IScheme *pScheme);
 
 private:
-
-	//Tony; display avatars instead of an icon.
-	vgui::ImageList				*m_pImageList;
-	int							m_iImageAvatars[MAX_PLAYERS+1];
-
-	int							m_iPlayerAvatar[MAX_PLAYERS+1];
-	CUtlMap<int,int>			m_mapAvatarsToImageList;
+	CHudTexture *m_pVoiceIcon;
 	int m_iDeadImageID;
 
 	Color	m_clrIcon;
 
-	CUtlLinkedList< int > m_SpeakingList;
+	CPlayerBitVec m_SpeakingList;
 	
-	CPanelAnimationVar( vgui::HFont, m_NameFont, "Default", "Default" );
+	CPanelAnimationVar( vgui::HFont, m_NameFont, "text_font", "Default" );
 
 	CPanelAnimationVarAliasType( float, item_tall, "item_tall", "32", "proportional_float" );
 	CPanelAnimationVarAliasType( float, item_wide, "item_wide", "100", "proportional_float" );
@@ -152,23 +147,22 @@ private:
 
 	CPanelAnimationVarAliasType( float, text_ypos, "text_ypos", "4", "proportional_float" );
 	CPanelAnimationVarAliasType( float, text_xpos, "text_xpos", "32", "proportional_float" );
+	
+	CPanelAnimationVar( int, m_isInverted, "inverted", "0" );
 };
 
 
 DECLARE_HUDELEMENT( CHudVoiceStatus );
 
-extern bool AvatarIndexLessFunc( const int &lhs, const int &rhs );
+
 CHudVoiceStatus::CHudVoiceStatus( const char *pName ) :
 	vgui::Panel( NULL, "HudVoiceStatus" ), CHudElement( pName )
 {
-	SetParent( g_pClientMode->GetViewport() );
-	m_pImageList = NULL;
+	SetParent( GetClientMode()->GetViewport() );
 
-	m_mapAvatarsToImageList.SetLessFunc( AvatarIndexLessFunc );
-	m_mapAvatarsToImageList.RemoveAll();
-	memset( &m_iImageAvatars, 0, sizeof(int) * (MAX_PLAYERS+1) );
+	m_pVoiceIcon = NULL;
 
-	SetHiddenBits( 0 );
+	SetHiddenBits( HIDEHUD_MISCSTATUS );
 
 	m_clrIcon = Color(255,255,255,255);
 
@@ -183,121 +177,41 @@ CHudVoiceStatus::CHudVoiceStatus( const char *pName ) :
 
 void CHudVoiceStatus::ApplySchemeSettings(vgui::IScheme *pScheme)
 {
-
-	if ( m_pImageList )
-		delete m_pImageList;
-	m_pImageList = new ImageList( false );
-
-	m_mapAvatarsToImageList.RemoveAll();
-	memset( &m_iImageAvatars, 0, sizeof(int) * (MAX_PLAYERS+1) );
-
 	BaseClass::ApplySchemeSettings( pScheme );
-
-#ifdef HL2MP
-	SetBgColor( Color( 0, 0, 0, 0 ) );
-#endif
-
-	SetPaintBackgroundEnabled( false );
-}
-void CHudVoiceStatus::PostApplySchemeSettings( vgui::IScheme *pScheme )
-{
-	// resize the images to our resolution
-	for (int i = 0; i < m_pImageList->GetImageCount(); i++ )
-	{
-		int wide, tall;
-		m_pImageList->GetImage(i)->GetSize(wide, tall);
-		m_pImageList->GetImage(i)->SetSize(scheme()->GetProportionalScaledValueEx( GetScheme(),wide), scheme()->GetProportionalScaledValueEx( GetScheme(),tall));
-	}
 }
 
 void CHudVoiceStatus::Init( void )
 {
-	m_SpeakingList.RemoveAll();
+	m_SpeakingList.ClearAll();
 }
 
 void CHudVoiceStatus::VidInit( void )
 {
+	m_pVoiceIcon = HudIcons().GetIcon( "voice_player" );
 }
 
 void CHudVoiceStatus::OnThink( void )
 {
-	//Tony; don't update if local player aint here!
-	C_BasePlayer *player = C_BasePlayer::GetLocalPlayer();
-	if (!player)
-		return;
+	CVoiceStatus *pVoiceMgr = GetClientVoiceMgr();
 
-	for( int i=1;i<=gpGlobals->maxClients;i++ )
+	for ( int i=0;i<gpGlobals->maxClients;++i )
 	{
-		bool bTalking = GetClientVoiceMgr()->IsPlayerSpeaking(i);
-		
-		//Tony; update avatars.
-		if ( steamapicontext->SteamFriends() && steamapicontext->SteamUtils() )
-		{
-			player_info_t pi;
-			if ( engine->GetPlayerInfo( i, &pi ) )
-			{
-				if ( pi.friendsID )
-				{
-					CSteamID steamIDForPlayer( pi.friendsID, 1, steamapicontext->SteamUtils()->GetConnectedUniverse(), k_EAccountTypeIndividual );
+		bool bTalking = pVoiceMgr->IsPlayerSpeaking(i + 1);
 
-					// See if the avatar's changed
-					int iAvatar = steamapicontext->SteamFriends()->GetFriendAvatar( steamIDForPlayer );
-					if ( m_iImageAvatars[i] != iAvatar )
-					{
-						m_iImageAvatars[i] = iAvatar;
-
-						// Now see if we already have that avatar in our list
-						int iIndex = m_mapAvatarsToImageList.Find( iAvatar );
-						if ( iIndex == m_mapAvatarsToImageList.InvalidIndex() )
-						{
-							CAvatarImage *pImage = new CAvatarImage();
-							pImage->SetAvatarSteamID( steamIDForPlayer );
-							pImage->SetSize( 32, 32 );	// Deliberately non scaling
-							int iImageIndex = m_pImageList->AddImage( pImage );
-
-							m_mapAvatarsToImageList.Insert( iAvatar, iImageIndex );
-						}
-					}
-
-					int iIndex = m_mapAvatarsToImageList.Find( iAvatar );
-
-					m_iPlayerAvatar[i] = -1; //Default it.
-					if ( iIndex != m_mapAvatarsToImageList.InvalidIndex() )
-					{
-						//Tony; copy the avatar over.
-						m_iPlayerAvatar[i] = m_mapAvatarsToImageList[iIndex];
-					}
-				}
-			}
-		}
-
-		// if they are in the list and not talking, remove them
-		if( !bTalking )
-		{
-			// remove them if they are in the list
-			m_SpeakingList.FindAndRemove(i);
-		}
-		else
-		{
-			// if they are talking and not in the list, add them to the end
-			if( m_SpeakingList.Find(i) == m_SpeakingList.InvalidIndex() )
-			{
-				m_SpeakingList.AddToTail(i);
-			}
-		}
+		m_SpeakingList.Set( i, bTalking );
 	}
 }
 
 bool CHudVoiceStatus::ShouldDraw()
 {
-	if ( IsInFreezeCam() == true )
-		return false;
-
-	return true;
+	return false;
 }
 
 void CHudVoiceStatus::Paint()
 {
+   	if( !m_pVoiceIcon )
+		return;
+	
 	int x, y, w, h;
 	GetBounds( x, y, w, h );
 
@@ -305,13 +219,11 @@ void CHudVoiceStatus::Paint()
 	int xpos = 0;
 	int ypos = h - item_tall;
 
-
-	int i;
-	int length = m_SpeakingList.Count();
+	bool bAnySpeakers = !m_SpeakingList.IsAllClear();
 
 	int iFontHeight = 0;
 
-	if( length > 0 )
+	if( bAnySpeakers )
 	{
 		surface()->DrawSetTextFont( m_NameFont );
 		surface()->DrawSetTextColor( Color(255,255,255,255) );
@@ -322,14 +234,18 @@ void CHudVoiceStatus::Paint()
 		sv_alltalk = cvar->FindVar( "sv_alltalk" );
 
 	//draw everyone in the list!
-	for( i = m_SpeakingList.Head(); i != m_SpeakingList.InvalidIndex(); i = m_SpeakingList.Next(i) )
+	for( int si = 0; si < MAX_PLAYERS; ++si )
 	{
-		int playerIndex = m_SpeakingList.Element(i);
+		if ( !m_SpeakingList.IsBitSet( si ) )
+			continue;
+
+		int playerIndex = si + 1;
+
 		bool bIsAlive = g_PR->IsAlive( playerIndex );
 
 		Color c = g_PR->GetTeamColor( g_PR ? g_PR->GetTeam(playerIndex) : TEAM_UNASSIGNED );
 
-		c[3] = 128;
+		c[3] = 255;
 	
 		const char *pName = g_PR ? g_PR->GetPlayerName(playerIndex) : "unknown";
 		wchar_t szconverted[ 64 ];
@@ -370,7 +286,10 @@ void CHudVoiceStatus::Paint()
 
 		// Draw the item background
 		surface()->DrawSetColor( c );
-		surface()->DrawFilledRect( xpos, ypos, xpos + item_wide, ypos + item_tall );
+		if ( !m_isInverted )
+		{
+			surface()->DrawFilledRect( xpos, ypos, xpos + item_wide, ypos + item_tall );
+		}
 	
 		int iDeathIconWidth = 0;
 
@@ -394,26 +313,20 @@ void CHudVoiceStatus::Paint()
 
 			iDeathIconWidth = icon_wide;
 		}
-		// Draw the voice icon
-		int imageIndex = m_iPlayerAvatar[playerIndex];
-		if (m_pImageList->IsValidIndex(imageIndex))
-		{
-			// 0 is always the blank image
-			if (imageIndex > 0)
-			{
-				IImage *image = m_pImageList->GetImage(imageIndex);
-				if (image)
-				{
-					image->SetPos( xpos + icon_xpos + iDeathIconWidth, ypos + icon_ypos );
-					image->SetSize(icon_wide, icon_tall);
-					image->Paint();
-				}
-			}
-		}
 
-		
+		// Draw the voice icon
+		m_pVoiceIcon->DrawSelf( xpos + icon_xpos + iDeathIconWidth, ypos + icon_ypos, icon_wide, icon_tall, m_clrIcon );
 
 		// Draw the player's name
+		surface()->DrawSetTextFont( m_NameFont );
+		if ( m_isInverted )
+		{
+			surface()->DrawSetTextColor( c );
+		}
+		else
+		{
+			surface()->DrawSetTextColor( Color(255,255,255,255) );
+		}
 		surface()->DrawSetTextPos( xpos + text_xpos + iDeathIconWidth, ypos + ( item_tall / 2 ) - ( iFontHeight / 2 ) );
 
 		int iTextSpace = item_wide - text_xpos;

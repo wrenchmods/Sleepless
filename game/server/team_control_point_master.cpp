@@ -10,6 +10,9 @@
 #include "team_control_point_master.h"
 #include "teamplayroundbased_gamerules.h"
 
+// NOTE: This has to be the last file included!
+#include "tier0/memdbgon.h"
+
 
 BEGIN_DATADESC( CTeamControlPointMaster )
 	DEFINE_KEYFIELD( m_bDisabled, FIELD_BOOLEAN, "StartDisabled" ),

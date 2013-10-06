@@ -55,6 +55,7 @@ public:
 	bool m_bInvertExclusion;
 
 	DECLARE_DATADESC();
+	DECLARE_SERVERCLASS();
 
 	virtual bool IsOn( void );
 };

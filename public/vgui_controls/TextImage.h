@@ -73,9 +73,15 @@ public:
 	void RecalculateNewLinePositions();
 
 	void SetUseFallbackFont( bool bState, HFont hFallback );
+
+	void SetAllCaps( bool bAllCaps );
 	
 	void SetCenterWrap( bool bWrap );
 	void RecalculateCenterWrapIndents();
+
+	const wchar_t *GetUText( void ) { return _utext; }
+
+	void SetBounds( int x, int y, int w, int h );
 
 protected:
 	// truncate the _text string to fit into the draw width
@@ -101,6 +107,7 @@ private:
 	bool m_bWrap : 1;
 	bool m_bUseFallbackFont : 1;
 	bool m_bRenderUsingFallbackFont : 1;
+	bool m_bAllCaps : 1;
 	CUtlVector<wchar_t *>		m_LineBreaks;		// an array that holds the index in the buffer to wrap lines at
 
 	bool m_bWrapCenter;								// Separate from m_bWrap to ensure it doesn't break legacy code.

@@ -30,7 +30,7 @@ DECLARE_HUD_MESSAGE( CHudHistoryResource, AmmoDenied );
 CHudHistoryResource::CHudHistoryResource( const char *pElementName ) :
 	CHudElement( pElementName ), BaseClass( NULL, "HudHistoryResource" )
 {	
-	vgui::Panel *pParent = g_pClientMode->GetViewport();
+	vgui::Panel *pParent = GetClientMode()->GetViewport();
 	SetParent( pParent );
 	m_bDoNotDraw = true;
 	m_wcsAmmoFullMsg[0] = 0;
@@ -143,7 +143,7 @@ void CHudHistoryResource::AddToHistory( int iType, const char *szName, int iCoun
 		return;
 
 	// Get the item's icon
-	CHudTexture *i = gHUD.GetIcon( szName );
+	CHudTexture *i = HudIcons().GetIcon( szName );
 	if ( i == NULL )
 		return;  
 
@@ -166,7 +166,7 @@ void CHudHistoryResource::AddIconToHistory( int iType, int iId, C_BaseCombatWeap
 	// If the history resource is appearing, slide the hint message element down
 	if ( m_iCurrentHistorySlot == 0 )
 	{
-		g_pClientMode->GetViewportAnimationController()->StartAnimationSequence( "HintMessageLower" ); 
+		GetClientMode()->GetViewportAnimationController()->StartAnimationSequence( "HintMessageLower" ); 
 	}
 
 	// ensure the size 
@@ -258,7 +258,7 @@ void CHudHistoryResource::CheckClearHistory( void )
 	m_iCurrentHistorySlot = 0;
 
 	// Slide the hint message element back up
-	g_pClientMode->GetViewportAnimationController()->StartAnimationSequence( "HintMessageRaise" ); 
+	GetClientMode()->GetViewportAnimationController()->StartAnimationSequence( "HintMessageRaise" ); 
 }
 
 //-----------------------------------------------------------------------------
@@ -268,11 +268,9 @@ void CHudHistoryResource::CheckClearHistory( void )
 //-----------------------------------------------------------------------------
 bool CHudHistoryResource::ShouldDraw( void )
 {
-#ifdef TF_CLIENT_DLL
-	return false;
-#else
+
 	return ( ( m_iCurrentHistorySlot > 0 || m_bNeedsDraw ) && CHudElement::ShouldDraw() );
-#endif
+
 }
 
 //-----------------------------------------------------------------------------
@@ -298,7 +296,7 @@ void CHudHistoryResource::Paint( void )
 	{
 		if ( m_PickupHistory[i].type )
 		{
-			m_PickupHistory[i].DisplayTime = min( m_PickupHistory[i].DisplayTime, gpGlobals->curtime + hud_drawhistory_time.GetFloat() );
+			m_PickupHistory[i].DisplayTime = MIN( m_PickupHistory[i].DisplayTime, gpGlobals->curtime + hud_drawhistory_time.GetFloat() );
 			if ( m_PickupHistory[i].DisplayTime <= gpGlobals->curtime )
 			{  
 				// pic drawing time has expired
@@ -309,8 +307,8 @@ void CHudHistoryResource::Paint( void )
 
 			float elapsed = m_PickupHistory[i].DisplayTime - gpGlobals->curtime;
 			float scale = elapsed * 80;
-			Color clr = gHUD.m_clrNormal;
-			clr[3] = min( scale, 255 );
+			Color clr = GetHud().m_clrNormal;
+			clr[3] = MIN( scale, 255 );
 
 			bool bUseAmmoFullMsg = false;
 
@@ -325,7 +323,6 @@ void CHudHistoryResource::Paint( void )
 			case HISTSLOT_AMMO:
 				{
 					// Get the weapon we belong to
-#ifndef HL2MP
 					const FileWeaponInfo_t *pWpnInfo = gWR.GetWeaponFromAmmo( m_PickupHistory[i].iId );
 					if ( pWpnInfo && ( pWpnInfo->iMaxClip1 >= 0 || pWpnInfo->iMaxClip2 >= 0 ) )
 					{
@@ -334,7 +331,6 @@ void CHudHistoryResource::Paint( void )
 						itemAmmoIcon = gWR.GetAmmoIconFromWeapon( m_PickupHistory[i].iId );
 					}
 					else
-#endif // HL2MP
 					{
 						itemIcon = gWR.GetAmmoIconFromWeapon( m_PickupHistory[i].iId );
 						itemAmmoIcon = NULL;
@@ -349,8 +345,8 @@ void CHudHistoryResource::Paint( void )
 					iAmount = 0;
 					bUseAmmoFullMsg = true;
 					// display as red
-					clr = gHUD.m_clrCaution;	
-					clr[3] = min( scale, 255 );
+					clr = GetHud().m_clrCaution;	
+					clr[3] = MIN( scale, 255 );
 				}
 				break;
 
@@ -363,8 +359,8 @@ void CHudHistoryResource::Paint( void )
 					if ( !pWeapon->HasAmmo() )
 					{
 						// if the weapon doesn't have ammo, display it as red
-						clr = gHUD.m_clrCaution;	
-						clr[3] = min( scale, 255 );
+						clr = GetHud().m_clrCaution;	
+						clr[3] = MIN( scale, 255 );
 					}
 
 					itemIcon = pWeapon->GetSpriteInactive();
@@ -398,13 +394,11 @@ void CHudHistoryResource::Paint( void )
 			int ypos = tall - (m_flHistoryGap * (i + 1));
 			int xpos = wide - itemIcon->Width() - m_flIconInset;
 
-#ifndef HL2MP
 			// Adjust for a half-height icon
 			if ( bHalfHeight )
 			{
 				ypos += itemIcon->Height() / 2;
 			}
-#endif // HL2MP
 
 			itemIcon->DrawSelf( xpos, ypos, clr );
 

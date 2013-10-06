@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright ï¿½ 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -238,7 +238,7 @@ void C_PropVehicleDriveable::DrawHudElements( )
 	if (m_bHasGun)
 	{
 		// draw crosshairs for vehicle gun
-		pIcon = gHUD.GetIcon( "gunhair" );
+		pIcon = HudIcons().GetIcon( "gunhair" );
 
 		if ( pIcon != NULL )
 		{
@@ -257,14 +257,14 @@ void C_PropVehicleDriveable::DrawHudElements( )
 			x -= pIcon->Width() / 2; 
 			y -= pIcon->Height() / 2; 
 			
-			Color	clr = ( m_bUnableToFire ) ? gHUD.m_clrCaution : gHUD.m_clrNormal;
+			Color	clr = ( m_bUnableToFire ) ? GetHud().m_clrCaution : GetHud().m_clrNormal;
 			pIcon->DrawSelf( x, y, clr );
 		}
 
 		if ( m_nScannerDisabledWeapons )
 		{
 			// Draw icons for scanners "weps disabled"  
-			pIcon = gHUD.GetIcon( "dmg_bio" );
+			pIcon = HudIcons().GetIcon( "dmg_bio" );
 			if ( pIcon )
 			{
 				iIconY = 467 - pIcon->Height() / 2;
@@ -291,7 +291,7 @@ void C_PropVehicleDriveable::DrawHudElements( )
 	if ( m_nScannerDisabledVehicle )
 	{
 		// Draw icons for scanners "vehicle disabled"  
-		pIcon = gHUD.GetIcon( "dmg_bio" );
+		pIcon = HudIcons().GetIcon( "dmg_bio" );
 		if ( pIcon )
 		{
 			iIconY = 467 - pIcon->Height() / 2;

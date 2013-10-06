@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright (c) 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose:
 //
@@ -14,16 +14,23 @@
 
 #include "utlrbtree.h"
 #include "utlvector.h"
+#include "utlbuffer.h"
 
 //-----------------------------------------------------------------------------
 // Purpose: Allocates memory for strings, checking for duplicates first,
 //			reusing exising strings if duplicate found.
 //-----------------------------------------------------------------------------
 
+enum StringPoolCase_t
+{
+	StringPoolCaseInsensitive,
+	StringPoolCaseSensitive
+};
+
 class CStringPool
 {
 public:
-	CStringPool();
+	CStringPool( StringPoolCase_t caseSensitivity = StringPoolCaseInsensitive );
 	~CStringPool();
 
 	unsigned int Count() const;
@@ -32,7 +39,7 @@ public:
 	void FreeAll();
 
 	// searches for a string already in the pool
-	const char * CStringPool::Find( const char *pszValue );
+	const char * Find( const char *pszValue );
 
 protected:
 	typedef CUtlRBTree<const char *, unsigned short> CStrSet;
@@ -70,9 +77,10 @@ public: // HACK, hash_item_t structure should not be public.
 	CUtlVector<unsigned short>	m_HashTable;	// Points to each element
 	CUtlVector<hash_item_t>		m_Elements;
 	unsigned short				m_FreeListStart;
+	StringPoolCase_t 			m_caseSensitivity;
 
 public:
-	CCountedStringPool();
+	CCountedStringPool( StringPoolCase_t caseSensitivity = StringPoolCaseInsensitive );
 	virtual ~CCountedStringPool();
 
 	void			FreeAll();
@@ -86,6 +94,9 @@ public:
 	unsigned short	ReferenceStringHandle( const char* pIntrinsic );
 	char			*HandleToString( unsigned short handle );
 	void			SpewStrings();
-};
+	unsigned		Hash( const char *pszKey );
+
+	bool			SaveToBuffer( CUtlBuffer &buffer );
+	bool			RestoreFromBuffer( CUtlBuffer &buffer );};
 
 #endif // STRINGPOOL_H

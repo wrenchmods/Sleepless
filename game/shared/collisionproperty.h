@@ -46,6 +46,7 @@ enum SurroundingBoundsType_t
 	USE_GAME_CODE,
 	USE_ROTATION_EXPANDED_BOUNDS,
 	USE_COLLISION_BOUNDS_NEVER_VPHYSICS,
+	USE_ROTATION_EXPANDED_SEQUENCE_BOUNDS,
 
 	SURROUNDING_TYPE_BIT_COUNT = 3
 };
@@ -110,6 +111,7 @@ public:
 	// Sets the method by which the surrounding collision bounds is set
 	// You must pass in values for mins + maxs if you select the USE_SPECIFIED_BOUNDS type. 
 	void			SetSurroundingBoundsType( SurroundingBoundsType_t type, const Vector *pMins = NULL, const Vector *pMaxs = NULL );
+	SurroundingBoundsType_t GetSurroundingBoundsType() const;
 
 	// Sets the solid type (which type of collision representation)
 	void			SetSolid( SolidType_t val );
@@ -182,12 +184,16 @@ public:
 
 	// Computes the distance from a point in world space to the OBB
 	float			CalcDistanceFromPoint( const Vector &vecWorldPt ) const;
+	float			CalcSqrDistanceFromPoint( const Vector &vecWorldPt ) const;
 
 	// Does a rotation make us need to recompute the surrounding box?
 	bool			DoesRotationInvalidateSurroundingBox( ) const;
 
 	// Does VPhysicsUpdate make us need to recompute the surrounding box?
 	bool			DoesVPhysicsInvalidateSurroundingBox( ) const;
+
+	// Does a sequence change make us need to recompute the surrounding box?
+	bool			DoesSequenceChangeInvalidateSurroundingBox( ) const;
 
 	// Marks the entity has having a dirty surrounding box
 	void			MarkSurroundingBoundsDirty();
@@ -206,10 +212,16 @@ private:
 	bool ComputeHitboxSurroundingBox( Vector *pVecWorldMins, Vector *pVecWorldMaxs );
 	bool ComputeEntitySpaceHitboxSurroundingBox( Vector *pVecWorldMins, Vector *pVecWorldMaxs );
 
+	// Computes the surrounding collision bounds based on the current sequence box
+	void ComputeOBBBounds( Vector *pVecWorldMins, Vector *pVecWorldMaxs );
+
+	// Computes the surrounding collision bounds from the current sequence box
+	void ComputeRotationExpandedSequenceBounds( Vector *pVecWorldMins, Vector *pVecWorldMaxs );
+
 	// Computes the surrounding collision bounds based on whatever algorithm we want...
 	void ComputeCollisionSurroundingBox( bool bUseVPhysics, Vector *pVecWorldMins, Vector *pVecWorldMaxs );
 
-	// Computes the surrounding collision bounds from the the OBB (not vphysics)
+	// Computes the surrounding collision bounds from the OBB (not vphysics)
 	void ComputeRotationExpandedBounds( Vector *pVecWorldMins, Vector *pVecWorldMaxs );
 
 	// Computes the surrounding collision bounds based on whatever algorithm we want...
@@ -228,19 +240,20 @@ private:
 private:
 	CBaseEntity *m_pOuter;
 
+// BEGIN PREDICTION DATA COMPACTION (these fields are together to allow for faster copying in prediction system)
 	CNetworkVector( m_vecMins );
 	CNetworkVector( m_vecMaxs );
-	float m_flRadius;
-
 	CNetworkVar( unsigned short, m_usSolidFlags );
+	// One of the SOLID_ defines. Use GetSolid/SetSolid.
+	CNetworkVar( unsigned char, m_nSolidType );			
+	CNetworkVar( unsigned char , m_triggerBloat );
+// END PREDICTION DATA COMPACTION
+
+	float m_flRadius;
 
 	// Spatial partition
 	SpatialPartitionHandle_t m_Partition;
 	CNetworkVar( unsigned char, m_nSurroundType );
-
-	// One of the SOLID_ defines. Use GetSolid/SetSolid.
-	CNetworkVar( unsigned char, m_nSolidType );			
-	CNetworkVar( unsigned char , m_triggerBloat );
 
 	// SUCKY: We didn't use to have to store this previously
 	// but storing it here means that we can network it + avoid a ton of
@@ -296,6 +309,10 @@ inline unsigned short CCollisionProperty::GetPartitionHandle() const
 	return m_Partition;
 }
 
+inline SurroundingBoundsType_t CCollisionProperty::GetSurroundingBoundsType() const
+{
+	return (SurroundingBoundsType_t)m_nSurroundType.Get();
+}
 
 //-----------------------------------------------------------------------------
 // Methods related to size
@@ -444,6 +461,15 @@ inline void CCollisionProperty::WorldSpaceAABB( Vector *pWorldMins, Vector *pWor
 //-----------------------------------------------------------------------------
 // Does a rotation make us need to recompute the surrounding box?
 //-----------------------------------------------------------------------------
+inline bool CCollisionProperty::DoesSequenceChangeInvalidateSurroundingBox( ) const
+{
+	return ( m_nSurroundType == USE_ROTATION_EXPANDED_SEQUENCE_BOUNDS );
+}
+
+
+//-----------------------------------------------------------------------------
+// Does a rotation make us need to recompute the surrounding box?
+//-----------------------------------------------------------------------------
 inline bool CCollisionProperty::DoesRotationInvalidateSurroundingBox( ) const
 {
 	if ( IsSolidFlagSet(FSOLID_ROOT_PARENT_ALIGNED) )
@@ -463,6 +489,7 @@ inline bool CCollisionProperty::DoesRotationInvalidateSurroundingBox( ) const
 
 	case USE_ROTATION_EXPANDED_BOUNDS:
 	case USE_SPECIFIED_BOUNDS:
+	case USE_ROTATION_EXPANDED_SEQUENCE_BOUNDS:
 		return false;
 
 	default:

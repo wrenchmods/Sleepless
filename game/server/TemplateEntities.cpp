@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright (c) 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: Template entities are used by spawners to create copies of entities
 //			that were configured by the level designer. This allows us to spawn
@@ -22,6 +22,7 @@
 #include "eventqueue.h"
 #include "TemplateEntities.h"
 #include "utldict.h"
+#include "entitydefs.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -41,6 +42,8 @@ struct TemplateEntityData_t
 	int			iMapDataLength;
 	bool		bNeedsEntityIOFixup;	// If true, this template has entity I/O in its mapdata that needs fixup before spawning.
 	char		*pszFixedMapData;		// A single copy of this template that we used to fix up the Entity I/O whenever someone wants a fixed version of this template
+
+	int			m_nHammerID;			// Used to update the template in Foundry
 
 	DECLARE_SIMPLE_DATADESC();
 };
@@ -67,11 +70,23 @@ static CUtlVector<TemplateEntityData_t *> g_Templates;
 
 int	g_iCurrentTemplateInstance;
 
+void Templates_FreeTemplate( TemplateEntityData_t *pTemplate )
+{
+	free((void *)pTemplate->pszName);
+	free(pTemplate->pszMapData);
+	if ( pTemplate->pszFixedMapData )
+	{
+		free(pTemplate->pszFixedMapData);
+	}
+
+	free(pTemplate);
+}
+
 //-----------------------------------------------------------------------------
 // Purpose: Saves the given entity's keyvalue data for later use by a spawner.
 //			Returns the index into the templates.
 //-----------------------------------------------------------------------------
-int Templates_Add(CBaseEntity *pEntity, const char *pszMapData, int nLen)
+int Templates_Add(CBaseEntity *pEntity, const char *pszMapData, int nLen, int nHammerID)
 {
 	const char *pszName = STRING(pEntity->GetEntityName());
 	if ((!pszName) || (!strlen(pszName)))
@@ -81,6 +96,7 @@ int Templates_Add(CBaseEntity *pEntity, const char *pszMapData, int nLen)
 	}
 
 	TemplateEntityData_t *pEntData = (TemplateEntityData_t *)malloc(sizeof(TemplateEntityData_t));
+	pEntData->m_nHammerID = nHammerID;
 	pEntData->pszName = strdup( pszName );
 
 	// We may modify the values of the keys in this mapdata chunk later on to fix Entity I/O
@@ -101,6 +117,19 @@ int Templates_Add(CBaseEntity *pEntity, const char *pszMapData, int nLen)
 	pEntData->pszFixedMapData = NULL;
 
 	return g_Templates.AddToTail(pEntData);
+}
+
+
+void Templates_RemoveByHammerID( int nHammerID )
+{
+	for ( int i=g_Templates.Count()-1; i >= 0; i-- )
+	{
+		if ( g_Templates[i]->m_nHammerID == nHammerID )
+		{
+			Templates_FreeTemplate( g_Templates[i] );
+			g_Templates.Remove( i );
+		}
+	}
 }
 
 
@@ -224,8 +253,15 @@ void Templates_ReconnectIOForGroup( CPointTemplate *pGroup )
 
 				// Entity I/O values are stored as "Targetname,<data>", so we need to see if there's a ',' in the string
 				char *sValue = value;
+
 				// FIXME: This is very brittle. Any key with a , will not be found.
-				char *s = strchr( value, ',' );
+				char delimiter = VMF_IOPARAM_STRING_DELIMITER;
+				if( strchr( value, delimiter ) == NULL )
+				{
+					delimiter = ',';
+				}
+
+				char *s = strchr( value, delimiter );
 				if ( s )
 				{
 					// Grab just the targetname of the receiver
@@ -335,19 +371,9 @@ char *Templates_GetEntityIOFixedMapData( int iIndex )
 		Q_strncpy( g_Templates[iIndex]->pszFixedMapData, g_Templates[iIndex]->pszMapData, g_Templates[iIndex]->iMapDataLength );
 	}
 
-	int iFixupSize = Q_strlen(ENTITYIO_FIXUP_STRING);
-
-	// iFixupSize needs to be 1 size bigger in linux ie: if strlen returns 5, it needs to be 6, GCC must be doing something funky.                            
-	// if it's not, in linux the operations below fail on linux dedicated when using a template with name fixup, where it targets itself.
-	// I don't honestly know why. I even added null termination to make sure there is no garbage at the end as well, but it _will not_ work
-	// the way it does in windows, in GCC if it's kept the same length. Anyone else have any ideas?
-#ifdef LINUX
-	iFixupSize += 1;
-#endif
-
-	char *sOurFixup = new char[iFixupSize+1]; //Increase by 1 for null termination
-	Q_snprintf( sOurFixup, iFixupSize, "%c%.4d", ENTITYIO_FIXUP_STRING[0], g_iCurrentTemplateInstance );
-	sOurFixup[iFixupSize] = NULL; // Null terminate it
+	int iFixupSize = strlen(ENTITYIO_FIXUP_STRING); // strlen("&0000\0") = 5!
+	char *sOurFixup = new char[iFixupSize+1]; // do alloc room here for the null terminator
+	Q_snprintf( sOurFixup, iFixupSize+1, "%c%.4d", ENTITYIO_FIXUP_STRING[0], g_iCurrentTemplateInstance );
 
 	// Now rip through the map data string and replace any instances of the fixup string with our unique identifier
 	char *c = g_Templates[iIndex]->pszFixedMapData;
@@ -371,7 +397,7 @@ char *Templates_GetEntityIOFixedMapData( int iIndex )
 			// Stomp it with our unique string
 			if ( bValid )
 			{
-				Q_memcpy( c, sOurFixup, iFixupSize );
+				memcpy( c, sOurFixup, iFixupSize );
 				c += iFixupSize;
 			}
 		}
@@ -390,15 +416,7 @@ void Templates_RemoveAll(void)
 	for (int i = 0; i < nCount; i++)
 	{
 		TemplateEntityData_t *pTemplate = g_Templates.Element(i);
-
-		free((void *)pTemplate->pszName);
-		free(pTemplate->pszMapData);
-		if ( pTemplate->pszFixedMapData )
-		{
-			free(pTemplate->pszFixedMapData);
-		}
-
-		free(pTemplate);
+		Templates_FreeTemplate( pTemplate );
 	}
 
 	g_Templates.RemoveAll();

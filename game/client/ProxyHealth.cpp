@@ -6,13 +6,10 @@
 //=============================================================================//
 #include "cbase.h"
 #include "FunctionProxy.h"
-#include "toolframework_client.h"
 
+#include "imaterialproxydict.h"
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
-
-// forward declarations
-void ToolFramework_RecordMaterialParams( IMaterial *pMaterial );
 
 //-----------------------------------------------------------------------------
 // Returns the player health (from 0 to 1)
@@ -47,13 +44,8 @@ void CProxyHealth::OnBind( void *pC_BaseEntity )
 
 	Assert( m_pResult );
 	SetFloatResult( pEntity->HealthFraction() * m_Factor.GetFloat() );
-
-	if ( ToolsEnabled() )
-	{
-		ToolFramework_RecordMaterialParams( GetMaterial() );
-	}
 }
 
-EXPOSE_INTERFACE( CProxyHealth, IMaterialProxy, "Health" IMATERIAL_PROXY_INTERFACE_VERSION );
+EXPOSE_MATERIAL_PROXY( CProxyHealth, Health );
 
 

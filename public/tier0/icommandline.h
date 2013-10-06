@@ -37,6 +37,9 @@ public:
 	virtual int			ParmCount() const = 0;
 	virtual int			FindParm( const char *psz ) const = 0;	// Returns 0 if not found.
 	virtual const char* GetParm( int nIndex ) const = 0;
+	
+	// copies the string passwed
+	virtual void SetParm( int nIndex, char const *pNewParm ) =0;
 };
 
 //-----------------------------------------------------------------------------
@@ -44,10 +47,19 @@ public:
 // NOTE: The #define trickery here is necessary for backwards compat:
 // this interface used to lie in the vstdlib library.
 //-----------------------------------------------------------------------------
-PLATFORM_INTERFACE ICommandLine *CommandLine_Tier0();
+PLATFORM_INTERFACE ICommandLine *CommandLine();
 
-#if !defined( VSTDLIB_BACKWARD_COMPAT )
-#define CommandLine CommandLine_Tier0
+
+//-----------------------------------------------------------------------------
+// Process related functions
+//-----------------------------------------------------------------------------
+PLATFORM_INTERFACE const tchar *Plat_GetCommandLine();
+#ifndef _WIN32
+// helper function for OS's that don't have a ::GetCommandLine() call
+PLATFORM_INTERFACE void Plat_SetCommandLine( const char *cmdLine );
 #endif
+PLATFORM_INTERFACE const char *Plat_GetCommandLineA();
+
 
 #endif // TIER0_ICOMMANDLINE_H
+

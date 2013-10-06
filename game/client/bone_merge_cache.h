@@ -13,7 +13,7 @@
 
 class C_BaseAnimating;
 class CStudioHdr;
-
+class CBoneBitList;
 
 #include "mathlib/vector.h"
 
@@ -31,16 +31,16 @@ public:
 	
 	// This copies the transform from all bones in the followed entity that have 
 	// names that match our bones.
-	void MergeMatchingBones( int boneMask );
+	virtual void MergeMatchingBones( int boneMask, CBoneBitList &boneComputed );
 
 	// Returns true if the specified bone is one that gets merged in MergeMatchingBones.
-	int CBoneMergeCache::IsBoneMerged( int iBone ) const;
+	int IsBoneMerged( int iBone ) const;
 
 	// Gets the origin for the first merge bone on the parent.
 	bool GetAimEntOrigin( Vector *pAbsOrigin, QAngle *pAbsAngles );
 
 
-private:
+protected:
 
 	// This is the entity that we're keeping the cache updated for.
 	C_BaseAnimating *m_pOwner;
@@ -63,14 +63,14 @@ private:
 	};
 
 	CUtlVector<CMergedBone> m_MergedBones;
-	CUtlVector<unsigned char> m_BoneMergeBits;	// One bit for each bone. The bit is set if the bone gets merged.
+	CVarBitVec m_BoneMergeBits;	// One bit for each bone. The bit is set if the bone gets merged.
 };
 
 
 inline int CBoneMergeCache::IsBoneMerged( int iBone ) const
 {
 	if ( m_pOwnerHdr )
-		return m_BoneMergeBits[iBone >> 3] & ( 1 << ( iBone & 7 ) );
+		return m_BoneMergeBits.Get( iBone );
 	else
 		return 0;
 }

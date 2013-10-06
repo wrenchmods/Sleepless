@@ -27,7 +27,11 @@ void MapCycleFileChangedCallback( IConVar *var, const char *pOldString, float fl
 ConVar	displaysoundlist( "displaysoundlist","0" );
 ConVar  mapcyclefile( "mapcyclefile", "mapcycle.txt", FCVAR_NONE, "Name of the .txt file used to cycle the maps on multiplayer servers ", MapCycleFileChangedCallback );
 ConVar  servercfgfile( "servercfgfile","server.cfg" );
+#if defined(_X360)
+ConVar  lservercfgfile( "lservercfgfile","listenserver360.cfg" );
+#else
 ConVar  lservercfgfile( "lservercfgfile","listenserver.cfg" );
+#endif
 
 // multiplayer server rules
 ConVar	teamplay( "mp_teamplay","0", FCVAR_NOTIFY );

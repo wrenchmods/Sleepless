@@ -18,6 +18,10 @@
 #include "view.h"
 #include "teamplay_gamerules.h"
 
+// NOTE: This has to be the last file included!
+#include "tier0/memdbgon.h"
+
+
 #define INTRO_NUM_FAKE_PLAYERS		3
 
 extern ConVar mp_capstyle;
@@ -412,7 +416,7 @@ void CHudCapturePanelIcon::Paint()
 //-----------------------------------------------------------------------------
 CHudCapturePanel::CHudCapturePanel( const char *pElementName ) : CHudElement( pElementName ), BaseClass( NULL, "HudCapturePanel" ) 
 {
-	SetParent( g_pClientMode->GetViewport() );
+	SetParent( GetClientMode()->GetViewport() );
 
 	m_iCurrentCP = -1;
 	m_bFakingCapture = false;

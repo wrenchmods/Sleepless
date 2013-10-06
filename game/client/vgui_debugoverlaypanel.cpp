@@ -35,6 +35,7 @@ public:
 
 private:
 	vgui::HFont			m_hFont;
+	int					m_LineSpacing;
 };
 
 //-----------------------------------------------------------------------------
@@ -53,12 +54,12 @@ CDebugOverlay::CDebugOverlay( vgui::VPANEL parent ) :
 	SetCursor( null );
 
 	m_hFont = 0;
+	m_LineSpacing = 13;
 	SetFgColor( Color( 0, 0, 0, 0 ) );
 	SetPaintBackgroundEnabled( false );
 
 	// set the scheme before any child control is created
-	vgui::HScheme scheme = vgui::scheme()->LoadSchemeFromFileEx( enginevgui->GetPanel( PANEL_CLIENTDLL_TOOLS ), "resource/ClientScheme.res", "Client");
-	SetScheme( scheme );
+	SetScheme("ClientScheme");
 	
 	vgui::ivgui()->AddTickSignal( GetVPanel(), 250 );
 }
@@ -75,9 +76,13 @@ void CDebugOverlay::ApplySchemeSettings(vgui::IScheme *pScheme)
 	BaseClass::ApplySchemeSettings(pScheme);
 
 	// Use a large font
-//	m_hFont = pScheme->GetFont( "Default" );
 	m_hFont = pScheme->GetFont( "DebugOverlay" );
 	assert( m_hFont );
+	if ( m_hFont )
+	{
+		m_LineSpacing = vgui::surface()->GetFontTall( m_hFont ) * 0.70f;
+		m_LineSpacing = MAX( m_LineSpacing, 13 );
+	}
 
 	int w, h;
 	vgui::surface()->GetScreenSize( w, h );
@@ -106,7 +111,7 @@ bool CDebugOverlay::ShouldDraw( void )
 void CDebugOverlay::Paint()
 {
 	OverlayText_t* pCurrText = debugoverlay->GetFirst();
-	while (pCurrText) 
+	while ( pCurrText ) 
 	{
 		if ( pCurrText->text != NULL ) 
 		{
@@ -119,21 +124,21 @@ void CDebugOverlay::Paint()
 			int a = pCurrText->a;
 			Vector screenPos;
 
-			if (pCurrText->bUseOrigin)
+			if ( pCurrText->bUseOrigin )
 			{
-				if (!debugoverlay->ScreenPosition( pCurrText->origin, screenPos )) 
+				if ( !debugoverlay->ScreenPosition( pCurrText->origin, screenPos ) ) 
 				{
-					float xPos		= screenPos[0];
-					float yPos		= screenPos[1]+ (pCurrText->lineOffset*13); // Line spacing;
+					float xPos = screenPos[0];
+					float yPos = screenPos[1] + ( pCurrText->lineOffset * m_LineSpacing ); 
 					g_pMatSystemSurface->DrawColoredText( m_hFont, xPos, yPos, r, g, b, a, pCurrText->text );
 				}
 			}
 			else
 			{
-				if (!debugoverlay->ScreenPosition( pCurrText->flXPos,pCurrText->flYPos, screenPos )) 
+				if ( !debugoverlay->ScreenPosition( pCurrText->flXPos,pCurrText->flYPos, screenPos ) ) 
 				{	
-					float xPos		= screenPos[0];
-					float yPos		= screenPos[1]+ (pCurrText->lineOffset*13); // Line spacing;
+					float xPos = screenPos[0];
+					float yPos = screenPos[1] + ( pCurrText->lineOffset * m_LineSpacing );
 					g_pMatSystemSurface->DrawColoredText( m_hFont, xPos, yPos, r, g, b, a, pCurrText->text );
 				}
 			}

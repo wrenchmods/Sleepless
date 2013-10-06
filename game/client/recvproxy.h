@@ -28,7 +28,7 @@ RecvProp RecvPropTime(
 	int offset, 
 	int sizeofVar=SIZEOF_IGNORE );
 
-#if !defined( NO_ENTITY_PREDICTION )
+#if !defined( NO_ENTITY_PREDICTION ) && defined( USE_PREDICTABLEID )
 RecvProp RecvPropPredictableId(
 	char *pVarName, 
 	int offset, 

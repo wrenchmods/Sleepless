@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -13,6 +13,8 @@
 #include "vgui_controls/controls.h"
 #include "vgui/ISurface.h"
 #include "IVRenderView.h"
+
+
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -29,7 +31,7 @@ DECLARE_HUDELEMENT( CHudCrosshair );
 CHudCrosshair::CHudCrosshair( const char *pElementName ) :
   CHudElement( pElementName ), BaseClass( NULL, "HudCrosshair" )
 {
-	vgui::Panel *pParent = g_pClientMode->GetViewport();
+	vgui::Panel *pParent = GetClientMode()->GetViewport();
 	SetParent( pParent );
 
 	m_pCrosshair = 0;
@@ -45,7 +47,7 @@ void CHudCrosshair::ApplySchemeSettings( IScheme *scheme )
 {
 	BaseClass::ApplySchemeSettings( scheme );
 
-	m_pDefaultCrosshair = gHUD.GetIcon("crosshair_default");
+	m_pDefaultCrosshair = HudIcons().GetIcon("crosshair_default");
 	SetPaintBackgroundEnabled( false );
 
     SetSize( ScreenWidth(), ScreenHeight() );
@@ -84,9 +86,9 @@ bool CHudCrosshair::ShouldDraw( void )
 			!engine->IsDrawingLoadingImage() &&
 			!engine->IsPaused() && 
 			( !pPlayer->IsSuitEquipped() || g_pGameRules->IsMultiplayer() ) &&
-			g_pClientMode->ShouldDrawCrosshair() &&
+			GetClientMode()->ShouldDrawCrosshair() &&
 			!( pPlayer->GetFlags() & FL_FROZEN ) &&
-			( pPlayer->entindex() == render->GetViewEntity() ) &&
+			( pPlayer->IsViewEntity() ) &&
 			( pPlayer->IsAlive() ||	( pPlayer->GetObserverMode() == OBS_MODE_IN_EYE ) || ( cl_observercrosshair.GetBool() && pPlayer->GetObserverMode() == OBS_MODE_ROAMING ) );
 	}
 	else
@@ -95,9 +97,9 @@ bool CHudCrosshair::ShouldDraw( void )
 			crosshair.GetInt() &&
 			!engine->IsDrawingLoadingImage() &&
 			!engine->IsPaused() && 
-			g_pClientMode->ShouldDrawCrosshair() &&
+			GetClientMode()->ShouldDrawCrosshair() &&
 			!( pPlayer->GetFlags() & FL_FROZEN ) &&
-			( pPlayer->entindex() == render->GetViewEntity() ) &&
+			( pPlayer->IsViewEntity() ) &&
 			!pPlayer->IsInVGuiInputMode() &&
 			( pPlayer->IsAlive() ||	( pPlayer->GetObserverMode() == OBS_MODE_IN_EYE ) || ( cl_observercrosshair.GetBool() && pPlayer->GetObserverMode() == OBS_MODE_ROAMING ) );
 	}
@@ -113,36 +115,109 @@ void CHudCrosshair::Paint( void )
 	if ( !IsCurrentViewAccessAllowed() )
 		return;
 
-	m_curViewAngles = CurrentViewAngles();
-	m_curViewOrigin = CurrentViewOrigin();
-
 	float x, y;
 	x = ScreenWidth()/2;
 	y = ScreenHeight()/2;
 
-	// MattB - m_vecCrossHairOffsetAngle is the autoaim angle.
-	// if we're not using autoaim, just draw in the middle of the 
-	// screen
-	if ( m_vecCrossHairOffsetAngle != vec3_angle )
+	m_curViewAngles = CurrentViewAngles();
+	m_curViewOrigin = CurrentViewOrigin();
+
+	Vector screen;
+	screen.Init();
+
+	// TrackIR
+	if ( IsHeadTrackingEnabled() )
 	{
+		C_BasePlayer* pPlayer = C_BasePlayer::GetLocalPlayer();
+		if ( !pPlayer )
+			return;
+
+		// TrackIR
+		// get the direction the player is aiming
+		Vector aimVector = pPlayer->GetAutoaimVector( AUTOAIM_5DEGREES );
+
+		// calculate where the bullet would go so we can draw the cross appropriately
+		Vector vecEnd = pPlayer->Weapon_ShootPosition() + aimVector * MAX_TRACE_LENGTH;
+
+		trace_t tr;
+		UTIL_TraceLine( pPlayer->Weapon_ShootPosition(), vecEnd, MASK_SHOT, pPlayer, COLLISION_GROUP_NONE, &tr );
+
 		QAngle angles;
 		Vector forward;
-		Vector point, screen;
+		Vector point;
 
 		// this code is wrong
 		angles = m_curViewAngles + m_vecCrossHairOffsetAngle;
 		AngleVectors( angles, &forward );
-		VectorAdd( m_curViewOrigin, forward, point );
-		ScreenTransform( point, screen );
 
-		x += 0.5f * screen[0] * ScreenWidth() + 0.5f;
-		y += 0.5f * screen[1] * ScreenHeight() + 0.5f;
+		// need to project forward into an object to see how far this 
+		// vector should be!!
+		//forward *= 1000;
+
+		//VectorAdd( m_curViewOrigin, forward, point );
+		//ScreenTransform( point, screen );
+
+		ScreenTransform(tr.endpos, screen);
+	}
+	// TrackIR
+	else
+	{
+		// MattB - m_vecCrossHairOffsetAngle is the autoaim angle.
+		// if we're not using autoaim, just draw in the middle of the 
+		// screen
+		if ( m_vecCrossHairOffsetAngle != vec3_angle )
+		{
+			QAngle angles;
+			Vector forward;
+			Vector point;
+
+			// this code is wrong
+			angles = m_curViewAngles + m_vecCrossHairOffsetAngle;
+			AngleVectors( angles, &forward );
+			VectorAdd( m_curViewOrigin, forward, point );
+			ScreenTransform( point, screen );
+		}
 	}
 
-	m_pCrosshair->DrawSelf( 
-			x - 0.5f * m_pCrosshair->Width(), 
-			y - 0.5f * m_pCrosshair->Height(),
-			m_clrCrosshair );
+	//x += 0.5f * screen[0] * ScreenWidth() + 0.5f;
+	//y += 0.5f * screen[1] * ScreenHeight() + 0.5f;
+
+
+	int width = MAX( 1, y * 0.03f );
+	int height = MAX( 1, y * 0.005f );
+
+	surface()->DrawSetColor( 128, 196, 220, 255 );
+
+	surface()->DrawFilledRect( x - width - height,
+		y - height / 2,
+		x - width,
+		y + height / 2 );
+
+	surface()->DrawFilledRect( x + width,
+		y - height / 2,
+		x + width + height,
+		y + height / 2 );
+
+	surface()->DrawFilledRect( x - height / 2,
+		y - width - height,
+		x + height / 2,
+		y - width );
+
+	surface()->DrawFilledRect( x - height / 2,
+		y + width,
+		x + height / 2,
+		y + width + height );
+
+	surface()->DrawFilledRect( x - height / 2,
+		y - height / 2,
+		x + height / 2,
+		y + height / 2 );
+
+
+	//m_pCrosshair->DrawSelf( 
+	//		x - 0.5f * m_pCrosshair->Width(), 
+	//		y - 0.5f * m_pCrosshair->Height(),
+	//		m_clrCrosshair );
 }
 
 //-----------------------------------------------------------------------------
@@ -156,7 +231,7 @@ void CHudCrosshair::SetCrosshairAngle( const QAngle& angle )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-void CHudCrosshair::SetCrosshair( CHudTexture *texture, Color& clr )
+void CHudCrosshair::SetCrosshair( CHudTexture *texture, const Color& clr )
 {
 	m_pCrosshair = texture;
 	m_clrCrosshair = clr;

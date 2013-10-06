@@ -14,7 +14,7 @@
 #include <vgui/IScheme.h>
 #include <vgui_controls/ImagePanel.h>
 #include <vgui_controls/EditablePanel.h>
-#include "gameeventlistener.h"
+#include "GameEventListener.h"
 #include "KeyValues.h"
 
 class C_SceneEntity;
@@ -206,6 +206,8 @@ private:
 	void InitCubeMaps();
 	int FindAnimByName( const char *pszName );
 	void CalculateFrameDistanceInternal( const model_t *pModel );
+
+	void UpdateIfDirty();
 
 public:
 	int								m_nFOV;

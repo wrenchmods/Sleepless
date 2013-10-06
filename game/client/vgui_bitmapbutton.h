@@ -55,10 +55,15 @@ public:
 	virtual void Paint( void );
 	virtual void PaintBackground( void ) {}
 
+	virtual void OnMouseDoublePressed( vgui::MouseCode code );
+	void SetDoublePressedCommand( const char *command );
+	void SetDoublePressedCommand( KeyValues *message );
+
 private:
 
 	BitmapImage	m_pImage[BUTTON_STATE_COUNT];
 	bool m_bImageLoaded[BUTTON_STATE_COUNT];
+	KeyValues *_doublePressedActionMessage;
 };
 
 

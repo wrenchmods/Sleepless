@@ -1,4 +1,4 @@
-//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
+//===== Copyright ï¿½ 1996-2005, Valve Corporation, All rights reserved. ======//
 //
 // Purpose: 
 //
@@ -31,7 +31,12 @@
 #include "materialsystem/imaterialsystemhardwareconfig.h"
 #include "materialsystem/IColorCorrection.h"
 
-//--------------------------------------------------
+#if !defined( _X360 )
+// NOTE: Disable this for l4d2 in general!!!  It allocates 4mb of rendertargets and causes Release/Reallocation of rendertargets.
+//#define FEATURE_SUBD_SUPPORT
+#endif
+
+//-----------------------------------------------------------------------------
 // forward declarations
 //-----------------------------------------------------------------------------
 class IMaterial;
@@ -51,6 +56,13 @@ class IMatRenderContext;
 class ICallQueue;
 struct MorphWeight_t;
 class IFileList;
+struct VertexStreamSpec_t;
+struct ShaderStencilState_t;
+struct MeshInstanceData_t;
+class IClientMaterialSystem;
+class CPaintMaterial;
+class IPaintMapDataManager;
+class IPaintMapTextureManager;
 
 
 //-----------------------------------------------------------------------------
@@ -61,11 +73,6 @@ typedef uint64 VertexFormat_t;
 //-----------------------------------------------------------------------------
 // important enumeration
 //-----------------------------------------------------------------------------
-
-// NOTE NOTE NOTE!!!!  If you up this, grep for "NEW_INTERFACE" to see if there is anything
-// waiting to be enabled during an interface revision.
-#define MATERIAL_SYSTEM_INTERFACE_VERSION "VMaterialSystem079"
-
 enum ShaderParamType_t 
 { 
 	SHADER_PARAM_TYPE_TEXTURE, 
@@ -88,23 +95,19 @@ enum MaterialMatrixMode_t
 	MATERIAL_VIEW = 0,
 	MATERIAL_PROJECTION,
 
-	// Texture matrices
-	MATERIAL_TEXTURE0,
-	MATERIAL_TEXTURE1,
-	MATERIAL_TEXTURE2,
-	MATERIAL_TEXTURE3,
-	MATERIAL_TEXTURE4,
-	MATERIAL_TEXTURE5,
-	MATERIAL_TEXTURE6,
-	MATERIAL_TEXTURE7,
+	MATERIAL_MATRIX_UNUSED0,
+	MATERIAL_MATRIX_UNUSED1,
+	MATERIAL_MATRIX_UNUSED2,
+	MATERIAL_MATRIX_UNUSED3,
+	MATERIAL_MATRIX_UNUSED4,
+	MATERIAL_MATRIX_UNUSED5,
+	MATERIAL_MATRIX_UNUSED6,
+	MATERIAL_MATRIX_UNUSED7,
 
 	MATERIAL_MODEL,
 
 	// Total number of matrices
 	NUM_MATRIX_MODES = MATERIAL_MODEL+1,
-
-	// Number of texture transforms
-	NUM_TEXTURE_TRANSFORMS = MATERIAL_TEXTURE7 - MATERIAL_TEXTURE0 + 1
 };
 
 // FIXME: How do I specify the actual number of matrix modes?
@@ -121,12 +124,21 @@ enum MaterialPrimitiveType_t
 	MATERIAL_LINE_LOOP,	// a single line loop
 	MATERIAL_POLYGON,	// this is a *single* polygon
 	MATERIAL_QUADS,
+	MATERIAL_SUBD_QUADS_EXTRA, // Extraordinary sub-d quads
+	MATERIAL_SUBD_QUADS_REG,   // Regular sub-d quads
 	MATERIAL_INSTANCED_QUADS, // (X360) like MATERIAL_QUADS, but uses vertex instancing
 
 	// This is used for static meshes that contain multiple types of
 	// primitive types.	When calling draw, you'll need to specify
 	// a primitive type.
 	MATERIAL_HETEROGENOUS
+};
+
+enum TessellationMode_t
+{
+	TESSELLATION_MODE_DISABLED = 0,
+	TESSELLATION_MODE_ACC_PATCHES_EXTRA,
+	TESSELLATION_MODE_ACC_PATCHES_REG
 };
 
 enum MaterialPropertyTypes_t
@@ -216,141 +228,33 @@ enum MaterialContextType_t
 	MATERIAL_NULL_CONTEXT
 };
 
-///////////////////Strectil////////////////////////
-enum ShaderStencilFunc_t 
-{
-#if !defined( _X360 )
-	SHADER_STENCILFUNC_NEVER = 1,
-	SHADER_STENCILFUNC_LESS = 2,
-	SHADER_STENCILFUNC_EQUAL = 3,
-	SHADER_STENCILFUNC_LEQUAL = 4,
-	SHADER_STENCILFUNC_GREATER = 5,
-	SHADER_STENCILFUNC_NOTEQUAL = 6,
-	SHADER_STENCILFUNC_GEQUAL = 7,
-	SHADER_STENCILFUNC_ALWAYS = 8,
-#else
-	SHADER_STENCILFUNC_NEVER = D3DCMP_NEVER,
-	SHADER_STENCILFUNC_LESS = D3DCMP_LESS,
-	SHADER_STENCILFUNC_EQUAL = D3DCMP_EQUAL,
-	SHADER_STENCILFUNC_LEQUAL = D3DCMP_LESSEQUAL,
-	SHADER_STENCILFUNC_GREATER = D3DCMP_GREATER,
-	SHADER_STENCILFUNC_NOTEQUAL = D3DCMP_NOTEQUAL,
-	SHADER_STENCILFUNC_GEQUAL = D3DCMP_GREATEREQUAL,
-	SHADER_STENCILFUNC_ALWAYS = D3DCMP_ALWAYS,
-#endif
-
-	SHADER_STENCILFUNC_FORCE_DWORD = 0x7fffffff
-};
-
-enum ShaderStencilOp_t 
-{
-#if !defined( _X360 )
-	SHADER_STENCILOP_KEEP = 1,
-	SHADER_STENCILOP_ZERO = 2,
-	SHADER_STENCILOP_SET_TO_REFERENCE = 3,
-	SHADER_STENCILOP_INCREMENT_CLAMP = 4,
-	SHADER_STENCILOP_DECREMENT_CLAMP = 5,
-	SHADER_STENCILOP_INVERT = 6,
-	SHADER_STENCILOP_INCREMENT_WRAP = 7,
-	SHADER_STENCILOP_DECREMENT_WRAP = 8,
-#else
-	SHADER_STENCILOP_KEEP = D3DSTENCILOP_KEEP,
-	SHADER_STENCILOP_ZERO = D3DSTENCILOP_ZERO,
-	SHADER_STENCILOP_SET_TO_REFERENCE = D3DSTENCILOP_REPLACE,
-	SHADER_STENCILOP_INCREMENT_CLAMP = D3DSTENCILOP_INCRSAT,
-	SHADER_STENCILOP_DECREMENT_CLAMP = D3DSTENCILOP_DECRSAT,
-	SHADER_STENCILOP_INVERT = D3DSTENCILOP_INVERT,
-	SHADER_STENCILOP_INCREMENT_WRAP = D3DSTENCILOP_INCR,
-	SHADER_STENCILOP_DECREMENT_WRAP = D3DSTENCILOP_DECR,
-#endif
-	SHADER_STENCILOP_FORCE_DWORD = 0x7fffffff
-};
-
-struct ShaderStencilState_t
-{
-	bool m_bEnable;
-	ShaderStencilOp_t m_FailOp;
-	ShaderStencilOp_t m_ZFailOp;
-	ShaderStencilOp_t m_PassOp;
-	ShaderStencilFunc_t m_CompareFunc;
-	int m_nReferenceValue;
-	uint32 m_nTestMask;
-	uint32 m_nWriteMask;
-
-#if defined( _X360 )
-	bool m_bHiStencilEnable;
-	bool m_bHiStencilWriteEnable;
-	ShaderHiStencilFunc_t m_HiStencilCompareFunc;
-	int m_nHiStencilReferenceValue;
-#endif
-
-	ShaderStencilState_t()
-	{
-		m_bEnable = false;
-		m_PassOp = m_FailOp = m_ZFailOp = SHADER_STENCILOP_KEEP;
-		m_CompareFunc = SHADER_STENCILFUNC_ALWAYS;
-		m_nReferenceValue = 0;
-		m_nTestMask = m_nWriteMask = 0xFFFFFFFF;
-
-#if defined( _X360 )
-		m_bHiStencilEnable = false;
-		m_bHiStencilWriteEnable = false;
-		m_HiStencilCompareFunc = SHADER_HI_STENCILFUNC_EQUAL;
-		m_nHiStencilReferenceValue = 0;
-#endif
-	}
-};
-
-///////////////////Koniec_Strectil////////////////////////
 
 //-----------------------------------------------------------------------------
 // Light structure
 //-----------------------------------------------------------------------------
 #include "mathlib/lightdesc.h"
 
-#if 0
-enum LightType_t
+enum
 {
-	MATERIAL_LIGHT_DISABLE = 0,
-	MATERIAL_LIGHT_POINT,
-	MATERIAL_LIGHT_DIRECTIONAL,
-	MATERIAL_LIGHT_SPOT,
+	MATERIAL_MAX_LIGHT_COUNT = 4,
 };
 
-enum LightType_OptimizationFlags_t
+struct MaterialLightingState_t
 {
-	LIGHTTYPE_OPTIMIZATIONFLAGS_HAS_ATTENUATION0 = 1,
-	LIGHTTYPE_OPTIMIZATIONFLAGS_HAS_ATTENUATION1 = 2,
-	LIGHTTYPE_OPTIMIZATIONFLAGS_HAS_ATTENUATION2 = 4,
+	Vector			m_vecAmbientCube[6];		// ambient, and lights that aren't in locallight[]
+	Vector			m_vecLightingOrigin;		// The position from which lighting state was computed
+	int				m_nLocalLightCount;
+	LightDesc_t		m_pLocalLightDesc[MATERIAL_MAX_LIGHT_COUNT];
+
+	MaterialLightingState_t &operator=( const MaterialLightingState_t &src )
+	{
+		memcpy( this, &src, sizeof(MaterialLightingState_t) - MATERIAL_MAX_LIGHT_COUNT * sizeof(LightDesc_t) );
+		memcpy( m_pLocalLightDesc, &src.m_pLocalLightDesc, src.m_nLocalLightCount * sizeof(LightDesc_t) );
+		return *this;
+	}
 };
 
 
-struct LightDesc_t 
-{
-	LightType_t		m_Type;
-	Vector			m_Color;
-	Vector	m_Position;
-	Vector  m_Direction;
-	float   m_Range;
-	float   m_Falloff;
-	float   m_Attenuation0;
-	float   m_Attenuation1;
-	float   m_Attenuation2;
-	float   m_Theta;
-	float   m_Phi;
-	// These aren't used by DX8. . used for software lighting.
-	float	m_ThetaDot;
-	float	m_PhiDot;
-	unsigned int	m_Flags;
-
-
-	LightDesc_t() {}
-
-private:
-	// No copy constructors allowed
-	LightDesc_t(const LightDesc_t& vOther);
-};
-#endif
 
 #define CREATERENDERTARGETFLAGS_HDR				0x00000001
 #define CREATERENDERTARGETFLAGS_AUTOMIPMAP		0x00000002
@@ -358,59 +262,6 @@ private:
 // XBOX ONLY:
 #define CREATERENDERTARGETFLAGS_NOEDRAM			0x00000008 // inhibit allocation in 360 EDRAM
 #define CREATERENDERTARGETFLAGS_TEMP			0x00000010 // only allocates memory upon first resolve, destroyed at level end
-
-
-//-----------------------------------------------------------------------------
-// allowed stencil operations. These match the d3d operations
-//-----------------------------------------------------------------------------
-enum StencilOperation_t 
-{
-#if !defined( _X360 )
-	STENCILOPERATION_KEEP = 1,
-	STENCILOPERATION_ZERO = 2,
-	STENCILOPERATION_REPLACE = 3,
-	STENCILOPERATION_INCRSAT = 4,
-	STENCILOPERATION_DECRSAT = 5,
-	STENCILOPERATION_INVERT = 6,
-	STENCILOPERATION_INCR = 7,
-	STENCILOPERATION_DECR = 8,
-#else
-	STENCILOPERATION_KEEP = D3DSTENCILOP_KEEP,
-	STENCILOPERATION_ZERO = D3DSTENCILOP_ZERO,
-	STENCILOPERATION_REPLACE = D3DSTENCILOP_REPLACE,
-	STENCILOPERATION_INCRSAT = D3DSTENCILOP_INCRSAT,
-	STENCILOPERATION_DECRSAT = D3DSTENCILOP_DECRSAT,
-	STENCILOPERATION_INVERT = D3DSTENCILOP_INVERT,
-	STENCILOPERATION_INCR = D3DSTENCILOP_INCR,
-	STENCILOPERATION_DECR = D3DSTENCILOP_DECR,
-#endif
-	STENCILOPERATION_FORCE_DWORD = 0x7fffffff
-};
-
-enum StencilComparisonFunction_t 
-{
-#if !defined( _X360 )
-	STENCILCOMPARISONFUNCTION_NEVER = 1,
-	STENCILCOMPARISONFUNCTION_LESS = 2,
-	STENCILCOMPARISONFUNCTION_EQUAL = 3,
-	STENCILCOMPARISONFUNCTION_LESSEQUAL = 4,
-	STENCILCOMPARISONFUNCTION_GREATER = 5,
-	STENCILCOMPARISONFUNCTION_NOTEQUAL = 6,
-	STENCILCOMPARISONFUNCTION_GREATEREQUAL = 7,
-	STENCILCOMPARISONFUNCTION_ALWAYS = 8,
-#else
-	STENCILCOMPARISONFUNCTION_NEVER = D3DCMP_NEVER,
-	STENCILCOMPARISONFUNCTION_LESS = D3DCMP_LESS,
-	STENCILCOMPARISONFUNCTION_EQUAL = D3DCMP_EQUAL,
-	STENCILCOMPARISONFUNCTION_LESSEQUAL = D3DCMP_LESSEQUAL,
-	STENCILCOMPARISONFUNCTION_GREATER = D3DCMP_GREATER,
-	STENCILCOMPARISONFUNCTION_NOTEQUAL = D3DCMP_NOTEQUAL,
-	STENCILCOMPARISONFUNCTION_GREATEREQUAL = D3DCMP_GREATEREQUAL,
-	STENCILCOMPARISONFUNCTION_ALWAYS = D3DCMP_ALWAYS,
-#endif
-
-	STENCILCOMPARISONFUNCTION_FORCE_DWORD = 0x7fffffff
-};
 
 
 //-----------------------------------------------------------------------------
@@ -468,6 +319,7 @@ struct MaterialAdapterInfo_t
 	unsigned int m_SubSysID;
 	unsigned int m_Revision;
 	int m_nDXSupportLevel;			// This is the *preferred* dx support level
+	int m_nMinDXSupportLevel;
 	int m_nMaxDXSupportLevel;
 	unsigned int m_nDriverVersionHigh;
 	unsigned int m_nDriverVersionLow;
@@ -485,10 +337,46 @@ struct MaterialVideoMode_t
 	int m_RefreshRate;		// 0 == default (ignored for windowed mode)
 };
 
+
+//--------------------------------------------------------------------------------
+// Uberlight parameters
+//--------------------------------------------------------------------------------
+struct UberlightState_t
+{
+	UberlightState_t()
+	{
+		m_fNearEdge 	= 2.0f;
+		m_fFarEdge  	= 100.0f;
+		m_fCutOn    	= 10.0f;
+		m_fCutOff   	= 650.0f;
+		m_fShearx   	= 0.0f;
+		m_fSheary   	= 0.0f;
+		m_fWidth    	= 0.3f;
+		m_fWedge    	= 0.05f;
+		m_fHeight		= 0.3f;
+		m_fHedge		= 0.05f;
+		m_fRoundness	= 0.8f;
+	}
+
+	float m_fNearEdge;
+	float m_fFarEdge;
+	float m_fCutOn;
+	float m_fCutOff;
+	float m_fShearx;
+	float m_fSheary;
+	float m_fWidth;
+	float m_fWedge;
+	float m_fHeight;
+	float m_fHedge;
+	float m_fRoundness;
+
+	IMPLEMENT_OPERATOR_EQUAL( UberlightState_t );
+};
+
 // fixme: should move this into something else.
 struct FlashlightState_t
 {
-	FlashlightState_t::FlashlightState_t()
+	FlashlightState_t()
 	{
 		m_bEnableShadows = false;						// Provide reasonable defaults for shadow depth mapping parameters
 		m_bDrawShadowFrustum = false;
@@ -498,12 +386,39 @@ struct FlashlightState_t
 		m_flShadowDepthBias = 0.0005f;
 		m_flShadowJitterSeed = 0.0f;
 		m_flShadowAtten = 0.0f;
+		m_flAmbientOcclusion = 0.0f;
+		m_nShadowQuality = 0;
+		m_bShadowHighRes = false;
+
 		m_bScissor = false; 
 		m_nLeft = -1;
 		m_nTop = -1;
 		m_nRight = -1;
 		m_nBottom = -1;
-		m_nShadowQuality = 0;
+
+		m_bUberlight = false;
+
+		m_bVolumetric = false;
+		m_flNoiseStrength = 0.8f;
+		m_flFlashlightTime = 0.0f;
+		m_nNumPlanes = 64;
+		m_flPlaneOffset = 0.0f;
+		m_flVolumetricIntensity = 1.0f;
+
+		m_bOrtho = false;
+		m_fOrthoLeft = -1.0f;
+		m_fOrthoRight = 1.0f;
+		m_fOrthoTop = -1.0f;
+		m_fOrthoBottom = 1.0f;
+
+		m_fBrightnessScale = 1.0f;
+		m_pSpotlightTexture = NULL;
+		m_pProjectedMaterial = NULL;
+		m_bGlobalLight = false;
+
+		m_bSimpleProjection = false;
+		m_flProjectionSize = 500.0f;
+		m_flProjectionRotation = 0.0f;
 	}
 
 	Vector m_vecLightOrigin;
@@ -524,8 +439,11 @@ struct FlashlightState_t
 	float m_fConstantAtten;
 	float m_FarZAtten;
 	float m_Color[4];
+	float m_fBrightnessScale;
 	ITexture *m_pSpotlightTexture;
+	IMaterial *m_pProjectedMaterial;
 	int m_nSpotlightTextureFrame;
+	bool m_bGlobalLight;
 
 	// Shadow depth mapping parameters
 	bool  m_bEnableShadows;
@@ -536,15 +454,32 @@ struct FlashlightState_t
 	float m_flShadowDepthBias;
 	float m_flShadowJitterSeed;
 	float m_flShadowAtten;
+	float m_flAmbientOcclusion;
 	int   m_nShadowQuality;
 	bool  m_bShadowHighRes;
 
+	// simple projection
+	bool	m_bSimpleProjection;
+	float	m_flProjectionSize;
+	float	m_flProjectionRotation;
+
+	// Uberlight parameters
+	bool m_bUberlight;
+	UberlightState_t m_uberlightState;
+
+	bool m_bVolumetric;
+	float m_flNoiseStrength;
+	float m_flFlashlightTime;
+	int m_nNumPlanes;
+	float m_flPlaneOffset;
+	float m_flVolumetricIntensity;
+
 	// Getters for scissor members
-	bool DoScissor() { return m_bScissor; }
-	int GetLeft()	 { return m_nLeft; }
-	int GetTop()	 { return m_nTop; }
-	int GetRight()	 { return m_nRight; }
-	int GetBottom()	 { return m_nBottom; }
+	bool DoScissor() const { return m_bScissor; }
+	int GetLeft()	 const { return m_nLeft; }
+	int GetTop()	 const { return m_nTop; }
+	int GetRight()	 const { return m_nRight; }
+	int GetBottom()	 const { return m_nBottom; }
 
 private:
 
@@ -555,6 +490,8 @@ private:
 	int m_nTop;
 	int m_nRight;
 	int m_nBottom;
+
+	IMPLEMENT_OPERATOR_EQUAL( FlashlightState_t );
 };
 
 //-----------------------------------------------------------------------------
@@ -588,6 +525,7 @@ enum MaterialRenderTargetDepth_t
 enum RestoreChangeFlags_t
 {
 	MATERIAL_RESTORE_VERTEX_FORMAT_CHANGED = 0x1,
+	MATERIAL_RESTORE_RELEASE_MANAGED_RESOURCES = 0x2,
 };
 
 
@@ -605,11 +543,12 @@ enum RenderTargetSizeMode_t
 	RT_SIZE_FULL_FRAME_BUFFER_ROUNDED_UP=6 // Same size as the frame buffer, rounded up if necessary for systems that can't do non-power of two textures.
 };
 
-typedef void (*MaterialBufferReleaseFunc_t)( );
+typedef void (*MaterialBufferReleaseFunc_t)( int nChangeFlags );	// see RestoreChangeFlags_t
 typedef void (*MaterialBufferRestoreFunc_t)( int nChangeFlags );	// see RestoreChangeFlags_t
 typedef void (*ModeChangeCallbackFunc_t)( void );
+typedef void (*EndFrameCleanupFunc_t)( void );
 
-typedef int VertexBufferHandle_t;
+//typedef int VertexBufferHandle_t;
 typedef unsigned short MaterialHandle_t;
 
 DECLARE_POINTER_HANDLE( OcclusionQueryObjectHandle_t );
@@ -621,6 +560,20 @@ class IMaterialSystemHardwareConfig;
 class CShadowMgr;
 
 DECLARE_POINTER_HANDLE( MaterialLock_t );
+
+//-----------------------------------------------------------------------------
+// Information about a material texture
+//-----------------------------------------------------------------------------
+
+struct MaterialTextureInfo_t
+{
+	// Exclude information:
+	//		-1	texture is not subject to exclude-handling
+	//		 0	texture is completely excluded
+	//		>0	texture is clamped according to exclude-instruction
+	int iExcludeInformation;
+};
+
 
 //-----------------------------------------------------------------------------
 // 
@@ -733,8 +686,6 @@ public:
 	// Use this to spew information about the 3D layer 
 	virtual void				SpewDriverInfo() const = 0;
 
-	virtual void				GetDXLevelDefaults(uint &max_dxlevel,uint &recommended_dxlevel) = 0;
-
 	// Get the image format of the back buffer. . useful when creating render targets, etc.
 	virtual void				GetBackBufferDimensions( int &width, int &height) const = 0;
 	virtual ImageFormat			GetBackBufferFormat() const = 0;
@@ -785,6 +736,10 @@ public:
 	virtual void				AddRestoreFunc( MaterialBufferRestoreFunc_t func ) = 0;
 	virtual void				RemoveRestoreFunc( MaterialBufferRestoreFunc_t func ) = 0;
 
+	// Installs a function to be called when we need to delete objects at the end of the render frame
+	virtual void				AddEndFrameCleanupFunc( EndFrameCleanupFunc_t func ) = 0;
+	virtual void				RemoveEndFrameCleanupFunc( EndFrameCleanupFunc_t func ) = 0;
+
 	// Release temporary HW memory...
 	virtual void				ResetTempHWMemory( bool bExitingLevel = false ) = 0;
 
@@ -826,7 +781,7 @@ public:
 
 	// Used to enable editor materials. Must be called before Init.
 	virtual void				EnableEditorMaterials() = 0;
-
+	virtual void                EnableGBuffers() = 0;
 
 	// -----------------------------------------------------------
 	// Stub mode mode
@@ -1029,7 +984,7 @@ public:
 	virtual void				ListUsedMaterials( void ) = 0;
 	virtual HXUIFONT			OpenTrueTypeFont( const char *pFontname, int tall, int style ) = 0;
 	virtual void				CloseTrueTypeFont( HXUIFONT hFont ) = 0;
-	virtual bool				GetTrueTypeFontMetrics( HXUIFONT hFont, XUIFontMetrics *pFontMetrics, XUICharMetrics charMetrics[256] ) = 0;
+	virtual bool				GetTrueTypeFontMetrics( HXUIFONT hFont, wchar_t wchFirst, wchar_t wchLast, XUIFontMetrics *pFontMetrics, XUICharMetrics *pCharMetrics ) = 0;
 	// Render a sequence of characters and extract the data into a buffer
 	// For each character, provide the width+height of the font texture subrect,
 	// an offset to apply when rendering the glyph, and an offset into a buffer to receive the RGBA data
@@ -1044,7 +999,6 @@ public:
 	// -----------------------------------------------------------
 	virtual IMatRenderContext *	GetRenderContext() = 0;
 
-	virtual bool				SupportsShadowDepthTextures( void ) = 0;
 	virtual void				BeginUpdateLightmaps( void ) = 0;
 	virtual void				EndUpdateLightmaps( void ) = 0;
 
@@ -1053,11 +1007,6 @@ public:
 	// -----------------------------------------------------------
 	virtual MaterialLock_t		Lock() = 0;
 	virtual void				Unlock( MaterialLock_t ) = 0;
-
-	// Vendor-dependent shadow depth texture format
-	virtual ImageFormat			GetShadowDepthTextureFormat() = 0;
-
-	virtual bool				SupportsFetch4( void ) = 0;
 
 	// Create a custom render context. Cannot be used to create MATERIAL_HARDWARE_CONTEXT
 	virtual IMatRenderContext *CreateRenderContext( MaterialContextType_t type ) = 0;
@@ -1071,8 +1020,6 @@ public:
 
 	// Finds or create a procedural material.
 	virtual IMaterial *			FindProceduralMaterial( const char *pMaterialName, const char *pTextureGroupName, KeyValues *pVMTKeyValues ) = 0;
-
-	virtual ImageFormat			GetNullTextureFormat() = 0;
 
 	virtual void				AddTextureAlias( const char *pAlias, const char *pRealName ) = 0;
 	virtual void				RemoveTextureAlias( const char *pAlias ) = 0;
@@ -1091,6 +1038,24 @@ public:
 
 	// For sv_pure mode. The filesystem figures out which files the client needs to reload to be "pure" ala the server's preferences.
 	virtual void ReloadFilesInList( IFileList *pFilesToReload ) = 0;
+
+	// Get information about the texture for texture management tools
+	virtual bool				GetTextureInformation( char const *szTextureName, MaterialTextureInfo_t &info ) const = 0;
+
+	// call this once the render targets are allocated permanently at the beginning of the game
+	virtual void FinishRenderTargetAllocation( void ) = 0;
+	
+	virtual void ReEnableRenderTargetAllocation_IRealizeIfICallThisAllTexturesWillBeUnloadedAndLoadTimeWillSufferHorribly( void ) = 0;
+	virtual	bool				AllowThreading( bool bAllow, int nServiceThread ) = 0;
+
+	virtual bool				GetRecommendedVideoConfig( KeyValues *pKeyValues ) = 0;
+
+	virtual IClientMaterialSystem*	GetClientMaterialSystemInterface() = 0;
+
+	virtual bool				CanDownloadTextures() const = 0;
+	virtual int					GetNumLightmapPages() const = 0;
+
+	virtual IPaintMapTextureManager *RegisterPaintMapDataManager( IPaintMapDataManager *pDataManager ) = 0; //You supply an interface we can query for bits, it gives back an interface you can use to drive updates
 };
 
 
@@ -1129,8 +1094,8 @@ public:
 	virtual void				ReadPixels( int x, int y, int width, int height, unsigned char *data, ImageFormat dstFormat ) = 0;
 
 	// Sets lighting
-	virtual void				SetAmbientLight( float r, float g, float b ) = 0;
-	virtual void				SetLight( int lightNum, const LightDesc_t& desc ) = 0;
+	virtual void				SetLightingState( const MaterialLightingState_t& state ) = 0;
+	virtual void				SetLights( int nCount, const LightDesc_t *pLights ) = 0;
 
 	// The faces of the cube are specified in the same order as cubemap textures
 	virtual void				SetAmbientLightCube( Vector4D cube[6] ) = 0;
@@ -1173,6 +1138,7 @@ public:
 
 	// The cull mode
 	virtual void				CullMode( MaterialCullMode_t cullMode ) = 0;
+	virtual void				FlipCullMode( void ) = 0; //CW->CCW or CCW->CW, intended for mirror support where the view matrix is flipped horizontally
 
 	// end matrix api
 
@@ -1199,7 +1165,7 @@ public:
 	virtual void				SetNumBoneWeights( int numBones ) = 0;
 
 	// Creates/destroys Mesh
-	virtual IMesh* CreateStaticMesh( VertexFormat_t fmt, const char *pTextureBudgetGroup, IMaterial * pMaterial = NULL ) = 0;
+	virtual IMesh* CreateStaticMesh( VertexFormat_t fmt, const char *pTextureBudgetGroup, IMaterial * pMaterial = NULL, VertexStreamSpec_t *pStreamSpec = NULL ) = 0;
 	virtual void DestroyStaticMesh( IMesh* mesh ) = 0;
 
 	// Gets the dynamic mesh associated with the currently bound material
@@ -1237,7 +1203,7 @@ public:
 	virtual void DestroyIndexBuffer( IIndexBuffer * ) = 0;
 	// Do we need to specify the stream here in the case of locking multiple dynamic VBs on different streams?
 	virtual IVertexBuffer *GetDynamicVertexBuffer( int streamID, VertexFormat_t vertexFormat, bool bBuffered = true ) = 0;
-	virtual IIndexBuffer *GetDynamicIndexBuffer( MaterialIndexFormat_t fmt, bool bBuffered = true ) = 0;
+	virtual IIndexBuffer *GetDynamicIndexBuffer() = 0;
 	virtual void BindVertexBuffer( int streamID, IVertexBuffer *pVertexBuffer, int nOffsetInBytes, int nFirstVertex, int nVertexCount, VertexFormat_t fmt, int nRepetitions = 1 ) = 0;
 	virtual void BindIndexBuffer( IIndexBuffer *pIndexBuffer, int nOffsetInBytes ) = 0;
 	virtual void Draw( MaterialPrimitiveType_t primitiveType, int firstIndex, int numIndices ) = 0;
@@ -1311,9 +1277,6 @@ public:
 	// Used to make the handle think it's never had a successful query before
 	virtual void ResetOcclusionQueryObject( OcclusionQueryObjectHandle_t ) = 0;
 
-	// FIXME: Remove
-	virtual void Unused3() {}
-
 	// Creates/destroys morph data associated w/ a particular material
 	virtual IMorph *CreateMorph( MorphFormat_t format, const char *pDebugName ) = 0;
 	virtual void DestroyMorph( IMorph *pMorph ) = 0;
@@ -1324,12 +1287,22 @@ public:
 	// Sets flexweights for rendering
 	virtual void SetFlexWeights( int nFirstWeight, int nCount, const MorphWeight_t* pWeights ) = 0;
 
-	// FIXME: Remove
-	virtual void Unused4() {};
-	virtual void Unused5() {};
-	virtual void Unused6() {};
-	virtual void Unused7() {};
-	virtual void Unused8() {};
+	// Allocates temp render data. Renderdata goes out of scope at frame end in multicore
+	// Renderdata goes out of scope after refcount goes to zero in singlecore.
+	// Locking/unlocking increases + decreases refcount
+	virtual void *			LockRenderData( int nSizeInBytes ) = 0;
+	virtual void			UnlockRenderData( void *pData ) = 0;
+
+	// Typed version. If specified, pSrcData is copied into the locked memory.
+	template< class E > E*  LockRenderDataTyped( int nCount, const E* pSrcData = NULL );
+
+	// Temp render data gets immediately freed after it's all unlocked in single core.
+	// This prevents it from being freed
+	virtual void			AddRefRenderData() = 0;	
+	virtual void			ReleaseRenderData() = 0;
+
+	// Returns whether a pointer is render data. NOTE: passing NULL returns true
+	virtual bool			IsRenderData( const void *pData ) const = 0;
 
 	// Read w/ stretch to a host-memory buffer
 	virtual void ReadPixelsAndStretch( Rect_t *pSrcRect, Rect_t *pDstRect, unsigned char *pBuffer, ImageFormat dstFormat, int nDstStride ) = 0;
@@ -1380,6 +1353,9 @@ public:
 	// Special off-center perspective matrix for DoF, MSAA jitter and poster rendering
 	virtual void PerspectiveOffCenterX( double fovx, double aspect, double zNear, double zFar, double bottom, double top, double left, double right ) = 0;
 
+	// Sets the ambient light color
+	virtual void SetAmbientLightColor( float r, float g, float b ) = 0;
+
 	// Rendering parameters control special drawing modes withing the material system, shader
 	// system, shaders, and engine. renderparm.h has their definitions.
 	virtual void SetFloatRenderingParameter(int parm_number, float value) = 0;
@@ -1387,16 +1363,6 @@ public:
 	virtual void SetVectorRenderingParameter(int parm_number, Vector const &value) = 0;
 
 	// stencil buffer operations.
-	virtual void SetStencilEnable(bool onoff) = 0;
-	virtual void SetStencilFailOperation(StencilOperation_t op) = 0;
-	virtual void SetStencilZFailOperation(StencilOperation_t op) = 0;
-	virtual void SetStencilPassOperation(StencilOperation_t op) = 0;
-	virtual void SetStencilCompareFunction(StencilComparisonFunction_t cmpfn) = 0;
-	virtual void SetStencilReferenceValue(int ref) = 0;
-	virtual void SetStencilTestMask(uint32 msk) = 0;
-	virtual void SetStencilWriteMask(uint32 msk) = 0;
-
-		// stencil buffer operations.
 	virtual void SetStencilState( const ShaderStencilState_t &state ) = 0;
 	virtual void ClearStencilBufferRectangle(int xmin, int ymin, int xmax, int ymax,int value) =0;	
 
@@ -1424,6 +1390,7 @@ public:
 	virtual IMesh *GetFlexMesh() = 0;
 
 	virtual void SetFlashlightStateEx( const FlashlightState_t &state, const VMatrix &worldToTexture, ITexture *pFlashlightDepthTexture ) = 0;
+	virtual void SetFlashlightStateExDeRef( const FlashlightState_t &state, ITexture *pFlashlightDepthTexture ) = 0;
 
 	// Returns the currently bound local cubemap
 	virtual ITexture *GetLocalCubemap( ) = 0;
@@ -1457,19 +1424,11 @@ public:
 	virtual void GetWorldSpaceCameraPosition( Vector *pCameraPos ) = 0;
 	virtual void GetWorldSpaceCameraVectors( Vector *pVecForward, Vector *pVecRight, Vector *pVecUp ) = 0;
 
-	// Tone mapping
-	virtual void				ResetToneMappingScale( float monoscale) = 0; 			// set scale to monoscale instantly with no chasing
-	virtual void				SetGoalToneMappingScale( float monoscale)  = 0; 			// set scale to monoscale instantly with no chasing
-
-	// call TurnOnToneMapping before drawing the 3d scene to get the proper interpolated brightness
-	// value set.
-	virtual void				TurnOnToneMapping() = 0;
-
 	// Set a linear vector color scale for all 3D rendering.
 	// A value of [1.0f, 1.0f, 1.0f] should match non-tone-mapped rendering.
 	virtual void				SetToneMappingScaleLinear( const Vector &scale ) = 0;
-
 	virtual Vector				GetToneMappingScaleLinear( void ) = 0;
+
 	virtual void				SetShadowDepthBiasFactors( float fSlopeScaleDepthBias, float fDepthBias ) = 0;
 
 	// Apply stencil operations to every pixel on the screen without disturbing depth or color buffers
@@ -1481,7 +1440,7 @@ public:
 	// Set scissor rect for rendering
 	virtual void				SetScissorRect( const int nLeft, const int nTop, const int nRight, const int nBottom, const bool bEnableScissor ) = 0;
 
-	// Methods used to build the morph accumulator that is read from when HW morph<ing is enabled.
+	// Methods used to build the morph accumulator that is read from when HW morphing is enabled.
 	virtual void				BeginMorphAccumulation() = 0;
 	virtual void				EndMorphAccumulation() = 0;
 	virtual void				AccumulateMorph( IMorph* pMorph, int nMorphCount, const MorphWeight_t* pWeights ) = 0;
@@ -1502,6 +1461,11 @@ public:
 	//Seems best to expose GPR allocation to scene rendering code. 128 total to split between vertex/pixel shaders (pixel will be set to 128 - vertex). Minimum value of 16. More GPR's = more threads.
 	virtual void				PushVertexShaderGPRAllocation( int iVertexShaderCount = 64 ) = 0;
 	virtual void				PopVertexShaderGPRAllocation( void ) = 0;
+
+	virtual void				FlushHiStencil() = 0;
+
+	virtual void				Begin360ZPass( int nNumDynamicIndicesNeeded ) = 0;
+	virtual void				End360ZPass() = 0;
 #endif
 
 	virtual IMaterial *GetCurrentMaterial() = 0;
@@ -1530,7 +1494,221 @@ public:
 	virtual void SetNonInteractiveTempFullscreenBuffer( ITexture *pTexture, MaterialNonInteractiveMode_t mode ) = 0;
 	virtual void EnableNonInteractiveMode( MaterialNonInteractiveMode_t mode ) = 0;
 	virtual void RefreshFrontBufferNonInteractive() = 0;
+
+	// Flip culling state (swap CCW <-> CW)
+	virtual void FlipCulling( bool bFlipCulling ) = 0;
+
+	virtual void SetTextureRenderingParameter(int parm_number, ITexture *pTexture) = 0;
+
+	//only actually sets a bool that can be read in from shaders, doesn't do any of the legwork
+	virtual void EnableSinglePassFlashlightMode( bool bEnable ) = 0;
+
+	// Draws instances with different meshes
+	virtual void DrawInstances( int nInstanceCount, const MeshInstanceData_t *pInstance ) = 0;
+	
+	// Allows us to override the color/alpha write settings of a material
+	virtual void OverrideAlphaWriteEnable( bool bOverrideEnable, bool bAlphaWriteEnable ) = 0;
+	virtual void OverrideColorWriteEnable( bool bOverrideEnable, bool bColorWriteEnable ) = 0;
+
+	virtual void ClearBuffersObeyStencilEx( bool bClearColor, bool bClearAlpha, bool bClearDepth ) = 0;
+
+	// Subdivision surface interface
+	virtual int GetSubDBufferWidth() = 0;
+	virtual float* LockSubDBuffer( int nNumRows ) = 0;
+	virtual void UnlockSubDBuffer() = 0;
+
+	// Update current frame's game time for the shader api.
+	virtual void UpdateGameTime( float flTime ) = 0;
+
+	virtual void			PrintfVA( char *fmt, va_list vargs ) = 0;
+	virtual void			Printf( char *fmt, ... ) = 0;
+	virtual float			Knob( char *knobname, float *setvalue = NULL ) = 0;
 };
+
+
+template< class E > inline E* IMatRenderContext::LockRenderDataTyped( int nCount, const E* pSrcData )
+{
+	int nSizeInBytes = nCount * sizeof(E);
+	E *pDstData = (E*)LockRenderData( nSizeInBytes );
+	if ( pSrcData && pDstData )
+	{
+		memcpy( pDstData, pSrcData, nSizeInBytes );
+	}
+	return pDstData;
+}
+
+
+//-----------------------------------------------------------------------------
+// Utility class for addreffing/releasing render data (prevents freeing on single core)
+//-----------------------------------------------------------------------------
+class CMatRenderDataReference
+{
+public:
+	CMatRenderDataReference();
+	CMatRenderDataReference( IMatRenderContext* pRenderContext );
+	~CMatRenderDataReference();
+	void Lock( IMatRenderContext *pRenderContext );
+	void Release();
+
+private:
+	IMatRenderContext *m_pRenderContext;
+};
+
+
+inline CMatRenderDataReference::CMatRenderDataReference()
+{
+	m_pRenderContext = NULL;
+}
+
+inline CMatRenderDataReference::CMatRenderDataReference( IMatRenderContext* pRenderContext )
+{
+	m_pRenderContext = NULL;
+	Lock( pRenderContext );
+}
+
+inline CMatRenderDataReference::~CMatRenderDataReference()
+{
+	Release();
+}
+
+inline void CMatRenderDataReference::Lock( IMatRenderContext* pRenderContext )
+{
+	if ( !m_pRenderContext )
+	{
+		m_pRenderContext = pRenderContext;
+		m_pRenderContext->AddRefRenderData( );
+	}
+}
+
+inline void CMatRenderDataReference::Release()
+{
+	if ( m_pRenderContext )
+	{
+		m_pRenderContext->ReleaseRenderData( );
+		m_pRenderContext = NULL;
+	}
+}
+
+
+//-----------------------------------------------------------------------------
+// Utility class for locking/unlocking render data
+//-----------------------------------------------------------------------------
+template< typename E > 
+class CMatRenderData
+{
+public:
+	CMatRenderData( IMatRenderContext* pRenderContext );
+	CMatRenderData( IMatRenderContext* pRenderContext, int nCount, const E *pSrcData = NULL );
+	~CMatRenderData();
+	E* Lock( int nCount, const E* pSrcData = NULL ); 
+	void Release();
+	bool IsValid() const;
+	const E* Base() const;
+	E* Base();
+	const E& operator[]( int i ) const;
+	E& operator[]( int i );
+
+private:
+	IMatRenderContext* m_pRenderContext;
+	E *m_pRenderData;
+	int m_nCount;
+	bool m_bNeedsUnlock;
+};
+
+template< typename E >
+inline CMatRenderData<E>::CMatRenderData( IMatRenderContext* pRenderContext )
+{
+	m_pRenderContext = pRenderContext;
+	m_nCount = 0;
+	m_pRenderData = 0;
+	m_bNeedsUnlock = false;
+}
+
+template< typename E >
+inline CMatRenderData<E>::CMatRenderData( IMatRenderContext* pRenderContext, int nCount, const E* pSrcData )
+{
+	m_pRenderContext = pRenderContext;
+	m_nCount = 0;
+	m_pRenderData = 0;
+	m_bNeedsUnlock = false;
+	Lock( nCount, pSrcData );
+}
+
+template< typename E >
+inline CMatRenderData<E>::~CMatRenderData()
+{
+	Release();
+}
+
+template< typename E >
+inline bool CMatRenderData<E>::IsValid() const
+{
+	return m_pRenderData != NULL;
+}
+
+template< typename E >
+inline E* CMatRenderData<E>::Lock( int nCount, const E* pSrcData )
+{
+	m_nCount = nCount;
+	if ( pSrcData && m_pRenderContext->IsRenderData( pSrcData ) )
+	{
+		// Yes, we're const-casting away, but that should be ok since 
+		// the src data is render data
+		m_pRenderData = const_cast<E*>( pSrcData );
+		m_pRenderContext->AddRefRenderData();
+		m_bNeedsUnlock = false;
+		return m_pRenderData;
+	}
+	m_pRenderData = m_pRenderContext->LockRenderDataTyped<E>( nCount, pSrcData );
+	m_bNeedsUnlock = true;
+	return m_pRenderData;
+}
+
+template< typename E >
+inline void CMatRenderData<E>::Release()
+{
+	if ( m_pRenderContext && m_pRenderData )
+	{
+		if ( m_bNeedsUnlock )
+		{
+			m_pRenderContext->UnlockRenderData( m_pRenderData );
+		}
+		else
+		{
+			m_pRenderContext->ReleaseRenderData();
+		}
+	}
+	m_pRenderData = NULL;
+	m_nCount = 0;
+	m_bNeedsUnlock = false;
+}
+
+template< typename E >
+inline E* CMatRenderData<E>::Base()
+{
+	return m_pRenderData;
+}
+
+template< typename E >
+inline const E* CMatRenderData<E>::Base() const
+{
+	return m_pRenderData;
+}
+
+template< typename E >
+inline E& CMatRenderData<E>::operator[]( int i )
+{
+	Assert( ( i >= 0 ) && ( i < m_nCount ) );
+	return m_pRenderData[i];
+}
+
+template< typename E >
+inline const E& CMatRenderData<E>::operator[]( int i ) const
+{
+	Assert( ( i >= 0 ) && ( i < m_nCount ) );
+	return m_pRenderData[i];
+}
+
 
 //-----------------------------------------------------------------------------
 
@@ -1557,19 +1735,6 @@ private:
 
 };
 
-class CMatRenderDataReference
-{
-public:
-	CMatRenderDataReference();
-	CMatRenderDataReference( IMatRenderContext* pRenderContext );
-	~CMatRenderDataReference();
-	void Lock( IMatRenderContext *pRenderContext );
-	void Release();
-
-private:
-	IMatRenderContext *m_pRenderContext;
-};
-
 //-----------------------------------------------------------------------------
 // Helper class for begin/end of pix event via constructor/destructor 
 //-----------------------------------------------------------------------------
@@ -1592,11 +1757,6 @@ public:
 private:
 	IMatRenderContext *m_pRenderContext;
 };
-
-inline CMatRenderDataReference::CMatRenderDataReference()
-{
-	m_pRenderContext = NULL;
-}
 
 
 #define PIX_ENABLE 0		// set this to 1 and build engine/studiorender to enable pix events in the engine
@@ -1626,7 +1786,7 @@ static void DoMatSysQueueMark( IMaterialSystem *pMaterialSystem, const char *psz
 
 //-----------------------------------------------------------------------------
 
-extern IMaterialSystem *materials;
-extern IMaterialSystem *g_pMaterialSystem;
+DECLARE_TIER2_INTERFACE( IMaterialSystem, materials );
+DECLARE_TIER2_INTERFACE( IMaterialSystem, g_pMaterialSystem );
 
 #endif // IMATERIALSYSTEM_H

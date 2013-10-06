@@ -249,7 +249,7 @@ bool NMatrixMN::InverseGeneral( NMatrixMN &mInverse ) const
 	for(iRow=0; iRow < N; iRow++)
 	{
 		// Find the row with the largest element in this column.
-		fLargest = 0.001f;
+		fLargest = 1e-6f;
 		iLargest = -1;
 		for(iTest=iRow; iTest < N; iTest++)
 		{

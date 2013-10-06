@@ -239,8 +239,8 @@ void SharedVehicleViewSmoothing(CBasePlayer *pPlayer,
 		pData->flEnterExitDuration = pData->pVehicle->SequenceDuration( pData->pVehicle->GetSequence() );
 
 #ifdef CLIENT_DLL
-		pData->vecOriginSaved = PrevMainViewOrigin();
-		pData->vecAnglesSaved = PrevMainViewAngles();
+		pData->vecOriginSaved = PrevMainViewOrigin( pPlayer->GetSplitScreenPlayerSlot() );
+		pData->vecAnglesSaved = PrevMainViewAngles( pPlayer->GetSplitScreenPlayerSlot() );
 #endif
 
 		// Save our initial angular error, which we will blend out over the length of the animation.
@@ -273,8 +273,8 @@ void SharedVehicleViewSmoothing(CBasePlayer *pPlayer,
 		if ( frac < 1.0 )
 		{
 			// Blend to the desired vehicle eye origin
-			//Vector vecToView = (vehicleEyeOrigin - PrevMainViewOrigin());
-			//vehicleEyeOrigin = PrevMainViewOrigin() + (vecToView * SimpleSpline(frac));
+			//Vector vecToView = (vehicleEyeOrigin - PrevMainViewOrigin(pPlayer->GetSplitScreenPlayerSlot() ));
+			//vehicleEyeOrigin = PrevMainViewOrigin(pPlayer->GetSplitScreenPlayerSlot() ) + (vecToView * SimpleSpline(frac));
 			//debugoverlay->AddBoxOverlay( vehicleEyeOrigin, -Vector(1,1,1), Vector(1,1,1), vec3_angle, 0,255,255, 64, 10 );
 		}
 		else 

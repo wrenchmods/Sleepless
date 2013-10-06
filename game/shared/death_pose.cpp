@@ -7,9 +7,13 @@
 #include "cbase.h"
 #include "death_pose.h"
 
+// NOTE: This has to be the last file included!
+#include "tier0/memdbgon.h"
+
+
 #ifdef CLIENT_DLL
 
-void GetRagdollCurSequenceWithDeathPose( C_BaseAnimating *entity, matrix3x4_t *curBones, float flTime, int activity, int frame )
+void GetRagdollCurSequenceWithDeathPose( C_BaseAnimating *entity, matrix3x4a_t *curBones, float flTime, int activity, int frame )
 {
 	// blow the cached prev bones
 	entity->InvalidateBoneCache();

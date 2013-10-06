@@ -287,10 +287,7 @@ void CTeamTrainWatcher::WatcherActivate( void )
 	for ( i=0;i<m_iNumCPLinks;i++ )
 	{
 		int iCPIndex = m_CPLinks[i].hCP.Get()->GetPointIndex();
-// This can be pulled once DoD includes team_objectiveresource.* and c_team_objectiveresource.*
-#ifndef DOD_DLL 
 		ObjectiveResource()->SetTrainPathDistance( iCPIndex, m_CPLinks[i].flDistanceFromStart / m_flTotalPathDistance );
-#endif
 		DevMsg( "link %d = %.2f\n", iCPIndex, m_CPLinks[i].flDistanceFromStart / m_flTotalPathDistance );
 	}
 
@@ -348,8 +345,7 @@ void CTeamTrainWatcher::WatcherThink( void )
 		}
 	}
 
-	bool bDisableAlarm = (TeamplayRoundBasedRules() && TeamplayRoundBasedRules()->State_Get() != GR_STATE_RND_RUNNING);
-	if ( bDisableAlarm )
+	if ( TeamplayRoundBasedRules() && TeamplayRoundBasedRules()->State_Get() == GR_STATE_TEAM_WIN )
 	{
 		StopCaptureAlarm();
 	}
@@ -515,7 +511,7 @@ void CTeamTrainWatcher::WatcherThink( void )
 			}
 
 			// check to see if we need to start or stop the alarm
-			if ( flDistanceToGoal <= TF_TRAIN_ALARM_DISTANCE && !bDisableAlarm )
+			if ( flDistanceToGoal <= TF_TRAIN_ALARM_DISTANCE )
 			{
 				if ( !g_pAlarm && m_iNumCPLinks > 0 )
 				{

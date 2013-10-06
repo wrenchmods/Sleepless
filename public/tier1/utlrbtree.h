@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright ï¿½ 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -12,6 +12,12 @@
 #include "tier1/utlmemory.h"
 #include "tier1/utlfixedmemory.h"
 #include "tier1/utlblockmemory.h"
+
+
+// This is a useful macro to iterate from start to end in order in a map
+#define FOR_EACH_UTLRBTREE( treeName, iteratorName ) \
+	for ( int iteratorName = treeName.FirstInorder(); iteratorName != treeName.InvalidIndex(); iteratorName = treeName.NextInorder( iteratorName ) )
+
 
 //-----------------------------------------------------------------------------
 // Tool to generate a default compare function for any type that implements
@@ -31,6 +37,7 @@ public:
 
 inline bool StringLessThan( const char * const &lhs, const char * const &rhs)			{ return ( strcmp( lhs, rhs) < 0 );  }
 inline bool CaselessStringLessThan( const char * const &lhs, const char * const &rhs )	{ return ( stricmp( lhs, rhs) < 0 ); }
+
 
 // Same as CaselessStringLessThan, but it ignores differences in / and \.
 inline bool CaselessStringLessThanIgnoreSlashes( const char * const &lhs, const char * const &rhs )	
@@ -65,6 +72,13 @@ inline bool CaselessStringLessThanIgnoreSlashes( const char * const &lhs, const 
 		++pb;
 	}
 	
+	// Filenames also must be the same length.
+	if ( *pa != *pb )
+	{
+		// If pa shorter than pb then it's "less"
+		return ( !*pa );
+	}
+
 	return false;
 }
 
@@ -78,11 +92,7 @@ template <> inline bool CDefOps<char *>::LessFunc( char * const &lhs, char * con
 template <typename RBTREE_T>
 void SetDefLessFunc( RBTREE_T &RBTree )
 {
-#ifdef _WIN32
-	RBTree.SetLessFunc( DefLessFunc( RBTREE_T::KeyType_t ) );
-#elif _LINUX
 	RBTree.SetLessFunc( DefLessFunc( typename RBTREE_T::KeyType_t ) );
-#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -304,13 +314,14 @@ public:
 	CUtlFixedRBTree( const LessFunc_t &lessfunc )
 		: CUtlRBTree< T, I, L, CUtlFixedMemory< UtlRBTreeNode_t< T, I > > >( lessfunc ) {}
 
+	typedef CUtlRBTree< T, I, L, CUtlFixedMemory< UtlRBTreeNode_t< T, I > > > BaseClass;
 	bool IsValidIndex( I i ) const
 	{
-		if ( !Elements().IsIdxValid( i ) )
+		if ( !BaseClass::Elements().IsIdxValid( i ) )
 			return false;
 
 #ifdef _DEBUG // it's safe to skip this here, since the only way to get indices after m_LastAlloc is to use MaxElement()
-		if ( Elements().IsIdxAfter( i, this->m_LastAlloc ) )
+		if ( BaseClass::Elements().IsIdxAfter( i, this->m_LastAlloc ) )
 		{
 			Assert( 0 );
 			return false; // don't read values that have been allocated, but not constructed
@@ -388,7 +399,7 @@ inline void CUtlRBTree<T, I, L, M>::CopyFrom( const CUtlRBTree<T, I, L, M> &othe
 {
 	Purge();
 	m_Elements.EnsureCapacity( other.m_Elements.Count() );
-	memcpy( m_Elements.Base(), other.m_Elements.Base(), other.m_Elements.Count() * sizeof( T ) );
+	memcpy( m_Elements.Base(), other.m_Elements.Base(), other.m_Elements.Count() * sizeof( UtlRBTreeNode_t< T, I > ) );
 	m_LessFunc = other.m_LessFunc;
 	m_Root = other.m_Root;
 	m_NumElements = other.m_NumElements;
@@ -1319,7 +1330,7 @@ int CUtlRBTree<T, I, L, M>::Depth( I node ) const
 
 	int depthright = Depth( RightChild(node) );
 	int depthleft = Depth( LeftChild(node) );
-	return max(depthright, depthleft) + 1;
+	return MAX( depthright, depthleft ) + 1;
 }
 
 
@@ -1543,12 +1554,12 @@ template < class T, class I, typename L, class M >
 void CUtlRBTree<T, I, L, M>::Swap( CUtlRBTree< T, I, L > &that )
 {
 	m_Elements.Swap( that.m_Elements );
-	swap( m_LessFunc, that.m_LessFunc );
-	swap( m_Root, that.m_Root );
-	swap( m_NumElements, that.m_NumElements );
-	swap( m_FirstFree, that.m_FirstFree );
-	swap( m_pElements, that.m_pElements );
-	swap( m_LastAlloc, that.m_LastAlloc );
+	V_swap( m_LessFunc, that.m_LessFunc );
+	V_swap( m_Root, that.m_Root );
+	V_swap( m_NumElements, that.m_NumElements );
+	V_swap( m_FirstFree, that.m_FirstFree );
+	V_swap( m_pElements, that.m_pElements );
+	V_swap( m_LastAlloc, that.m_LastAlloc );
 	Assert( IsValid() );
 	Assert( m_Elements.IsValidIterator( m_LastAlloc ) || ( m_NumElements == 0 && m_FirstFree == InvalidIndex() ) );
 }

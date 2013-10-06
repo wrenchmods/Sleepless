@@ -70,7 +70,7 @@ bool CRecipientFilter::IsReliable( void ) const
 
 int CRecipientFilter::GetRecipientCount( void ) const
 {
-	return m_Recipients.Size();
+	return m_Recipients.Count();
 }
 
 int	CRecipientFilter::GetRecipientIndex( int slot ) const
@@ -141,7 +141,7 @@ void CRecipientFilter::RemoveRecipient( CBasePlayer *player )
 
 void CRecipientFilter::RemoveRecipientByPlayerIndex( int playerindex )
 {
-	Assert( playerindex >= 1 && playerindex <= ABSOLUTE_PLAYER_LIMIT );
+	Assert( playerindex >= 1 && playerindex <= MAX_PLAYERS );
 
 	m_Recipients.FindAndRemove( playerindex );
 }
@@ -196,7 +196,7 @@ void CRecipientFilter::RemoveRecipientsNotOnTeam( CTeam *team )
 	}
 }
 
-void CRecipientFilter::AddPlayersFromBitMask( CBitVec< ABSOLUTE_PLAYER_LIMIT >& playerbits )
+void CRecipientFilter::AddPlayersFromBitMask( CPlayerBitVec& playerbits )
 {
 	int index = playerbits.FindNextSetBit( 0 );
 
@@ -212,7 +212,7 @@ void CRecipientFilter::AddPlayersFromBitMask( CBitVec< ABSOLUTE_PLAYER_LIMIT >& 
 	}
 }
 
-void CRecipientFilter::RemovePlayersFromBitMask( CBitVec< ABSOLUTE_PLAYER_LIMIT >& playerbits )
+void CRecipientFilter::RemovePlayersFromBitMask( CPlayerBitVec& playerbits )
 {
 	int index = playerbits.FindNextSetBit( 0 );
 
@@ -236,7 +236,7 @@ void CRecipientFilter::AddRecipientsByPVS( const Vector& origin )
 	}
 	else
 	{
-		CBitVec< ABSOLUTE_PLAYER_LIMIT > playerbits;
+		CPlayerBitVec playerbits;
 		engine->Message_DetermineMulticastRecipients( false, origin, playerbits );
 		AddPlayersFromBitMask( playerbits );
 	}
@@ -250,7 +250,7 @@ void CRecipientFilter::RemoveRecipientsByPVS( const Vector& origin )
 	}
 	else
 	{
-		CBitVec< ABSOLUTE_PLAYER_LIMIT > playerbits;
+		CPlayerBitVec playerbits;
 		engine->Message_DetermineMulticastRecipients( false, origin, playerbits );
 		RemovePlayersFromBitMask( playerbits );
 	}
@@ -266,7 +266,7 @@ void CRecipientFilter::AddRecipientsByPAS( const Vector& origin )
 	}
 	else
 	{
-		CBitVec< ABSOLUTE_PLAYER_LIMIT > playerbits;
+		CPlayerBitVec playerbits;
 		engine->Message_DetermineMulticastRecipients( true, origin, playerbits );
 		AddPlayersFromBitMask( playerbits );
 	}
@@ -298,6 +298,32 @@ void CRecipientFilter::UsePredictionRules( void )
 	if ( pPlayer)
 	{
 		RemoveRecipient( pPlayer );
+
+		if ( pPlayer->IsSplitScreenPlayer() )
+		{
+			RemoveRecipient( pPlayer->GetSplitScreenPlayerOwner() );
+		}
+		else
+		{
+			CUtlVector< CHandle< CBasePlayer > > &players = pPlayer->GetSplitScreenPlayers();
+			for ( int i = 0; i < players.Count(); ++i )
+			{
+				RemoveRecipient( players[ i ].Get() );
+			}
+		}
+	}
+}
+
+void CRecipientFilter::RemoveSplitScreenPlayers()
+{
+	for ( int i = GetRecipientCount() - 1; i >= 0; --i )
+	{
+		int idx = m_Recipients[ i ];
+		CBasePlayer *pPlayer = UTIL_PlayerByIndex( idx );
+		if ( !pPlayer || !pPlayer->IsSplitScreenPlayer() )
+			continue;
+
+		m_Recipients.Remove( i );
 	}
 }
 
@@ -369,11 +395,13 @@ void CPASAttenuationFilter::Filter( const Vector& origin, float attenuation /*= 
 
 	// CPASFilter adds them by pure PVS in constructor
 	if ( attenuation <= 0 )
+	{
+		AddAllPlayers();
 		return;
+	}
 
 	// Now remove recipients that are outside sound radius
-	float distance, maxAudible;
-	Vector vecRelative;
+	float maxAudible = ( 2 * SOUND_NORMAL_CLIP_DIST ) / attenuation;
 
 	int c = GetRecipientCount();
 	
@@ -396,17 +424,28 @@ void CPASAttenuationFilter::Filter( const Vector& origin, float attenuation /*= 
 		}
 
 #ifndef _XBOX
-		// never remove the HLTV bot
-		if ( player->IsHLTV() )
+		// never remove the HLTV or Replay bot
+		if ( player->IsHLTV() || player->IsReplay() )
 			continue;
 #endif
 
-		VectorSubtract( player->EarPosition(), origin, vecRelative );
-		distance = VectorLength( vecRelative );
-		maxAudible = ( 2 * SOUND_NORMAL_CLIP_DIST ) / attenuation;
-		if ( distance <= maxAudible )
+		if ( player->EarPosition().DistTo(origin) <= maxAudible )
 			continue;
-
+		if ( player->GetSplitScreenPlayers().Count() )
+		{
+			CUtlVector< CHandle< CBasePlayer > > &list = player->GetSplitScreenPlayers();
+			bool bSend = false;
+			for ( int k = 0; k < list.Count(); k++ )
+			{
+				if ( list[k]->EarPosition().DistTo(origin) <= maxAudible )
+				{
+					bSend = true;
+					break;
+				}
+			}
+			if ( bSend )
+				continue;
+		}
 		RemoveRecipient( player );
 	}
 }

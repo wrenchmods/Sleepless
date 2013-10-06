@@ -16,14 +16,6 @@
 #include <vgui_controls/Panel.h>
 #include <vgui_controls/ProgressBar.h>
 
-enum progress_textures_t
-{
-	PROGRESS_TEXTURE_FG,
-	PROGRESS_TEXTURE_BG,
-
-	NUM_PROGRESS_TEXTURES,
-};
-
 namespace vgui
 {
 
@@ -43,6 +35,12 @@ public:
 
 	void SetFgImage(const char *imageName) { SetImage( imageName, PROGRESS_TEXTURE_FG ); }
 	void SetBgImage(const char *imageName) { SetImage( imageName, PROGRESS_TEXTURE_BG ); }
+
+	enum CircularProgressDir_e
+	{
+		PROGRESS_CW,
+		PROGRESS_CCW
+	};
 	int GetProgressDirection() const { return m_iProgressDirection; }
 	void SetProgressDirection( int val ) { m_iProgressDirection = val; }
 
@@ -54,12 +52,6 @@ protected:
 	void SetImage(const char *imageName, progress_textures_t iPos);
 
 private:
-	enum CircularProgressDir_e
-	{
-		PROGRESS_CW,
-		PROGRESS_CCW
-	};
-
 	int m_iProgressDirection;
 
 	int m_nTextureId[NUM_PROGRESS_TEXTURES];

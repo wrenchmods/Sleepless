@@ -14,7 +14,6 @@
 #include "hudelement.h"
 #include "hud_macros.h"
 #include "iclientmode.h"
-#include "shaderapi/ishaderapi.h"
 #include <vgui_controls/controls.h>
 #include <vgui_controls/Panel.h>
 #include <vgui/ISurface.h>
@@ -54,7 +53,7 @@ DECLARE_HUD_MESSAGE( CHudTrain, Train )
 CHudTrain::CHudTrain( const char *pElementName ) :
 	CHudElement( pElementName ), BaseClass( NULL, "HudTrain" )
 {
-	vgui::Panel *pParent = g_pClientMode->GetViewport();
+	vgui::Panel *pParent = GetClientMode()->GetViewport();
 	SetParent( pParent );
 	
 	SetHiddenBits( HIDEHUD_MISCSTATUS );

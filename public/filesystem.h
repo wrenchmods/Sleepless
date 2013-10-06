@@ -1,18 +1,9 @@
-//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
+//===== Copyright (c) 1996-2005, Valve Corporation, All rights reserved. ======//
 //
 // Purpose: 
 //
 // $NoKeywords: $
 //===========================================================================//
-
-#include <limits.h>
-
-#include "tier0/threadtools.h"
-#include "tier0/memalloc.h"
-#include "tier1/interface.h"
-#include "tier1/utlsymbol.h"
-#include "appframework/IAppSystem.h"
-#include "tier1/checksum_crc.h"
 
 #ifndef FILESYSTEM_H
 #define FILESYSTEM_H
@@ -20,6 +11,20 @@
 #ifdef _WIN32
 #pragma once
 #endif
+
+#include <limits.h>
+
+#include "tier0/threadtools.h"
+#include "tier0/memalloc.h"
+#include "tier0/tslist.h"
+#include "tier1/interface.h"
+#include "tier1/utlsymbol.h"
+#include "tier1/utlstring.h"
+#include "tier1/functors.h" 
+#include "tier1/checksum_crc.h"
+#include "tier1/utlqueue.h"
+#include "appframework/IAppSystem.h"
+#include "tier2/tier2.h"
 
 //-----------------------------------------------------------------------------
 // Forward declarations
@@ -98,18 +103,19 @@ enum
 	PATH_IS_NORMAL      = 0x00, // normal path, not pack based
 	PATH_IS_PACKFILE    = 0x01, // path is a pack file
 	PATH_IS_MAPPACKFILE = 0x02, // path is a map pack file
-	PATH_IS_REMOTE		= 0x04, // path is the remote filesystem
+	PATH_IS_DVDDEV		= 0x04, // path is the dvddev cache
 };
 typedef uint32 PathTypeQuery_t;
 
 #define IS_PACKFILE( n ) ( n & ( PATH_IS_PACKFILE | PATH_IS_MAPPACKFILE ) )
-#define IS_REMOTE( n )   ( n & PATH_IS_REMOTE )
+#define IS_DVDDEV( n )   ( n & PATH_IS_DVDDEV )
 
 enum DVDMode_t
 {
 	DVDMODE_OFF    = 0, // not using dvd
 	DVDMODE_STRICT = 1, // dvd device only
 	DVDMODE_DEV    = 2, // dev mode, mutiple devices ok
+	DVDMODE_DEV_VISTA = 3, // dev mode from a vista host, mutiple devices ok
 };
 
 // In non-retail builds, enable the file blocking access tracking stuff...
@@ -218,8 +224,9 @@ enum FilesystemMountRetval_t
 
 enum SearchPathAdd_t
 {
-	PATH_ADD_TO_HEAD,		// First path searched
-	PATH_ADD_TO_TAIL,		// Last path searched
+	PATH_ADD_TO_HEAD,			// First path searched
+	PATH_ADD_TO_TAIL,			// Last path searched
+	PATH_ADD_TO_TAIL_ATINDEX,	// First path searched
 };
 
 enum FilesystemOpenExFlags_t
@@ -319,6 +326,13 @@ enum ECacheCRCType
 struct FileAsyncRequest_t;
 typedef void (*FSAsyncCallbackFunc_t)(const FileAsyncRequest_t &request, int nBytesRead, FSAsyncStatus_t err);
 
+//-----------------------------------------------------------------------------
+// Used to add results from async directory scans
+//-----------------------------------------------------------------------------
+typedef void (*FSAsyncScanAddFunc_t)( void* pContext, char* pFoundPath, char* pFoundFile );
+typedef void (*FSAsyncScanCompleteFunc_t)( void* pContext, FSAsyncStatus_t err );
+
+
 //---------------------------------------------------------
 // Description of an async request
 //---------------------------------------------------------
@@ -353,6 +367,22 @@ public:
 #define WHITELIST_SPEW_WHILE_LOADING		0x0001	// list files as they are added to the CRC tracker
 #define WHITELIST_SPEW_RELOAD_FILES			0x0002	// show files the filesystem is telling the engine to reload
 #define WHITELIST_SPEW_DONT_RELOAD_FILES	0x0004	// show files the filesystem is NOT telling the engine to reload
+
+
+
+// DLC license mask flags is 32 publisher defined bits
+// MSW 16 bits in 8.8: Type.SubVersion
+// LSW 16 bits: Flags
+
+// return id component
+#define DLC_LICENSE_ID( x )				( ( ( (unsigned int)( x ) ) >> 24 ) & 0x000000FF )
+// returns minor version component (not generally used, i.e. we dont rev dlc's yet)
+#define DLC_LICENSE_MINORVERSION( x )	( ( ( (unsigned int)( x ) ) >> 16 ) & 0x000000FF )
+// returns license flags
+#define DLC_LICENSE_FLAGS( x )			( ( ( (unsigned int)( x ) ) & 0x0000FFFF ) )
+
+#define DLCFLAGS_PRESENCE_ONLY			0x0001	// causes no search path loadout
+
 
 
 //-----------------------------------------------------------------------------
@@ -400,9 +430,6 @@ public:
 //-----------------------------------------------------------------------------
 // Main file system interface
 //-----------------------------------------------------------------------------
-
-#define FILESYSTEM_INTERFACE_VERSION			"VFileSystem017"
-
 abstract_class IFileSystem : public IAppSystem, public IBaseFileSystem
 {
 public:
@@ -484,7 +511,7 @@ public:
 	virtual bool			EndOfFile( FileHandle_t file ) = 0;
 
 	virtual char			*ReadLine( char *pOutput, int maxChars, FileHandle_t file ) = 0;
-	virtual int				FPrintf( FileHandle_t file, char *pFormat, ... ) = 0;
+	virtual int				FPrintf( FileHandle_t file, const char *pFormat, ... ) FMTFUNCTION( 3, 4 ) = 0;
 
 	//--------------------------------------------------------
 	// Dynamic library operations
@@ -640,19 +667,18 @@ public:
 		NUM_PRELOAD_TYPES
 	};
 
-	virtual void		LoadCompiledKeyValues( KeyValuesPreloadType_t type, char const *archiveFile ) = 0;
-
 	// If the "PreloadedData" hasn't been purged, then this'll try and instance the KeyValues using the fast path of compiled keyvalues loaded during startup.
 	// Otherwise, it'll just fall through to the regular KeyValues loading routines
 	virtual KeyValues	*LoadKeyValues( KeyValuesPreloadType_t type, char const *filename, char const *pPathID = 0 ) = 0;
 	virtual bool		LoadKeyValues( KeyValues& head, KeyValuesPreloadType_t type, char const *filename, char const *pPathID = 0 ) = 0;
-	virtual bool		ExtractRootKeyName( KeyValuesPreloadType_t type, char *outbuf, size_t bufsize, char const *filename, char const *pPathID = 0 ) = 0;
 
 	virtual FSAsyncStatus_t	AsyncWrite(const char *pFileName, const void *pSrc, int nSrcBytes, bool bFreeMemory, bool bAppend = false, FSAsyncControl_t *pControl = NULL ) = 0;
 	virtual FSAsyncStatus_t	AsyncWriteFile(const char *pFileName, const CUtlBuffer *pSrc, int nSrcBytes, bool bFreeMemory, bool bAppend = false, FSAsyncControl_t *pControl = NULL ) = 0;
 	// Async read functions with memory blame
 	FSAsyncStatus_t			AsyncReadCreditAlloc( const FileAsyncRequest_t &request, const char *pszFile, int line, FSAsyncControl_t *phControl = NULL )	{ return AsyncReadMultipleCreditAlloc( &request, 1, pszFile, line, phControl ); 	}
 	virtual FSAsyncStatus_t	AsyncReadMultipleCreditAlloc( const FileAsyncRequest_t *pRequests, int nRequests, const char *pszFile, int line, FSAsyncControl_t *phControls = NULL ) = 0;
+
+	virtual FSAsyncStatus_t AsyncDirectoryScan( const char* pSearchSpec, bool recurseFolders,  void* pContext, FSAsyncScanAddFunc_t pfnAdd, FSAsyncScanCompleteFunc_t pfnDone, FSAsyncControl_t *pControl = NULL ) = 0;
 
 	virtual bool			GetFileTypeForFullPath( char const *pFullPath, wchar_t *buf, size_t bufSizeInBytes ) = 0;
 
@@ -736,11 +762,43 @@ public:
 
 	// Installs a callback used to display a dirty disk dialog
 	virtual void			InstallDirtyDiskReportFunc( FSDirtyDiskReportFunc_t func ) = 0;
+
+	virtual bool			IsLaunchedFromXboxHDD() = 0;
+	virtual bool			IsInstalledToXboxHDDCache() = 0;
+	virtual bool			IsDVDHosted() = 0;
+	virtual bool			IsInstallAllowed() = 0;
+
+	virtual int				GetSearchPathID( char *pPath, int nMaxLen ) = 0;
+	virtual bool			FixupSearchPathsAfterInstall() = 0;
+	
+	virtual FSDirtyDiskReportFunc_t		GetDirtyDiskReportFunc() = 0;
+
+	virtual void AddVPKFile( char const *pszName, SearchPathAdd_t addType = PATH_ADD_TO_TAIL ) = 0;
+	virtual void RemoveVPKFile( char const *pszName ) = 0;
+	virtual void GetVPKFileNames( CUtlVector<CUtlString> &destVector ) = 0;
+	virtual void			RemoveAllMapSearchPaths() = 0;
+	virtual void			SyncDvdDevCache() = 0;
+
+	virtual bool			GetStringFromKVPool( CRC32_t poolKey, unsigned int key, char *pOutBuff, int buflen ) = 0;
+
+	virtual bool			DiscoverDLC( int iController ) = 0;
+	virtual int				IsAnyDLCPresent( bool *pbDLCSearchPathMounted = NULL ) = 0;
+	virtual bool			GetAnyDLCInfo( int iDLC, unsigned int *pLicenseMask, wchar_t *pTitleBuff, int nOutTitleSize ) = 0;
+	virtual int				IsAnyCorruptDLC() = 0;
+	virtual bool			GetAnyCorruptDLCInfo( int iCorruptDLC, wchar_t *pTitleBuff, int nOutTitleSize ) = 0;
+	virtual bool			AddDLCSearchPaths() = 0;
+	virtual bool			IsSpecificDLCPresent( unsigned int nDLCPackage ) = 0;
+
+	// call this to look for CPU-hogs during loading processes. When you set this, a breakpoint
+	// will be issued whenever the indicated # of seconds go by without an i/o request.  Passing
+	// 0.0 will turn off the functionality.
+	virtual void            SetIODelayAlarm( float flThreshhold ) = 0;
+
 };
 
 //-----------------------------------------------------------------------------
 
-#if defined( _X360 ) && !defined( _RETAIL )
+#if defined( _X360 ) && !defined( _CERT )
 extern char g_szXboxProfileLastFileOpened[MAX_PATH];
 #define SetLastProfileFileRead( s ) Q_strncpy( g_szXboxProfileLastFileOpened, sizeof( g_szXboxProfileLastFileOpened), pFileName )
 #define GetLastProfileFileRead() (&g_szXboxProfileLastFileOpened[0])
@@ -796,6 +854,12 @@ inline unsigned IFileSystem::GetOptimalReadSize( FileHandle_t hFile, unsigned nL
 #define AsyncReadMutiple( a, b, c ) AsyncReadMultipleCreditAlloc( a, b, __FILE__, __LINE__, c )
 #endif
 
-extern IFileSystem *g_pFullFileSystem;
+//-----------------------------------------------------------------------------
+// Globals Exposed
+//-----------------------------------------------------------------------------
+DECLARE_TIER2_INTERFACE( IFileSystem, g_pFullFileSystem );
+
+
+
 
 #endif // FILESYSTEM_H

@@ -179,7 +179,8 @@ C_SmokeStack::C_SmokeStack()
 
 	// Lighting is (base color) + (ambient / dist^2) + bump(directional / dist^2)
 	// By default, we use bottom-up lighting for the directional.
-	SetRenderColor( 0, 0, 0, 255 );
+	SetRenderColor( 0, 0, 0 );
+	SetRenderAlpha( 255 );
 
 	m_AmbientLight.m_vPos.Init(0,0,-100);
 	m_AmbientLight.m_vColor.Init( 40, 40, 40 );
@@ -382,10 +383,10 @@ void C_SmokeStack::StartRender( VMatrix &effectMatrix )
 
 void C_SmokeStack::QueueLightParametersInRenderer()
 {
-	m_Renderer.SetBaseColor( Vector( m_clrRender->r / 255.0f, m_clrRender->g / 255.0f, m_clrRender->b / 255.0f ) );
+	m_Renderer.SetBaseColor( Vector( GetRenderColorR() / 255.0f, GetRenderColorG() / 255.0f, GetRenderColorB() / 255.0f ) );
 	m_Renderer.SetAmbientLight( m_AmbientLight );
 	m_Renderer.SetDirectionalLight( m_DirLight );
-	m_flAlphaScale = (float)m_clrRender->a;
+	m_flAlphaScale = (float)GetRenderAlpha();
 } 
 
 
@@ -425,7 +426,7 @@ void C_SmokeStack::SimulateParticles( CParticleSimulateIterator *pIterator )
 	bool bSortNow = true; // Change this to false if we see sorting issues.
 	bool bQuickTest = false;
 
-	bool bDrawn = m_ParticleEffect.WasDrawnPrevFrame();
+	bool bDrawn = m_ParticleEffect.WasDrawnPrevFrame() ? true : false;
 
 	if ( bDrawn == true && m_bInView == false )
 	{

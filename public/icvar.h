@@ -1,4 +1,4 @@
-//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
+//===== Copyright ï¿½ 1996-2005, Valve Corporation, All rights reserved. ======//
 //
 // Purpose: 
 //
@@ -12,6 +12,8 @@
 
 #include "appframework/IAppSystem.h"
 #include "tier1/iconvar.h"
+#include "tier1/utlvector.h"
+
 
 class ConCommandBase;
 class ConCommand;
@@ -34,6 +36,8 @@ public:
 	virtual void ColorPrint( const Color& clr, const char *pMessage ) = 0;
 	virtual void Print( const char *pMessage ) = 0;
 	virtual void DPrint( const char *pMessage ) = 0;
+
+	virtual void GetConsoleText( char *pchText, size_t bufSize ) const = 0;
 };
 
 
@@ -47,7 +51,6 @@ public:
 	// Can these two convars be aliased?
 	virtual bool AreConVarsLinkable( const ConVar *child, const ConVar *parent ) = 0;
 };
-
 
 //-----------------------------------------------------------------------------
 // Purpose: DLL interface to ConVars/ConCommands
@@ -75,9 +78,7 @@ public:
 	virtual ConCommand		*FindCommand( const char *name ) = 0;
 	virtual const ConCommand *FindCommand( const char *name ) const = 0;
 
-	// Get first ConCommandBase to allow iteration
-	virtual ConCommandBase	*GetCommands( void ) = 0;
-	virtual const ConCommandBase *GetCommands( void ) const = 0;
+
 
 	// Install a global change callback (to be called when any convar changes) 
 	virtual void			InstallGlobalChangeCallback( FnChangeCallback_t callback ) = 0;
@@ -102,9 +103,99 @@ public:
 #if defined( _X360 )
 	virtual void			PublishToVXConsole( ) = 0;
 #endif
+
+	virtual void			SetMaxSplitScreenSlots( int nSlots ) = 0;
+	virtual int				GetMaxSplitScreenSlots() const = 0;
+
+	virtual void			AddSplitScreenConVars() = 0;
+	virtual void			RemoveSplitScreenConVars( CVarDLLIdentifier_t id ) = 0;
+
+	virtual int				GetConsoleDisplayFuncCount() const = 0;
+	virtual void			GetConsoleText( int nDisplayFuncIndex, char *pchText, size_t bufSize ) const = 0;
+
+	// Utilities for convars accessed by the material system thread
+	virtual bool			IsMaterialThreadSetAllowed( ) const = 0;
+	virtual void			QueueMaterialThreadSetValue( ConVar *pConVar, const char *pValue ) = 0;
+	virtual void			QueueMaterialThreadSetValue( ConVar *pConVar, int nValue ) = 0;
+	virtual void			QueueMaterialThreadSetValue( ConVar *pConVar, float flValue ) = 0;
+	virtual bool			HasQueuedMaterialThreadConVarSets() const = 0;
+	virtual int				ProcessQueuedMaterialThreadConVarSets() = 0;
+
+protected:	class ICVarIteratorInternal;
+public:
+	/// Iteration over all cvars. 
+	/// (THIS IS A SLOW OPERATION AND YOU SHOULD AVOID IT.)
+	/// usage: 
+	/// { ICVar::Iterator iter(g_pCVar); 
+	///   for ( iter.SetFirst() ; iter.IsValid() ; iter.Next() )
+	///   {  
+	///       ConCommandBase *cmd = iter.Get();
+	///   } 
+	/// }
+	/// The Iterator class actually wraps the internal factory methods
+	/// so you don't need to worry about new/delete -- scope takes care
+	//  of it.
+	/// We need an iterator like this because we can't simply return a 
+	/// pointer to the internal data type that contains the cvars -- 
+	/// it's a custom, protected class with unusual semantics and is
+	/// prone to change.
+	class Iterator
+	{
+	public:
+		inline Iterator(ICvar *icvar);
+		inline ~Iterator(void);
+		inline void		SetFirst( void );
+		inline void		Next( void );
+		inline bool		IsValid( void );
+		inline ConCommandBase *Get( void );
+	private:
+		ICVarIteratorInternal *m_pIter;
+	};
+
+protected:
+	// internals for  ICVarIterator
+	class ICVarIteratorInternal
+	{
+	public:
+		virtual void		SetFirst( void ) = 0;
+		virtual void		Next( void ) = 0;
+		virtual	bool		IsValid( void ) = 0;
+		virtual ConCommandBase *Get( void ) = 0;
+	};
+
+	virtual ICVarIteratorInternal	*FactoryInternalIterator( void ) = 0;
+	friend class Iterator;
 };
 
-#define CVAR_INTERFACE_VERSION "VEngineCvar004"
+inline ICvar::Iterator::Iterator(ICvar *icvar)
+{
+	m_pIter = icvar->FactoryInternalIterator();
+}
+
+inline ICvar::Iterator::~Iterator( void )
+{
+	delete m_pIter;
+}
+
+inline void ICvar::Iterator::SetFirst( void )
+{
+	m_pIter->SetFirst();
+}
+
+inline void ICvar::Iterator::Next( void )
+{
+	m_pIter->Next();
+}
+
+inline bool ICvar::Iterator::IsValid( void )
+{
+	return m_pIter->IsValid();
+}
+
+inline ConCommandBase * ICvar::Iterator::Get( void )
+{
+	return m_pIter->Get();
+}
 
 
 //-----------------------------------------------------------------------------
@@ -113,8 +204,8 @@ public:
 //-----------------------------------------------------------------------------
 
 // These are marked DLL_EXPORT for Linux.
-DLL_EXPORT ICvar *cvar;
-DLL_EXPORT ICvar *g_pCVar;
+DECLARE_TIER1_INTERFACE( ICvar, cvar );
+DECLARE_TIER1_INTERFACE( ICvar, g_pCVar );
 
 
 #endif // ICVAR_H

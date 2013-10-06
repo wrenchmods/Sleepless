@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright ï¿½ 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -27,15 +27,17 @@ class EditablePanel : public Panel
 
 public:
 	EditablePanel(Panel *parent, const char *panelName);
-	EditablePanel::EditablePanel(Panel *parent, const char *panelName, HScheme hScheme);
+	EditablePanel(Panel *parent, const char *panelName, HScheme hScheme);
 
 	virtual ~EditablePanel();
 
 	// Load the control settings - should be done after all the children are added
 	// If you pass in pPreloadedKeyValues, it won't actually load the file. That way, you can cache
 	// the keyvalues outside of here if you want to prevent file accesses in the middle of the game.
-	virtual void LoadControlSettings(const char *dialogResourceName, const char *pathID = NULL, KeyValues *pPreloadedKeyValues = NULL);
+	virtual void LoadControlSettings(const char *dialogResourceName, const char *pathID = NULL, KeyValues *pPreloadedKeyValues = NULL, KeyValues *pConditions = NULL);
 	virtual void ApplySettings(KeyValues *inResourceData);
+
+	virtual void PerformLayout();
 
 	// sets the name of this dialog so it can be saved in the user config area
 	// use dialogID to differentiate multiple instances of the same dialog
@@ -57,6 +59,8 @@ public:
 
 	// Shortcut function to set data in child controls
 	virtual void SetControlString(const char *controlName, const char *string);
+	// Shortcut function to set data in child controls
+	virtual void SetControlString(const char *controlName, const wchar_t *string);
 	// Shortcut function to set data in child controls
 	virtual void SetControlInt(const char *controlName, int state);
 	// Shortcut function to get data in child controls

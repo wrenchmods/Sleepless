@@ -33,14 +33,14 @@ using namespace vgui;
 // Purpose: 
 //-----------------------------------------------------------------------------
 
-DECLARE_HUDELEMENT_DEPTH( CAchievementNotificationPanel, 100 );
+// DECLARE_HUDELEMENT_DEPTH( CAchievementNotificationPanel, 100 );
 
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
 CAchievementNotificationPanel::CAchievementNotificationPanel( const char *pElementName ) : CHudElement( pElementName ), BaseClass( NULL, "AchievementNotificationPanel" )
 {
-	Panel *pParent = g_pClientMode->GetViewport();
+	Panel *pParent = GetClientMode()->GetViewport();
 	SetParent( pParent );
 
 	m_flHideTime = 0;
@@ -108,10 +108,11 @@ void CAchievementNotificationPanel::FireGameEvent( IGameEvent * event )
 			{				
 				Msg( "Steam not running, achievement progress notification not displayed\n" );
 			}
-
-			// use Steam to show achievement progress UI
-			CGameID gameID( engine->GetAppID() );
-			steamapicontext->SteamUserStats()->IndicateAchievementProgress( gameID, pchName, iCur, iMax );
+			else
+			{
+				// use Steam to show achievement progress UI
+				steamapicontext->SteamUserStats()->IndicateAchievementProgress( pchName, iCur, iMax );
+			}
 		}
 		else 
 		{
@@ -137,7 +138,7 @@ void CAchievementNotificationPanel::FireGameEvent( IGameEvent * event )
 			Q_wcsncpy( szFmt, pchFmt, sizeof( szFmt ) );
 
 			g_pVGuiLocalize->ConstructString( szText, sizeof( szText ), szFmt, 3, szLocalizedName, szNumFound, szNumTotal );
-			AddNotification( pchName, g_pVGuiLocalize->Find( "#GameUI_Achievement_Progress" ), szText );
+			AddNotification( pchName, g_pVGuiLocalize->FindSafe( "#GameUI_Achievement_Progress" ), szText );
 		}
 	}
 }
@@ -215,9 +216,9 @@ void CAchievementNotificationPanel::ShowNextNotification()
 	int iHeadingWidth = UTIL_ComputeStringWidth( hFontHeading, notification.szHeading );
 	int iTitleWidth = UTIL_ComputeStringWidth( hFontTitle, notification.szTitle );
 	// use the widest string
-	int iTextWidth = max( iHeadingWidth, iTitleWidth );
+	int iTextWidth = MAX( iHeadingWidth, iTitleWidth );
 	// don't let it be insanely wide
-	iTextWidth = min( iTextWidth, XRES( 300 ) );
+	iTextWidth = MIN( iTextWidth, XRES( 300 ) );
 	int iIconWidth = m_pIcon->GetWide();
 	int iSpacing = XRES( 10 );
 	int iPanelWidth = iSpacing + iIconWidth + iSpacing + iTextWidth + iSpacing;

@@ -8,7 +8,6 @@
 #include "particle_prototype.h"
 #include "particle_util.h"
 #include "baseparticleentity.h"
-#include "ClientEffectPrecacheSystem.h"
 #include "fx.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -177,7 +176,7 @@ void C_SteamJet::OnDataChanged(DataUpdateType_t updateType)
 
 	// Recalulate lifetime in case length or speed changed.
 	m_Lifetime = m_JetLength / m_Speed;
-	m_ParticleEffect.SetParticleCullRadius( max(m_StartSize, m_EndSize) );
+	m_ParticleEffect.SetParticleCullRadius( MAX(m_StartSize, m_EndSize) );
 }
 
 
@@ -239,7 +238,7 @@ void CalcFastApproximateRenderBoundsAABB( C_BaseEntity *pEnt, float flBloatSize,
 		Vector vAddMins, vAddMaxs;
 		pEnt->GetRenderBounds( vAddMins, vAddMaxs );
 
-		flBloatSize += max( vAddMins.Length(), vAddMaxs.Length() );
+		flBloatSize += MAX( vAddMins.Length(), vAddMaxs.Length() );
 	}
 	else
 	{
@@ -403,9 +402,9 @@ void C_SteamJet::RenderParticles( CParticleRenderIterator *pIterator )
 		
 		Vector vRampColor = m_Ramps[iRamp] + (m_Ramps[iRamp+1] - m_Ramps[iRamp]) * fraction;
 
-		vRampColor[0] = min( 1.0f, vRampColor[0] );
-		vRampColor[1] = min( 1.0f, vRampColor[1] );
-		vRampColor[2] = min( 1.0f, vRampColor[2] );
+		vRampColor[0] = MIN( 1.0f, vRampColor[0] );
+		vRampColor[1] = MIN( 1.0f, vRampColor[1] );
+		vRampColor[2] = MIN( 1.0f, vRampColor[2] );
 
 		float sinLifetime = sin(pParticle->m_Lifetime * 3.14159f / pParticle->m_DieTime);
 
@@ -415,7 +414,7 @@ void C_SteamJet::RenderParticles( CParticleRenderIterator *pIterator )
 				pIterator->GetParticleDraw(),
 				tPos,
 				vRampColor,
-				sinLifetime * (m_clrRender->a/255.0f),
+				sinLifetime * (GetRenderAlpha()/255.0f),
 				FLerp(m_StartSize, m_EndSize, pParticle->m_Lifetime));
 		}
 		else
@@ -424,7 +423,7 @@ void C_SteamJet::RenderParticles( CParticleRenderIterator *pIterator )
 				pIterator->GetParticleDraw(),
 				tPos,
 				vRampColor,
-				sinLifetime * (m_clrRender->a/255.0f),
+				sinLifetime * (GetRenderAlpha()/255.0f),
 				FLerp(pParticle->m_uchStartSize, pParticle->m_uchEndSize, pParticle->m_Lifetime),
 				pParticle->m_flRoll );
 		}
@@ -498,9 +497,9 @@ void C_SteamJet::UpdateLightingRamp()
 		
 		if ( IsEmissive() )
 		{
-			pRamp->x += (m_clrRender->r/255.0f);
-			pRamp->y += (m_clrRender->g/255.0f);
-			pRamp->z += (m_clrRender->b/255.0f);
+			pRamp->x += (GetRenderColorR()/255.0f);
+			pRamp->y += (GetRenderColorG()/255.0f);
+			pRamp->z += (GetRenderColorB()/255.0f);
 
 			pRamp->x = clamp( pRamp->x, 0.0f, 1.0f );
 			pRamp->y = clamp( pRamp->y, 0.0f, 1.0f );
@@ -508,13 +507,13 @@ void C_SteamJet::UpdateLightingRamp()
 		}
 		else
 		{
-			pRamp->x *= (m_clrRender->r/255.0f);
-			pRamp->y *= (m_clrRender->g/255.0f);
-			pRamp->z *= (m_clrRender->b/255.0f);
+			pRamp->x *= (GetRenderColorR()/255.0f);
+			pRamp->y *= (GetRenderColorG()/255.0f);
+			pRamp->z *= (GetRenderColorB()/255.0f);
 		}
 
 		// Renormalize?
-		float maxVal = max(pRamp->x, max(pRamp->y, pRamp->z));
+		float maxVal = MAX(pRamp->x, MAX(pRamp->y, pRamp->z));
 		if(maxVal > 1)
 		{
 			*pRamp = *pRamp / maxVal;

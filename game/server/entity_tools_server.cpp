@@ -3,6 +3,7 @@
 // Purpose: 
 //
 //=============================================================================
+
 #include "cbase.h"
 #include "const.h"
 #include "toolframework/itoolentity.h"
@@ -13,6 +14,26 @@
 #include "iserverentity.h"
 #include "sceneentity.h"
 #include "particles/particles.h"
+#include "mapentities_shared.h"
+#include "TemplateEntities.h"
+#include "mapentities.h"
+#include "point_template.h"
+
+// NOTE: This has to be the last file included!
+#include "tier0/memdbgon.h"
+
+
+class CFoundryEntitySpawnRecord
+{
+public:
+	CUtlVector<char> m_VMFText;
+	int m_iEntityIndex;
+	int m_iHammerID;
+	int m_iSerialNumber;
+	int m_debugOverlays;
+};
+
+static CUtlLinkedList<CFoundryEntitySpawnRecord*,int> g_FoundryEntitySpawnRecords;
 
 
 //-----------------------------------------------------------------------------
@@ -39,6 +60,10 @@ public:
 	virtual void DispatchSpawn( void *pEntity );
 	virtual void ReloadParticleDefintions( const char *pFileName, const void *pBufData, int nLen );
 	virtual void AddOriginToPVS( const Vector &org );
+	virtual bool DestroyEntityByHammerId( int iHammerID );
+	virtual bool RespawnEntitiesWithEdits( CEntityRespawnInfo *pInfos, int nInfos );
+	virtual void MoveEngineViewTo( const Vector &vPos, const QAngle &vAngles );
+	virtual void RemoveEntity( int nHammerID );
 };
 
 
@@ -46,6 +71,7 @@ public:
 // Singleton
 //-----------------------------------------------------------------------------
 static CServerTools g_ServerTools;
+IServerTools *g_pServerTools = &g_ServerTools;
 
 EXPOSE_SINGLE_INTERFACE_GLOBALVAR( CServerTools, IServerTools, VSERVERTOOLS_INTERFACE_VERSION, g_ServerTools );
 
@@ -222,6 +248,121 @@ void CServerTools::DispatchSpawn( void *pEntity )
 	::DispatchSpawn( (CBaseEntity *)pEntity );
 }
 
+bool CServerTools::DestroyEntityByHammerId( int iHammerID )
+{
+	CBaseEntity *pEntity = (CBaseEntity*)FindEntityByHammerID( iHammerID );
+	if ( !pEntity )
+		return false;
+
+	UTIL_Remove( pEntity );
+	return true;
+}
+
+
+void HandleFoundryEntitySpawnRecords()
+{
+	if ( g_FoundryEntitySpawnRecords.Count() == 0 )
+		return;
+
+	VPROF("HandleFoundryEntitySpawnRecords");
+
+	// Create all the entities.
+	CUtlVector<CBaseEntity*> newEnts;
+	
+	CMapEntitySpawner spawner;
+	spawner.m_bFoundryMode = true;
+
+	FOR_EACH_LL( g_FoundryEntitySpawnRecords, i )
+	{
+		CFoundryEntitySpawnRecord *pRecord = g_FoundryEntitySpawnRecords[i];
+
+		if ( pRecord->m_iEntityIndex > 0 )
+		{
+			gEntList.ForceEntSerialNumber( pRecord->m_iEntityIndex, pRecord->m_iSerialNumber );
+			engine->ForceFlushEntity( pRecord->m_iEntityIndex );
+		}
+
+		// Figure out the class name.
+		CEntityMapData entData( pRecord->m_VMFText.Base() );
+		char szClassName[MAPKEY_MAXLENGTH];
+		if ( !entData.ExtractValue( "classname", szClassName ) )
+		{
+			Assert( false );
+			continue;
+		}
+
+		// Respawn it in the same slot.
+		int nIndexToSpawn = pRecord->m_iEntityIndex;
+		if ( nIndexToSpawn == 0 )
+			nIndexToSpawn = -1;
+
+		CBaseEntity *pNewEntity = ::CreateEntityByName( szClassName, nIndexToSpawn );
+		if ( !pNewEntity )
+		{
+			Warning( "HandleFoundryEntitySpawnRecords - CreateEntityByName( %s, %d ) failed\n", szClassName, pRecord->m_iEntityIndex );
+			continue;
+		}
+
+		const char *pBaseMapDataForThisEntity = entData.CurrentBufferPosition();
+		pNewEntity->ParseMapData( &entData );
+
+		if ( pRecord->m_debugOverlays != -1 )
+			pNewEntity->m_debugOverlays = pRecord->m_debugOverlays;
+
+		pNewEntity->m_iHammerID = pRecord->m_iHammerID;
+
+		spawner.AddEntity( pNewEntity, pBaseMapDataForThisEntity, (entData.CurrentBufferPosition() - pBaseMapDataForThisEntity) + 2 );
+	}
+
+	spawner.HandleTemplates();
+	spawner.SpawnAndActivate( true );
+
+	// Now that all of the active entities have been loaded in, precache any entities who need point_template parameters
+	//  to be parsed (the above code has loaded all point_template entities)
+	PrecachePointTemplates();
+
+	// Sometimes an ent will Remove() itself during its precache, so RemoveImmediate won't happen.
+	// This makes sure those ents get cleaned up.
+	gEntList.CleanupDeleteList();
+
+	g_FoundryEntitySpawnRecords.PurgeAndDeleteElements();
+}
+
+
+bool CServerTools::RespawnEntitiesWithEdits( CEntityRespawnInfo *pInfos, int nInfos )
+{
+	// Create a spawn record so it'll respawn the entity next frame.
+	for ( int i=0; i < nInfos; i++ )
+	{
+		CFoundryEntitySpawnRecord *pRecord = new CFoundryEntitySpawnRecord;
+		CEntityRespawnInfo *pInfo = &pInfos[i];
+		
+		pRecord->m_VMFText.SetSize( V_strlen( pInfo->m_pEntText ) + 1 );
+		V_strncpy( pRecord->m_VMFText.Base(), pInfo->m_pEntText, pRecord->m_VMFText.Count() );
+		pRecord->m_iHammerID = pInfo->m_nHammerID;
+
+		CBaseEntity *pOldEntity = (CBaseEntity*)FindEntityByHammerID( pInfo->m_nHammerID );
+		if ( pOldEntity )
+		{
+			// This is a respawn.
+			pRecord->m_iEntityIndex = pOldEntity->entindex();
+			pRecord->m_iSerialNumber = pOldEntity->GetRefEHandle().GetSerialNumber();
+			pRecord->m_debugOverlays = pOldEntity->m_debugOverlays;
+			UTIL_Remove( pOldEntity );
+		}
+		else
+		{
+			// This is a new spawn.
+			pRecord->m_iEntityIndex = -1;
+			pRecord->m_iSerialNumber = -1;
+			pRecord->m_debugOverlays = -1;
+		}
+
+		g_FoundryEntitySpawnRecords.AddToTail( pRecord );
+	}
+	
+return true;
+}
 
 //-----------------------------------------------------------------------------
 // Reload particle definitions
@@ -239,53 +380,28 @@ void CServerTools::AddOriginToPVS( const Vector &org )
 }
 
 
-// Interface from engine to tools for manipulating entities
-class CServerChoreoTools : public IServerChoreoTools
+void CServerTools::MoveEngineViewTo( const Vector &vPos, const QAngle &vAngles )
 {
-public:
-	// Iterates through ALL entities (separate list for client vs. server)
-	virtual EntitySearchResult	NextChoreoEntity( EntitySearchResult currentEnt )
-	{
-		CBaseEntity *ent = reinterpret_cast< CBaseEntity* >( currentEnt );
-		ent = gEntList.FindEntityByClassname( ent, "logic_choreographed_scene" );
-		return reinterpret_cast< EntitySearchResult >( ent );
-	}
+	CBasePlayer *pPlayer = UTIL_GetListenServerHost();
+	if ( !pPlayer )
+		return;
 
-	virtual const char			*GetSceneFile( EntitySearchResult sr )
-	{
-		CBaseEntity *ent = reinterpret_cast< CBaseEntity* >( sr );
-		if ( !sr )
-			return "";
+	extern void EnableNoClip( CBasePlayer *pPlayer );
+	EnableNoClip( pPlayer );
 
-		if ( Q_stricmp( ent->GetClassname(), "logic_choreographed_scene" ) )
-			return "";
+	Vector zOffset = pPlayer->EyePosition() - pPlayer->GetAbsOrigin();
 
-		return GetSceneFilename( ent );
-	}
-
-	// For interactive editing
-	virtual int	GetEntIndex( EntitySearchResult sr )
-	{
-		CBaseEntity *ent = reinterpret_cast< CBaseEntity* >( sr );
-		if ( !ent )
-			return -1;
-
-		return ent->entindex();
-	}
-
-	virtual void ReloadSceneFromDisk( int entindex )
-	{
-		CBaseEntity *ent = CBaseEntity::Instance( entindex );
-		if ( !ent )
-			return;
-
-		::ReloadSceneFromDisk( ent );
-	}
-};
+	pPlayer->SetAbsOrigin( vPos - zOffset );
+	pPlayer->SnapEyeAngles( vAngles );
+}
 
 
-static CServerChoreoTools g_ServerChoreoTools;
-EXPOSE_SINGLE_INTERFACE_GLOBALVAR( CServerChoreoTools, IServerChoreoTools, VSERVERCHOREOTOOLS_INTERFACE_VERSION, g_ServerChoreoTools );
+void CServerTools::RemoveEntity( int nHammerID )
+{
+	CBaseEntity *pOldEntity = (CBaseEntity*)FindEntityByHammerID( nHammerID );
+	if ( pOldEntity )
+		UTIL_Remove( pOldEntity );
+}
 
 
 //------------------------------------------------------------------------------

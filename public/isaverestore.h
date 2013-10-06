@@ -294,6 +294,11 @@ public:
 	virtual int		ReadVMatrixWorldspace( VMatrix *pValue, int count = 1, int nBytesAvailable = 0) = 0;
 	virtual int		ReadMatrix3x4Worldspace( matrix3x4_t *pValue, int nElems = 1, int nBytesAvailable = 0 ) = 0;
 
+	// Used by Foundry to restore a certain entity's data (with Foundry data) while loading a savegame.
+	// Returns -1 if not found.
+	virtual int		ScanAheadForHammerID() = 0;
+	virtual void	SkipEntityData() = 0;		// This skips the current entity's data.
+
 	//---------------------------------
 
 	virtual bool	GetPrecacheMode( void ) = 0;

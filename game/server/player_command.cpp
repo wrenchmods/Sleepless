@@ -39,7 +39,7 @@ void CPlayerMove::StartCommand( CBasePlayer *player, CUserCmd *cmd )
 {
 	VPROF( "CPlayerMove::StartCommand" );
 
-#if !defined( NO_ENTITY_PREDICTION )
+#if !defined( NO_ENTITY_PREDICTION ) && defined( USE_PREDICTABLEID )
 	CPredictableId::ResetInstanceCounters();
 #endif
 
@@ -50,24 +50,21 @@ void CPlayerMove::StartCommand( CBasePlayer *player, CUserCmd *cmd )
 #if defined (HL2_DLL)
 	// pull out backchannel data and move this out
 
-	// Let's not bother with IK Ground Contact Info in MP games -- the system needs to be re-worked, every client sends down the same info for each entity, so how would it determine which to use?
-	if ( 1 == gpGlobals->maxClients )
+	int i;
+	for (i = 0; i < cmd->entitygroundcontact.Count(); i++)
 	{
-		int i;
-		for (i = 0; i < cmd->entitygroundcontact.Count(); i++)
+		int entindex =  cmd->entitygroundcontact[i].entindex;
+		CBaseEntity *pEntity = CBaseEntity::Instance( INDEXENT( entindex) );
+		if (pEntity)
 		{
-			int entindex =  cmd->entitygroundcontact[i].entindex;
-			CBaseEntity *pEntity = CBaseEntity::Instance( engine->PEntityOfEntIndex( entindex) );
-			if (pEntity)
+			CBaseAnimating *pAnimating = pEntity->GetBaseAnimating();
+			if (pAnimating)
 			{
-				CBaseAnimating *pAnimating = pEntity->GetBaseAnimating();
-				if (pAnimating)
-				{
-					pAnimating->SetIKGroundContactInfo( cmd->entitygroundcontact[i].minheight, cmd->entitygroundcontact[i].maxheight );
-				}
+				pAnimating->SetIKGroundContactInfo( cmd->entitygroundcontact[i].minheight, cmd->entitygroundcontact[i].maxheight );
 			}
 		}
 	}
+
 #endif
 }
 
@@ -194,6 +191,9 @@ void CPlayerMove::SetupMove( CBasePlayer *player, CUserCmd *ucmd, IMoveHelper *p
 	move->m_flConstraintRadius = player->m_flConstraintRadius;
 	move->m_flConstraintWidth = player->m_flConstraintWidth;
 	move->m_flConstraintSpeedFactor = player->m_flConstraintSpeedFactor;
+	move->m_bConstraintPastRadius = player->m_bConstraintPastRadius;
+	// setup trace optimization
+	g_pGameMovement->SetupMovementBounds( move );
 }
 
 //-----------------------------------------------------------------------------
@@ -236,6 +236,7 @@ void CPlayerMove::FinishMove( CBasePlayer *player, CUserCmd *ucmd, CMoveData *mo
 	Assert( move->m_flConstraintRadius == player->m_flConstraintRadius );
 	Assert( move->m_flConstraintWidth == player->m_flConstraintWidth );
 	Assert( move->m_flConstraintSpeedFactor == player->m_flConstraintSpeedFactor );
+	Assert( move->m_bConstraintPastRadius == player->m_bConstraintPastRadius );
 }
 
 //-----------------------------------------------------------------------------
@@ -391,6 +392,11 @@ void CPlayerMove::RunCommand ( CBasePlayer *player, CUserCmd *ucmd, IMoveHelper 
 		player->pl.v_angle = ucmd->viewangles + player->pl.anglechange;
 	}
 
+	// TrackIR
+	player->SetEyeAngleOffset(ucmd->headangles);
+	player->SetEyeOffset(ucmd->headoffset);
+	// TrackIR
+
 	// Call standard client pre-think
 	RunPreThink( player );
 
@@ -424,6 +430,7 @@ void CPlayerMove::RunCommand ( CBasePlayer *player, CUserCmd *ucmd, IMoveHelper 
 	RunPostThink( player );
 
 	g_pGameMovement->FinishTrackPredictionErrors( player );
+	g_pGameMovement->Reset();
 
 	FinishCommand( player );
 

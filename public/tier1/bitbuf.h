@@ -4,7 +4,7 @@
 //
 // $NoKeywords: $
 //
-//=============================================================================//
+//===========================================================================//
 
 // NOTE: old_bf_read is guaranteed to return zeros if it overflows.
 
@@ -75,18 +75,26 @@ inline int BitByte( int bits )
 }
 
 //-----------------------------------------------------------------------------
+enum EBitCoordType
+{
+	kCW_None,
+	kCW_LowPrecision,
+	kCW_Integral
+};
+
+//-----------------------------------------------------------------------------
 // Used for serialization
 //-----------------------------------------------------------------------------
 
-class old_bf_write
+class bf_write
 {
 public:
-	old_bf_write();
+	bf_write();
 					
 					// nMaxBits can be used as the number of bits in the buffer. 
 					// It must be <= nBytes*8. If you leave it at -1, then it's set to nBytes * 8.
-	old_bf_write( void *pData, int nBytes, int nMaxBits = -1 );
-	old_bf_write( const char *pDebugName, void *pData, int nBytes, int nMaxBits = -1 );
+	bf_write( void *pData, int nBytes, int nMaxBits = -1 );
+	bf_write( const char *pDebugName, void *pData, int nBytes, int nMaxBits = -1 );
 
 	// Start writing to the specified buffer.
 	// nMaxBits can be used as the number of bits in the buffer. 
@@ -141,7 +149,8 @@ public:
 	
 	void			WriteBitAngle( float fAngle, int numbits );
 	void			WriteBitCoord (const float f);
-	void			WriteBitCoordMP( const float f, bool bIntegral, bool bLowPrecision );
+	void			WriteBitCoordMP( const float f, EBitCoordType coordType );
+	void 			WriteBitCellCoord( const float f, int bits, EBitCoordType coordType );
 	void			WriteBitFloat(float val);
 	void			WriteBitVec3Coord( const Vector& fa );
 	void			WriteBitNormal( float f );
@@ -153,9 +162,9 @@ public:
 public:
 
 	void			WriteChar(int val);
-	void			WriteByte(int val);
+	void			WriteByte( unsigned int val );
 	void			WriteShort(int val);
-	void			WriteWord(int val);
+	void			WriteWord( unsigned int val );
 	void			WriteLong(long val);
 	void			WriteLongLong(int64 val);
 	void			WriteFloat(float val);
@@ -163,6 +172,7 @@ public:
 
 	// Returns false if it overflows the buffer.
 	bool			WriteString(const char *pStr);
+	bool			WriteString(const wchar_t *pStr);
 
 
 // Status.
@@ -207,37 +217,37 @@ private:
 //-----------------------------------------------------------------------------
 
 // How many bytes are filled in?
-inline int old_bf_write::GetNumBytesWritten()	
+inline int bf_write::GetNumBytesWritten()	
 {
 	return BitByte(m_iCurBit);
 }
 
-inline int old_bf_write::GetNumBitsWritten()	
+inline int bf_write::GetNumBitsWritten()	
 {
 	return m_iCurBit;
 }
 
-inline int old_bf_write::GetMaxNumBits()		
+inline int bf_write::GetMaxNumBits()		
 {
 	return m_nDataBits;
 }
 
-inline int old_bf_write::GetNumBitsLeft()	
+inline int bf_write::GetNumBitsLeft()	
 {
 	return m_nDataBits - m_iCurBit;
 }
 
-inline int old_bf_write::GetNumBytesLeft()	
+inline int bf_write::GetNumBytesLeft()	
 {
 	return GetNumBitsLeft() >> 3;
 }
 
-inline unsigned char* old_bf_write::GetData()			
+inline unsigned char* bf_write::GetData()			
 {
 	return m_pData;
 }
 
-inline bool old_bf_write::CheckForOverflow(int nBits)
+inline bool bf_write::CheckForOverflow(int nBits)
 {
 	if ( m_iCurBit + nBits > m_nDataBits )
 	{
@@ -248,7 +258,7 @@ inline bool old_bf_write::CheckForOverflow(int nBits)
 	return m_bOverflow;
 }
 
-inline void old_bf_write::SetOverflowFlag()
+inline void bf_write::SetOverflowFlag()
 {
 	if ( m_bAssertOnOverflow )
 	{
@@ -258,7 +268,7 @@ inline void old_bf_write::SetOverflowFlag()
 	m_bOverflow = true;
 }
 
-inline void old_bf_write::WriteOneBitNoCheck(int nValue)
+inline void bf_write::WriteOneBitNoCheck(int nValue)
 {
 	if(nValue)
 		m_pData[m_iCurBit >> 3] |= (1 << (m_iCurBit & 7));
@@ -268,14 +278,14 @@ inline void old_bf_write::WriteOneBitNoCheck(int nValue)
 	++m_iCurBit;
 }
 
-inline void old_bf_write::WriteOneBit(int nValue)
+inline void bf_write::WriteOneBit(int nValue)
 {
 	if( !CheckForOverflow(1) )
 		WriteOneBitNoCheck( nValue );
 }
 
 
-inline void	old_bf_write::WriteOneBitAt( int iBit, int nValue )
+inline void	bf_write::WriteOneBitAt( int iBit, int nValue )
 {
 	if( iBit+1 > m_nDataBits )
 	{
@@ -291,7 +301,7 @@ inline void	old_bf_write::WriteOneBitAt( int iBit, int nValue )
 }
 
 
-inline void old_bf_write::WriteUBitLong( unsigned int curData, int numbits, bool bCheckRange )
+inline void bf_write::WriteUBitLong( unsigned int curData, int numbits, bool bCheckRange )
 {
 #ifdef _DEBUG
 	// Make sure it doesn't overflow.
@@ -325,13 +335,13 @@ inline void old_bf_write::WriteUBitLong( unsigned int curData, int numbits, bool
 
 	unsigned long iCurBitMasked = iCurBit & 31;
 
-	unsigned long dword = LoadLittleDWord( (unsigned long*)m_pData, iDWord );
+	uint32 dword = LoadLittleDWord( (uint32*)m_pData, iDWord );
 
 	dword &= g_BitWriteMasks[iCurBitMasked][nBitsLeft];
 	dword |= curData << iCurBitMasked;
 
 	// write to stream (lsb to msb ) properly
-	StoreLittleDWord( (unsigned long*)m_pData, iDWord, dword );
+	StoreLittleDWord( (uint32*)m_pData, iDWord, dword );
 
 	// Did it span a dword?
 	int nBitsWritten = 32 - iCurBitMasked;
@@ -341,13 +351,13 @@ inline void old_bf_write::WriteUBitLong( unsigned int curData, int numbits, bool
 		curData >>= nBitsWritten;
 
 		// read from stream (lsb to msb) properly 
-		dword = LoadLittleDWord( (unsigned long*)m_pData, iDWord+1 );
+		dword = LoadLittleDWord( (uint32*)m_pData, iDWord+1 );
 
 		dword &= g_BitWriteMasks[0][nBitsLeft];
 		dword |= curData;
 
 		// write to stream (lsb to msb) properly 
-		StoreLittleDWord( (unsigned long*)m_pData, iDWord+1, dword );
+		StoreLittleDWord( (uint32*)m_pData, iDWord+1, dword );
 	}
 
 	m_iCurBit += numbits;
@@ -359,10 +369,10 @@ inline void old_bf_write::WriteUBitLong( unsigned int curData, int numbits, bool
 //-----------------------------------------------------------------------------
 
 template<int SIZE>
-class old_bf_write_static : public old_bf_write
+class old_bf_write_static : public bf_write
 {
 public:
-	inline old_bf_write_static() : old_bf_write(m_StaticData, SIZE) {}
+	inline old_bf_write_static() : bf_write(m_StaticData, SIZE) {}
 
 	char	m_StaticData[SIZE];
 };
@@ -444,7 +454,8 @@ public:
 	unsigned int	ReadBitLong(int numbits, bool bSigned);
 	
 	float			ReadBitCoord();
-	float			ReadBitCoordMP( bool bIntegral, bool bLowPrecision );
+	float			ReadBitCoordMP( EBitCoordType coordType );
+	float 			ReadBitCellCoord( int bits, EBitCoordType coordType );
 	float			ReadBitFloat();
 	float			ReadBitNormal();
 	void			ReadBitVec3Coord( Vector& fa );
@@ -478,6 +489,7 @@ public:
 	// complete (this will never exceed bufLen-1).
 	//
 	bool			ReadString( char *pStr, int bufLen, bool bLine=false, int *pOutNumChars=NULL );
+	bool			ReadWString( wchar_t *pStr, int bufLen, bool bLine=false, int *pOutNumChars=NULL );
 
 	// Reads a string and allocates memory for it. If the string in the buffer
 	// is > 2048 bytes, then pOverflow is set to true (if it's not NULL).
@@ -640,7 +652,7 @@ inline unsigned int old_bf_read::ReadUBitLong( int numbits )
 
 	// Read the current dword.
 	int idword1 = m_iCurBit >> 5;
-	unsigned int dword1 = LoadLittleDWord( (unsigned long*)m_pData, idword1 );
+	unsigned int dword1 = LoadLittleDWord( (uint32*)m_pData, idword1 );
 
 	dword1 >>= (m_iCurBit & 31); // Get the bits we're interested in.
 
@@ -656,7 +668,7 @@ inline unsigned int old_bf_read::ReadUBitLong( int numbits )
 	else
 	{
 		int nExtraBits = m_iCurBit & 31;
-		unsigned int dword2 = LoadLittleDWord( (unsigned long*)m_pData, idword1+1 );
+		unsigned int dword2 = LoadLittleDWord( (uint32*)m_pData, idword1+1 );
 
 		dword2 &= g_ExtraMasks[nExtraBits];
 
@@ -703,7 +715,6 @@ public:
 	static const uint32 s_nMaskTable[33];							// 0 1 3 7 15 ..
 
 };
-
 
 class CBitWrite : public CBitBuffer
 {
@@ -767,10 +778,10 @@ public:
 			}
 			else
 			{
-				*( m_pDataOut ) = (*m_pDataOut & ~s_nMaskTable[ 32 - m_nOutBitsAvail ] ) | m_nOutBufWord;
-				m_bFlushed = true;
+				StoreLittleDWord( m_pDataOut, 0, LoadLittleDWord(m_pDataOut,0) & ~s_nMaskTable[ 32 - m_nOutBitsAvail ] | m_nOutBufWord );
 			}
 		}
+		m_bFlushed = true;
 	}
 
 	FORCEINLINE unsigned char *GetBasePointer()
@@ -837,12 +848,14 @@ public:
 	}
 	
 	bool WriteString( const char *pStr );
+	bool WriteString( const wchar_t *pStr );
 
 	void WriteLongLong( int64 val );
 
 	void WriteBitAngle( float fAngle, int numbits );
 	void WriteBitCoord (const float f);
-	void WriteBitCoordMP( const float f, bool bIntegral, bool bLowPrecision );
+	void WriteBitCoordMP( const float f, EBitCoordType coordType );
+	void WriteBitCellCoord( const float f, int bits, EBitCoordType coordType );
 	void WriteBitVec3Coord( const Vector& fa );
 	void WriteBitNormal( float f );
 	void WriteBitVec3Normal( const Vector& fa );
@@ -862,13 +875,13 @@ void CBitWrite::Finish( void )
 		{
 			SetOverflowFlag();
 		}
-		*( m_pDataOut ) = m_nOutBufWord;
+		StoreLittleDWord( m_pDataOut, 0, m_nOutBufWord );
 	}
 }
 
 void CBitWrite::FlushNoCheck( void )
 {
-	*( m_pDataOut++ ) = m_nOutBufWord;
+	StoreLittleDWord( m_pDataOut++, 0, m_nOutBufWord );
 	m_nOutBitsAvail = 32;
 	m_nOutBufWord = 0;										// ugh - I need this because of 32 bit writes. a<<=32 is a nop
 	
@@ -880,7 +893,9 @@ void CBitWrite::Flush( void )
 		SetOverflowFlag();
 	}
 	else
-		*( m_pDataOut++ ) = m_nOutBufWord;
+	{
+		StoreLittleDWord( m_pDataOut++, 0, m_nOutBufWord );
+	}
 	m_nOutBufWord = 0;										// ugh - I need this because of 32 bit writes. a<<=32 is a nop
 	m_nOutBitsAvail = 32;
 	
@@ -942,34 +957,21 @@ FORCEINLINE void CBitWrite::WriteSBitLong( int nData, int nNumBits )
 	WriteUBitLong( ( uint32 ) nData, nNumBits, false );
 }
 
-FORCEINLINE void CBitWrite::WriteUBitVar( unsigned int data )
+FORCEINLINE void CBitWrite::WriteUBitVar( unsigned int n )
 {
-	if ( ( data &0xf ) == data )
-	{
-		WriteUBitLong( 0, 2 );
-		WriteUBitLong( data, 4 );
-	}
+	if ( n < 16 )
+		WriteUBitLong( n, 6 );
 	else
-	{
-		if ( ( data & 0xff ) == data )
-		{
-			WriteUBitLong( 1, 2 );
-			WriteUBitLong( data, 8 );
-		}
+		if ( n < 256 )
+			WriteUBitLong( ( n & 15 ) | 16 | ( ( n & ( 128 | 64 | 32 | 16 ) ) << 2 ), 10 );
 		else
-		{
-			if ( ( data & 0xfff ) == data )
-			{
-				WriteUBitLong( 2, 2 );
-				WriteUBitLong( data, 12 );
-			}
+			if ( n < 4096 )
+				WriteUBitLong( ( n & 15 ) | 32 | ( ( n & ( 2048 | 1024 | 512 | 256 | 128 | 64 | 32 | 16 ) ) << 2 ), 14 );
 			else
 			{
-				WriteUBitLong( 0x3, 2 );
-				WriteUBitLong( data, 32 );
+				WriteUBitLong( ( n & 15 ) | 48, 6 );
+				WriteUBitLong( ( n >> 4 ), 32 - 4 );
 			}
-		}
-	}
 }
 
 FORCEINLINE void CBitWrite::WriteBitFloat( float flValue )
@@ -1042,7 +1044,7 @@ public:
 
 	void StartReading( const void *pData, int nBytes, int iStartBit = 0, int nBits = -1 );
 
-	FORCEINLINE int CBitRead::GetNumBitsRead( void ) const;
+	FORCEINLINE int GetNumBitsRead( void ) const;
 
 	FORCEINLINE void GrabNextDWord( bool bOverFlowImmediately = false );
 	FORCEINLINE void FetchNext( void );
@@ -1052,7 +1054,8 @@ public:
 	FORCEINLINE unsigned int PeekUBitLong( int numbits );
 	FORCEINLINE float ReadBitFloat( void );
 	float ReadBitCoord();
-	float ReadBitCoordMP( bool bIntegral, bool bLowPrecision );
+	float ReadBitCoordMP( EBitCoordType coordType );
+	float ReadBitCellCoord( int bits, EBitCoordType coordType );
 	float ReadBitNormal();
 	void ReadBitVec3Coord( Vector& fa );
 	void ReadBitVec3Normal( Vector& fa );
@@ -1084,6 +1087,7 @@ public:
 	// complete (this will never exceed bufLen-1).
 	//
 	bool ReadString( char *pStr, int bufLen, bool bLine=false, int *pOutNumChars=NULL );
+	bool ReadWString( wchar_t *pStr, int bufLen, bool bLine=false, int *pOutNumChars=NULL );
 	char* ReadAndAllocateString( bool *pOverflow = 0 );
 
 	int64 ReadLongLong( void );
@@ -1097,7 +1101,7 @@ FORCEINLINE int CBitRead::GetNumBitsRead( void ) const
 		return 0;
 	int nCurOfs = ( 32 - m_nBitsAvail ) + ( 8 * sizeof( m_pData[0] ) * ( m_pDataIn - m_pData -1  ) );
 	int nAdjust = 8 * ( m_nDataBytes & 3 );
-	return min ( nCurOfs + nAdjust, m_nDataBits );
+	return MIN( nCurOfs + nAdjust, m_nDataBits );
 
 }
 
@@ -1213,20 +1217,24 @@ FORCEINLINE float CBitRead::ReadFloat( void )
 #endif
 FORCEINLINE unsigned int CBitRead::ReadUBitVar( void )
 {
-	switch( ReadUBitLong( 2 ) )
+	unsigned int ret = ReadUBitLong( 6 );
+	switch( ret & ( 16 | 32 ) )
 	{
-		case 0:
-			return ReadUBitLong( 4 );
-
-		case 1:
-			return ReadUBitLong( 8 );
-
-		case 2:
-			return ReadUBitLong( 12 );
-			
-		case 3:
-			return ReadUBitLong( 32 );
+		case 16:
+			ret = ( ret & 15 ) | ( ReadUBitLong( 4 ) << 4 );
+			Assert( ret >= 16);
+			break;
+				
+		case 32:
+			ret = ( ret & 15 ) | ( ReadUBitLong( 8 ) << 4 );
+			Assert( ret >= 256);
+			break;
+		case 48:
+			ret = ( ret & 15 ) | ( ReadUBitLong( 32 - 4 ) << 4 );
+			Assert( ret >= 4096 );
+			break;
 	}
+	return ret;
 }
 #ifdef _WIN32
 #pragma warning(pop)
@@ -1275,21 +1283,6 @@ public:																														  \
 	}																														  \
 };
 
-#define WRAP_WRITE( bc )																									   \
-class bf_write : public bc																									   \
-{																															   \
-public:																														   \
-	FORCEINLINE bf_write(void) : bc()																									   \
-	{																														   \
-	}																														   \
-	FORCEINLINE bf_write( void *pData, int nBytes, int nMaxBits = -1 ) : bc( pData, nBytes, nMaxBits )									   \
-	{																														   \
-	}																														   \
-																															   \
-	FORCEINLINE bf_write( const char *pDebugName, void *pData, int nBytes, int nMaxBits = -1 ) : bc( pDebugName, pData, nBytes, nMaxBits ) \
-	{																														   \
-	}																														   \
-};
 #if 0
 
 
@@ -1445,6 +1438,20 @@ public:
 		return bOld;
 	}
 
+	bool ReadWString( wchar_t *pStr, int bufLen, bool bLine=false, int *pOutNumChars=NULL )
+	{
+		Check();
+		int oldn, newn;
+		bool bOld = old1.ReadWString( pStr, bufLen, bLine, &oldn );
+		bool bNew = new1.ReadWString( pStr, bufLen, bLine, &newn );
+		Assert( bOld == bNew );
+		Assert( oldn == newn );
+		if ( pOutNumChars )
+			*pOutNumChars = oldn;
+		Check();
+		return bOld;
+	}
+
 	void ReadBitVec3Coord( Vector& fa )
 	{
 		Check();
@@ -1486,13 +1493,7 @@ public:
 #endif
 
 
-#ifdef _LINUX
-WRAP_READ( old_bf_read );
-#else
 WRAP_READ( CBitRead );
-#endif
-WRAP_WRITE( old_bf_write );
-
 
 #endif
 

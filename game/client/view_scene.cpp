@@ -87,15 +87,18 @@ int ScreenTransform( const Vector& point, Vector& screen )
 
 void UpdateFullScreenDepthTexture( void )
 {
-	if( !g_pMaterialSystemHardwareConfig->SupportsPixelShaders_2_b() )
+	if ( g_pMaterialSystemHardwareConfig->GetDXSupportLevel() <= 90 )
 		return;
 
 	ITexture *pDepthTex = GetFullFrameDepthTexture();
 	CMatRenderContextPtr pRenderContext( materials );
 
-	if( IsX360() )
+	Rect_t viewportRect;
+	pRenderContext->GetViewport( viewportRect.x, viewportRect.y, viewportRect.width, viewportRect.height );
+
+	if ( IsX360() )
 	{	
-		pRenderContext->CopyRenderTargetToTextureEx( pDepthTex, -1, NULL, NULL );
+		pRenderContext->CopyRenderTargetToTextureEx( pDepthTex, -1, &viewportRect, &viewportRect );
 	}
 	else
 	{
@@ -104,7 +107,7 @@ void UpdateFullScreenDepthTexture( void )
 
 	pRenderContext->SetFullScreenDepthTextureValidityFlag( true );
 
-	if( r_depthoverlay.GetBool() )
+	if ( r_depthoverlay.GetBool() )
 	{
 		IMaterial *pMaterial = materials->FindMaterial( "debug/showz", TEXTURE_GROUP_OTHER, true );
 		IMaterialVar *BaseTextureVar = pMaterial->FindVar( "$basetexture", NULL, false );

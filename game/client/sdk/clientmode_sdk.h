@@ -1,50 +1,37 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
-//
-// Purpose: 
-//
-//=============================================================================//
-
-#ifndef SDK_CLIENTMODE_H
-#define SDK_CLIENTMODE_H
+#ifndef _INCLUDED_CLIENTMODE_SDK_H
+#define _INCLUDED_CLIENTMODE_SDK_H
 #ifdef _WIN32
 #pragma once
 #endif
 
 #include "clientmode_shared.h"
-#include "sdkviewport.h"
+#include <vgui_controls/EditablePanel.h>
+#include <vgui/Cursor.h>
+#include "GameUI/igameui.h"
 
-class ClientModeSDKNormal : public ClientModeShared 
+class CHudViewport;
+
+class ClientModeSDK : public ClientModeShared
 {
-DECLARE_CLASS( ClientModeSDKNormal, ClientModeShared );
-
-private:
-
-// IClientMode overrides.
 public:
-
-					ClientModeSDKNormal();
-	virtual			~ClientModeSDKNormal();
+	DECLARE_CLASS( ClientModeSDK, ClientModeShared );
 
 	virtual void	Init();
+	virtual void	InitWeaponSelectionHudElement() { return; }
 	virtual void	InitViewport();
+	virtual void	Shutdown();
 
-	virtual float	GetViewModelFOV( void );
-
-	int				GetDeathMessageStartHeight( void );
-
-	virtual void	PostRenderVGui();
-
-	virtual bool	CanRecordDemo( char *errorMsg, int length ) const;
-
-private:
-	
-	//	void	UpdateSpectatorMode( void );
-
+	virtual void	LevelInit( const char *newmap );
+	virtual void	LevelShutdown( void );
+	virtual void	FireGameEvent( IGameEvent *event );
+	virtual void	DoPostScreenSpaceEffects( const CViewSetup *pSetup );
+	virtual void SDK_CloseAllWindows();
+	virtual void SDK_CloseAllWindowsFrom(vgui::Panel* pPanel);	
 };
 
-
 extern IClientMode *GetClientModeNormal();
-extern ClientModeSDKNormal* GetClientModeSDKNormal();
+extern vgui::HScheme g_hVGuiCombineScheme;
 
+extern ClientModeSDK* GetClientModeSDK();
 
-#endif // SDK_CLIENTMODE_H
+#endif // _INCLUDED_CLIENTMODE_SDK_H

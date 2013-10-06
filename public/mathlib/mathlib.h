@@ -14,7 +14,9 @@
 #include "tier0/dbg.h"
 
 #include "mathlib/math_pfns.h"
-
+#ifndef ALIGN8_POST
+#define ALIGN8_POST
+#endif
 // plane_t structure
 // !!! if this is changed, it must be changed in asm code too !!!
 // FIXME: does the asm code even exist anymore?
@@ -74,31 +76,7 @@ enum
 };
 
 extern int SignbitsForPlane( cplane_t *out );
-
-class ALIGN16 Frustum_t
-{
-public:
-	void SetPlane( int i, int nType, const Vector &vecNormal, float dist )
-	{
-		m_Plane[i].normal = vecNormal;
-		m_Plane[i].dist = dist;
-		m_Plane[i].type = nType;
-		m_Plane[i].signbits = SignbitsForPlane( &m_Plane[i] );
-		m_AbsNormal[i].Init( fabs(vecNormal.x), fabs(vecNormal.y), fabs(vecNormal.z) );
-	}
-
-	inline const cplane_t *GetPlane( int i ) const { return &m_Plane[i]; }
-	inline const Vector &GetAbsNormal( int i ) const { return m_AbsNormal[i]; }
-
-	Frustum_t();
-	// returns false if the box is within the frustum, true if it is outside
-	bool CullBox( const Vector &mins, const Vector &maxs ) const;
-	bool CullBoxCenterExtents( const Vector &center, const Vector &extents ) const;
-
-private:
-	cplane_t	m_Plane[FRUSTUM_NUMPLANES];
-	Vector		m_AbsNormal[FRUSTUM_NUMPLANES];
-};
+class Frustum_t;
 
 // Computes Y fov from an X fov and a screen aspect ratio + X from Y
 float CalcFovY( float flFovX, float flScreenAspect );
@@ -106,13 +84,15 @@ float CalcFovX( float flFovY, float flScreenAspect );
 
 // Generate a frustum based on perspective view parameters
 // NOTE: FOV is specified in degrees, as the *full* view angle (not half-angle)
+class VPlane;
 void GeneratePerspectiveFrustum( const Vector& origin, const QAngle &angles, float flZNear, float flZFar, float flFovX, float flAspectRatio, Frustum_t &frustum );
-void GeneratePerspectiveFrustum( const Vector& origin, const Vector &forward, const Vector &right, const Vector &up, float flZNear, float flZFar, float flFovX, float flFovY, Frustum_t &frustum );
-
+void GeneratePerspectiveFrustum( const Vector& origin, const Vector &forward, const Vector &right, const Vector &up, float flZNear, float flZFar, float flFovX, float flFovY, VPlane *pPlanesOut );
 // Cull the world-space bounding box to the specified frustum.
-bool R_CullBox( const Vector& mins, const Vector& maxs, const Frustum_t &frustum );
+// bool R_CullBox( const Vector& mins, const Vector& maxs, const Frustum_t &frustum );
+// bool R_CullBoxSkipNear( const Vector& mins, const Vector& maxs, const Frustum_t &frustum );
+void GenerateOrthoFrustum( const Vector &origin, const Vector &forward, const Vector &right, const Vector &up, float flLeft, float flRight, float flBottom, float flTop, float flZNear, float flZFar, VPlane *pPlanesOut );
 
-bool R_CullBoxSkipNear( const Vector& mins, const Vector& maxs, const Frustum_t &frustum );
+class matrix3x4a_t;
 
 struct matrix3x4_t
 {
@@ -152,7 +132,7 @@ struct matrix3x4_t
 		m_flMatVal[0][3] = p.x;
 		m_flMatVal[1][3] = p.y;
 		m_flMatVal[2][3] = p.z;
-	} 
+	}
 
 	inline void Invalidate( void )
 	{
@@ -173,6 +153,14 @@ struct matrix3x4_t
 	float m_flMatVal[3][4];
 };
 
+class ALIGN16 matrix3x4a_t : public matrix3x4_t
+{
+public:
+	/*
+	matrix3x4a_t() { if (((size_t)Base()) % 16 != 0) { Error( "matrix3x4a_t missaligned" ); } }
+	*/
+	matrix3x4a_t& operator=( const matrix3x4_t& src ) { memcpy( Base(), src.Base(), sizeof( float ) * 3 * 4 ); return *this; };
+};
 
 #ifndef M_PI
 	#define M_PI		3.14159265358979323846	// matches value in gcc v2 math.h
@@ -237,12 +225,12 @@ FORCEINLINE void VectorClear(vec_t *a)
 
 FORCEINLINE float VectorMaximum(const vec_t *v)
 {
-	return max( v[0], max( v[1], v[2] ) );
+	return MAX( v[0], MAX( v[1], v[2] ) );
 }
 
 FORCEINLINE float VectorMaximum(const Vector& v)
 {
-	return max( v.x, max( v.y, v.z ) );
+	return MAX( v.x, MAX( v.y, v.z ) );
 }
 
 FORCEINLINE void VectorScale (const float* in, vec_t scale, float* out)
@@ -321,14 +309,14 @@ inline vec_t RoundInt (vec_t in)
 	return floor(in + 0.5f);
 }
 
-int Q_log2(int val);
+size_t Q_log2( unsigned int val );
 
 // Math routines done in optimized assembly math package routines
 void inline SinCos( float radians, float *sine, float *cosine )
 {
 #if defined( _X360 )
 	XMScalarSinCos( sine, cosine, radians );
-#elif defined( _WIN32 )
+#elif defined( COMPILER_MSVC32 )
 	_asm
 	{
 		fld		DWORD PTR [radians]
@@ -340,14 +328,15 @@ void inline SinCos( float radians, float *sine, float *cosine )
 		fstp DWORD PTR [edx]
 		fstp DWORD PTR [eax]
 	}
-#elif defined( _LINUX )
+#elif defined( GNUC )
 	register double __cosr, __sinr;
- 	__asm __volatile__
-    		("fsincos"
-     	: "=t" (__cosr), "=u" (__sinr) : "0" (radians));
+ 	__asm __volatile__ ("fsincos" : "=t" (__cosr), "=u" (__sinr) : "0" (radians));
 
   	*sine = __sinr;
   	*cosine = __cosr;
+#else
+	*sine = sinf(radians);
+	*cosine = cosf(radians);
 #endif
 }
 
@@ -387,11 +376,6 @@ FORCEINLINE T Square( T const &a )
 	return a * a;
 }
 
-
-FORCEINLINE bool IsPowerOfTwo( uint x )
-{
-	return ( x & ( x - 1 ) ) == 0;
-}
 
 // return the smallest power of two >= x.
 // returns 0 if x == 0 or x > 0x80000000 (ie numbers that would be negative if x was signed)
@@ -462,6 +446,8 @@ void MatrixSetColumn( const Vector &in, int column, matrix3x4_t &out );
 //void DecomposeRotation( const matrix3x4_t &mat, float *out );
 void ConcatRotations (const matrix3x4_t &in1, const matrix3x4_t &in2, matrix3x4_t &out);
 void ConcatTransforms (const matrix3x4_t &in1, const matrix3x4_t &in2, matrix3x4_t &out);
+// faster version assumes m0, m1, out are 16-byte aligned addresses
+void ConcatTransforms_Aligned( const matrix3x4a_t &m0, const matrix3x4a_t &m1, matrix3x4a_t &out );
 
 // For identical interface w/ VMatrix
 inline void MatrixMultiply ( const matrix3x4_t &in1, const matrix3x4_t &in2, matrix3x4_t &out )
@@ -483,6 +469,10 @@ void QuaternionInvert( const Quaternion &p, Quaternion &q );
 float QuaternionNormalize( Quaternion &q );
 void QuaternionAdd( const Quaternion &p, const Quaternion &q, Quaternion &qt );
 void QuaternionMult( const Quaternion &p, const Quaternion &q, Quaternion &qt );
+void QuaternionExp( const Quaternion &p, Quaternion &q );
+void QuaternionLn( const Quaternion &p, Quaternion &q );
+void QuaternionAverageExponential( Quaternion &q, int nCount, const Quaternion *pQuaternions, const float *pflWeights = NULL );
+void QuaternionLookAt( const Vector &vecForward, const Vector &referenceUp, Quaternion &q );
 void QuaternionMatrix( const Quaternion &q, matrix3x4_t &matrix );
 void QuaternionMatrix( const Quaternion &q, const Vector &pos, matrix3x4_t &matrix );
 void QuaternionAngles( const Quaternion &q, QAngle &angles );
@@ -519,16 +509,16 @@ inline float anglemod(float a)
 inline float RemapVal( float val, float A, float B, float C, float D)
 {
 	if ( A == B )
-		return val >= B ? D : C;
+		return fsel( val - B , D , C );
 	return C + (D - C) * (val - A) / (B - A);
 }
 
 inline float RemapValClamped( float val, float A, float B, float C, float D)
 {
 	if ( A == B )
-		return val >= B ? D : C;
+		return fsel( val - B , D , C );
 	float cVal = (val - A) / (B - A);
-	cVal = clamp( cVal, 0.0f, 1.0f );
+	cVal = clamp<float>( cVal, 0.0f, 1.0f );
 
 	return C + (D - C) * cVal;
 }
@@ -621,7 +611,7 @@ template<> FORCEINLINE QAngleByValue Lerp<QAngleByValue>( float flPercent, const
 
 // Swap two of anything.
 template <class T> 
-FORCEINLINE void swap( T& x, T& y )
+FORCEINLINE void V_swap( T& x, T& y )
 {
 	T temp = x;
 	x = y;
@@ -646,7 +636,8 @@ template <class T> FORCEINLINE T AVG(T a, T b)
 
 inline float Sign( float x )
 {
-	return (x <0.0f) ? -1.0f : 1.0f;
+	return fsel( x, 1.0f, -1.0f ); // x >= 0 ? 1.0f : -1.0f
+	//return (x <0.0f) ? -1.0f : 1.0f;
 }
 
 //
@@ -677,6 +668,16 @@ inline int ClampArrayBounds( int n, unsigned maxindex )
 	return result;
 }
 
+
+
+// Turn a number "inside out". 
+// See Recording Animation in Binary Order for Progressive Temporal Refinement
+// by Paul Heckbert from "Graphics Gems".
+//
+// If you want to iterate something from 0 to n, you can use this to iterate non-sequentially, in
+// such a way that you will start with widely separated values and then refine the gaps between
+// them, as you would for progressive refinement. This works with non-power of two ranges.
+int InsideOut( int nTotal, int nCounter );
 
 #define BOX_ON_PLANE_SIDE(emins, emaxs, p)	\
 	(((p)->type < 3)?						\
@@ -738,7 +739,9 @@ inline void PositionMatrix( const Vector &position, matrix3x4_t &mat )
 
 inline void MatrixPosition( const matrix3x4_t &matrix, Vector &position )
 {
-	MatrixGetColumn( matrix, 3, position );
+	position[0] = matrix[0][3];
+	position[1] = matrix[1][3];
+	position[2] = matrix[2][3];
 }
 
 inline void VectorRotate( const Vector& in1, const matrix3x4_t &in2, Vector &out)
@@ -876,6 +879,18 @@ inline int FASTCALL BoxOnPlaneSide2 (const Vector& emins, const Vector& emaxs, c
 
 void ClearBounds (Vector& mins, Vector& maxs);
 void AddPointToBounds (const Vector& v, Vector& mins, Vector& maxs);
+
+//-----------------------------------------------------------------------------
+// Ensures that the min and max bounds values are valid. 
+// (ClearBounds() sets min > max, which is clearly invalid.)
+//-----------------------------------------------------------------------------
+bool AreBoundsValid( const Vector &vMin, const Vector &vMax );
+
+//-----------------------------------------------------------------------------
+// Returns true if the provided point is in the AABB defined by vMin
+// at the lower corner and vMax at the upper corner.
+//-----------------------------------------------------------------------------
+bool IsPointInBounds( const Vector &vPoint, const Vector &vMin, const Vector &vMax );
 
 //
 // COLORSPACE/GAMMA CONVERSION STUFF
@@ -1098,16 +1113,18 @@ FORCEINLINE int RoundFloatToInt(float f)
 	return pResult[1];
 #else // !X360
 	int nResult;
-#if defined( _WIN32 )
+#if defined( COMPILER_MSVC32 )
 	__asm
 	{
 		fld f
 		fistp nResult
 	}
-#elif _LINUX
+#elif GNUC
 	__asm __volatile__ (
 		"fistpl %0;": "=m" (nResult): "t" (f) : "st"
 	);
+#else
+	nResult = static_cast<int>(f);
 #endif
 	return nResult;
 #endif
@@ -1129,22 +1146,24 @@ FORCEINLINE unsigned char RoundFloatToByte(float f)
 #ifdef Assert
 	Assert( pIntResult[1] >= 0 && pIntResult[1] <= 255 );
 #endif
-	return pResult[8];
+	return pResult[7];
 
 #else // !X360
 	
 	int nResult;
 
-#if defined( _WIN32 )
+#if defined( COMPILER_MSVC32 )
 	__asm
 	{
 		fld f
 		fistp nResult
 	}
-#elif _LINUX
+#elif GNUC
 	__asm __volatile__ (
 		"fistpl %0;": "=m" (nResult): "t" (f) : "st"
 	);
+#else
+	nResult = static_cast<unsigned int> (f) & 0xff;
 #endif
 
 #ifdef Assert
@@ -1172,21 +1191,24 @@ FORCEINLINE unsigned long RoundFloatToUnsignedLong(float f)
 	return pResult[1];
 #else  // !X360
 	
+#if defined( COMPILER_MSVC32 )
 	unsigned char nResult[8];
-
-#if defined( _WIN32 )
 	__asm
 	{
 		fld f
 		fistp       qword ptr nResult
 	}
-#elif _LINUX
+	return *((unsigned long*)nResult);
+#elif defined( COMPILER_GCC )
+	unsigned char nResult[8];
 	__asm __volatile__ (
 		"fistpl %0;": "=m" (nResult): "t" (f) : "st"
 	);
+	return *((unsigned long*)nResult);
+#else
+	return static_cast<unsigned long>(f);
 #endif
 
-	return *((unsigned long*)nResult);
 #endif
 }
 
@@ -1210,7 +1232,7 @@ FORCEINLINE int Float2Int( float a )
 	
 	int RetVal;
 
-#if defined( _WIN32 )
+#if defined( COMPILER_MSVC32 )
 	int CtrlwdHolder;
 	int CtrlwdSetter;
 	__asm 
@@ -1225,7 +1247,7 @@ FORCEINLINE int Float2Int( float a )
 		fistp  RetVal				// Store and converted (to int) result
 		fldcw  CtrlwdHolder		// Restore control word
 	}
-#elif _LINUX
+#else
 	RetVal = static_cast<int>( a );
 #endif
 
@@ -1240,7 +1262,7 @@ inline int Floor2Int( float a )
 
 #if defined( _X360 )
 	RetVal = (int)floor( a );
-#elif defined( _WIN32 )
+#elif defined( COMPILER_MSVC32 )
    int CtrlwdHolder;
    int CtrlwdSetter;
    __asm 
@@ -1255,7 +1277,7 @@ inline int Floor2Int( float a )
       fistp  RetVal				// Store floored and converted (to int) result
       fldcw  CtrlwdHolder		// Restore control word
    }
-#elif _LINUX
+#else
 	RetVal = static_cast<int>( floor(a) );
 #endif
 
@@ -1298,7 +1320,7 @@ inline int Ceil2Int( float a )
 
 #if defined( _X360 )
 	RetVal = (int)ceil( a );
-#elif defined( _WIN32 )
+#elif defined( COMPILER_MSVC32 )
    int CtrlwdHolder;
    int CtrlwdSetter;
    __asm 
@@ -1313,7 +1335,7 @@ inline int Ceil2Int( float a )
       fistp  RetVal				// Store floored and converted (to int) result
       fldcw  CtrlwdHolder		// Restore control word
    }
-#elif _LINUX
+#else
 	RetVal = static_cast<int>( ceil(a) );
 #endif
 
@@ -1432,7 +1454,7 @@ FORCEINLINE unsigned char LinearToLightmap( float f )
 
 FORCEINLINE void ColorClamp( Vector& color )
 {
-	float maxc = max( color.x, max( color.y, color.z ) );
+	float maxc = MAX( color.x, MAX( color.y, color.z ) );
 	if ( maxc > 1.0f )
 	{
 		float ooMax = 1.0f / maxc;
@@ -1657,6 +1679,13 @@ void Parabolic_Spline_NormalizeX(
 	float t, 
 	Vector& output );
 
+// Evaluate the cubic Bernstein basis for the input parametric coordinate.
+// Output is the coefficient for that basis polynomial.
+float CubicBasis0( float t );
+float CubicBasis1( float t );
+float CubicBasis2( float t );
+float CubicBasis3( float t );
+
 // quintic interpolating polynomial from Perlin.
 // 0->0, 1->1, smooth-in between with smooth tangents
 FORCEINLINE float QuinticInterpolatingPolynomial(float t)
@@ -1677,7 +1706,6 @@ void GetInterpolationData( float const *pKnotPositions,
 						   float *pValueA, 
 						   float *pValueB,
 						   float *pInterpolationValue);
-
 float RangeCompressor( float flValue, float flMin, float flMax, float flBase );
 
 // Get the minimum distance from vOrigin to the bounding box defined by [mins,maxs]
@@ -1721,12 +1749,11 @@ float CalcDistanceSqrToLineSegment2D( Vector2D const &P, Vector2D const &vLineA,
 
 // Init the mathlib
 void MathLib_Init( float gamma = 2.2f, float texGamma = 2.2f, float brightness = 0.0f, int overbright = 2.0f, bool bAllow3DNow = true, bool bAllowSSE = true, bool bAllowSSE2 = true, bool bAllowMMX = true );
-bool MathLib_3DNowEnabled( void );
 bool MathLib_MMXEnabled( void );
 bool MathLib_SSEEnabled( void );
 bool MathLib_SSE2Enabled( void );
 
-float Approach( float target, float value, float speed );
+inline float Approach( float target, float value, float speed );
 float ApproachAngle( float target, float value, float speed );
 float AngleDiff( float destAngle, float srcAngle );
 float AngleDistance( float next, float cur );
@@ -1741,10 +1768,23 @@ bool AnglesAreEqual( float a, float b, float tolerance = 0.0f );
 void RotationDeltaAxisAngle( const QAngle &srcAngles, const QAngle &destAngles, Vector &deltaAxis, float &deltaAngle );
 void RotationDelta( const QAngle &srcAngles, const QAngle &destAngles, QAngle *out );
 
+//-----------------------------------------------------------------------------
+// Clips a line segment such that only the portion in the positive half-space
+// of the plane remains.  If the segment is entirely clipped, the vectors
+// are set to vec3_invalid (all components are FLT_MAX).
+//
+// flBias is added to the dot product with the normal.  A positive bias 
+// results in a more inclusive positive half-space, while a negative bias
+// results in a more exclusive positive half-space.
+//-----------------------------------------------------------------------------
+void ClipLineSegmentToPlane( const Vector &vNormal, const Vector &vPlanePoint, Vector *p1, Vector *p2, float flBias = 0.0f );
+
 void ComputeTrianglePlane( const Vector& v1, const Vector& v2, const Vector& v3, Vector& normal, float& intercept );
 int PolyFromPlane( Vector *outVerts, const Vector& normal, float dist, float fHalfScale = 9000.0f );
 int ClipPolyToPlane( Vector *inVerts, int vertCount, Vector *outVerts, const Vector& normal, float dist, float fOnPlaneEpsilon = 0.1f );
 int ClipPolyToPlane_Precise( double *inVerts, int vertCount, double *outVerts, const double *normal, double dist, double fOnPlaneEpsilon = 0.1 );
+float TetrahedronVolume( const Vector &p0, const Vector &p1, const Vector &p2, const Vector &p3 );
+float TriangleArea( const Vector &p0, const Vector &p1, const Vector &p2 );
 
 //-----------------------------------------------------------------------------
 // Computes a reasonable tangent space for a triangle
@@ -1904,7 +1944,12 @@ FORCEINLINE float * UnpackNormal_SHORT2( const unsigned int *pPackedNormal, floa
 
 	pNormal[0] = ( iX - 16384.0f ) / 16384.0f;
 	pNormal[1] = ( iY - 16384.0f ) / 16384.0f;
-	pNormal[2] = zSign*sqrtf( 1.0f - ( pNormal[0]*pNormal[0] + pNormal[1]*pNormal[1] ) );
+	float mag = ( pNormal[0]*pNormal[0] + pNormal[1]*pNormal[1] );
+	if ( mag > 1.0f )
+	{
+		mag = 1.0f;
+	}
+	pNormal[2] = zSign*sqrtf( 1.0f - mag );
 	if ( bIsTangent )
 	{
 		pNormal[3] = tSign;
@@ -1928,10 +1973,10 @@ FORCEINLINE unsigned int * PackNormal_SHORT2( float nx, float ny, float nz, unsi
 	ny *= 16384.0f;
 
 	// '0' and '32768' values are invalid encodings
-	nx = max( nx, 1.0f );		// Make sure there are no zero values
-	ny = max( ny, 1.0f );
-	nx = min( nx, 32767.0f );	// Make sure there are no 32768 values
-	ny = min( ny, 32767.0f );
+	nx = MAX( nx, 1.0f );		// Make sure there are no zero values
+	ny = MAX( ny, 1.0f );
+	nx = MIN( nx, 32767.0f );	// Make sure there are no 32768 values
+	ny = MIN( ny, 32767.0f );
 
 	if ( nz < 0.0f )
 		nx = -nx;				// Set the sign bit for z
@@ -2068,6 +2113,54 @@ FORCEINLINE unsigned int * PackNormal_UBYTE4( const float *pNormal, unsigned int
 	return PackNormal_UBYTE4( pNormal[0], pNormal[1], pNormal[2], pPackedNormal, bIsTangent, binormalSign );
 }
 
+FORCEINLINE void RGB2YUV( int &nR, int &nG, int &nB, float &fY, float &fU, float &fV, bool bApplySaturationCurve )
+{
+	// YUV conversion:
+	//  |Y|   |  0.299f     0.587f     0.114f   |   |R|
+	//  |U| = | -0.14713f  -0.28886f   0.436f   | x |G|
+	//  |V|   |  0.615f    -0.51499f  -0.10001f |   |B|
+	//
+	// The coefficients in the first row sum to one, whereas the 2nd and 3rd rows each sum to zero (UV (0,0) means greyscale).
+	// Ranges are Y [0,1], U [-0.436,+0.436] and V [-0.615,+0.615].
+	// We scale and offset to [0,1] and allow the caller to round as they please.
+
+	fY = (  0.29900f*nR +  0.58700f*nG +  0.11400f*nB ) / 255;
+	fU = ( -0.14713f*nR + -0.28886f*nG +  0.43600f*nB )*( 0.5f / 0.436f ) / 255 + 0.5f;
+	fV = (  0.61500f*nR + -0.51499f*nG + -0.10001f*nB )*( 0.5f / 0.615f ) / 255 + 0.5f;
+
+	if ( bApplySaturationCurve )
+	{
+		// Apply a curve to saturation, and snap-to-grey for low saturations
+		const float SNAP_TO_GREY = 0;//0.0125f; Disabled, saturation curve seems sufficient
+		float dX, dY, sat, scale;
+		dX    = 2*( fU - 0.5f );
+		dY    = 2*( fV - 0.5f );
+		sat   = sqrtf( dX*dX + dY*dY );
+		sat   = clamp( ( sat*( 1 + SNAP_TO_GREY ) - SNAP_TO_GREY ), 0, 1 );
+		scale = ( sat == 0 ) ? 0 : MIN( ( sqrtf( sat ) / sat ), 4.0f );
+		fU    = 0.5f + scale*( fU - 0.5f );
+		fV    = 0.5f + scale*( fV - 0.5f );
+	}
+}
+
+#ifdef _X360
+// Used for direct CPU access to VB data on 360 (used by shaderapi, studiorender and engine)
+struct VBCPU_AccessInfo_t
+{
+	// Points to the GPU data pointer in the CVertexBuffer struct (VB data can be relocated during level transitions)
+	const byte **ppBaseAddress;
+	// pBaseAddress should be computed from ppBaseAddress immediately before use
+	const byte  *pBaseAddress;
+	int          nStride;
+	int          nPositionOffset;
+	int          nTexCoord0_Offset;
+	int          nNormalOffset;
+	int          nBoneIndexOffset;
+	int          nBoneWeightOffset;
+	int          nCompressionType;
+	// TODO: if needed, add colour and tangents
+};
+#endif
 
 //-----------------------------------------------------------------------------
 // Convert RGB to HSV
@@ -2081,6 +2174,73 @@ void RGBtoHSV( const Vector &rgb, Vector &hsv );
 void HSVtoRGB( const Vector &hsv, Vector &rgb );
 
 
+//-----------------------------------------------------------------------------
+// Fast version of pow and log
+//-----------------------------------------------------------------------------
+
+float FastLog2(float i);			// log2( i )
+float FastPow2(float i);			// 2^i
+float FastPow(float a, float b);	// a^b
+float FastPow10( float i );			// 10^i
+
+//-----------------------------------------------------------------------------
+// For testing float equality
+//-----------------------------------------------------------------------------
+
+inline bool CloseEnough( float a, float b, float epsilon = EQUAL_EPSILON )
+{
+	return fabs( a - b ) <= epsilon;
+}
+
+inline bool CloseEnough( const Vector &a, const Vector &b, float epsilon = EQUAL_EPSILON )
+{
+	return fabs( a.x - b.x ) <= epsilon &&
+		fabs( a.y - b.y ) <= epsilon &&
+		fabs( a.z - b.z ) <= epsilon;
+}
+
+// Fast compare
+// maxUlps is the maximum error in terms of Units in the Last Place. This 
+// specifies how big an error we are willing to accept in terms of the value
+// of the least significant digit of the floating point number’s 
+// representation. maxUlps can also be interpreted in terms of how many 
+// representable floats we are willing to accept between A and B. 
+// This function will allow maxUlps-1 floats between A and B.
+bool AlmostEqual(float a, float b, int maxUlps = 10);
+
+inline bool AlmostEqual( const Vector &a, const Vector &b, int maxUlps = 10)
+{
+	return AlmostEqual( a.x, b.x, maxUlps ) &&
+		AlmostEqual( a.y, b.y, maxUlps ) &&
+		AlmostEqual( a.z, b.z, maxUlps );
+}
+
+inline float Approach( float target, float value, float speed )
+{
+	float delta = target - value;
+
+#if defined(_X360) || defined( PS3 ) // use conditional move for speed on 360
+
+	return fsel( delta-speed,	// delta >= speed ?
+				 value + speed,	// if delta == speed, then value + speed == value + delta == target  
+				 fsel( (-speed) - delta, // delta <= -speed
+						value - speed,
+						target )
+				);  // delta < speed && delta > -speed
+
+#else
+
+	if ( delta > speed )
+		value += speed;
+	else if ( delta < -speed )
+		value -= speed;
+	else 
+		value = target;
+		
+	return value;
+
+#endif
+}
 
 #endif	// MATH_BASE_H
 

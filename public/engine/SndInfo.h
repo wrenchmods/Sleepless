@@ -46,4 +46,21 @@ struct SndInfo_t
 	bool		m_bFromServer;
 };
 
+//-----------------------------------------------------------------------------
+// Hearing info
+//-----------------------------------------------------------------------------
+struct AudioState_t
+{
+	AudioState_t()
+	{
+		m_Origin.Init();
+		m_Angles.Init();
+		m_bIsUnderwater = false;
+	}
+
+	Vector m_Origin;
+	QAngle m_Angles;
+	bool m_bIsUnderwater;
+};
+
 #endif // SNDINFO_H

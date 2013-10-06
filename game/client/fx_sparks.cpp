@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -6,9 +6,10 @@
 //=============================================================================//
 #include "cbase.h"
 #include "view.h"
+#include "viewrender.h"
 #include "c_tracer.h"
 #include "dlight.h"
-#include "ClientEffectPrecacheSystem.h"
+#include "precache_register.h"
 #include "FX_Sparks.h"
 #include "iefx.h"
 #include "c_te_effect_dispatch.h"
@@ -22,18 +23,18 @@
 #include "tier0/memdbgon.h"
 
 //Precahce the effects
-CLIENTEFFECT_REGISTER_BEGIN( PrecacheEffectSparks )
-CLIENTEFFECT_MATERIAL( "effects/spark" )
-CLIENTEFFECT_MATERIAL( "effects/energysplash" )
-CLIENTEFFECT_MATERIAL( "effects/energyball" )
-CLIENTEFFECT_MATERIAL( "sprites/rico1" )
-CLIENTEFFECT_MATERIAL( "sprites/rico1_noz" )
-CLIENTEFFECT_MATERIAL( "sprites/blueflare1" )
-CLIENTEFFECT_MATERIAL( "effects/yellowflare" )
-CLIENTEFFECT_MATERIAL( "effects/combinemuzzle1_nocull" )
-CLIENTEFFECT_MATERIAL( "effects/combinemuzzle2_nocull" )
-CLIENTEFFECT_MATERIAL( "effects/yellowflare_noz" )
-CLIENTEFFECT_REGISTER_END()
+PRECACHE_REGISTER_BEGIN( GLOBAL, PrecacheEffectSparks )
+	PRECACHE( MATERIAL, "effects/spark" )
+	PRECACHE( MATERIAL, "effects/energysplash" )
+	PRECACHE( MATERIAL, "effects/energyball" )
+	PRECACHE( MATERIAL, "sprites/rico1" )
+	PRECACHE( MATERIAL, "sprites/rico1_noz" )
+	PRECACHE( MATERIAL, "sprites/blueflare1" )
+	PRECACHE( MATERIAL, "effects/yellowflare" )
+	PRECACHE( MATERIAL, "effects/combinemuzzle1_nocull" )
+	PRECACHE( MATERIAL, "effects/combinemuzzle2_nocull" )
+	PRECACHE( MATERIAL, "effects/yellowflare_noz" )
+PRECACHE_REGISTER_END()
 
 PMaterialHandle g_Material_Spark = NULL;
 
@@ -46,12 +47,14 @@ static ConVar fx_drawmetalspark( "fx_drawmetalspark", "1", FCVAR_DEVELOPMENTONLY
 //-----------------------------------------------------------------------------
 bool EffectOccluded( const Vector &pos, pixelvis_handle_t *queryHandle )
 {
+	int nSlot = GET_ACTIVE_SPLITSCREEN_SLOT();
+
 	if ( !queryHandle )
 	{
 		// NOTE: This is called by networking code before the current view is set up.
 		// so use the main view instead
 		trace_t	tr;
-		UTIL_TraceLine( pos, MainViewOrigin(), MASK_OPAQUE, NULL, COLLISION_GROUP_NONE, &tr );
+		UTIL_TraceLine( pos, MainViewOrigin(nSlot), MASK_OPAQUE, NULL, COLLISION_GROUP_NONE, &tr );
 		
 		return ( tr.fraction < 1.0f ) ? true : false;
 	}
@@ -1151,9 +1154,9 @@ void FX_Explosion( Vector& origin, Vector& normal, char materialType )
 			pParticle->m_flRollDelta	= random->RandomFloat( 0, 360 );
 
 			float colorRamp = random->RandomFloat( 0.75f, 1.5f );
-			pParticle->m_uchColor[0] = min( 1.0f, r*colorRamp )*255.0f;
-			pParticle->m_uchColor[1] = min( 1.0f, g*colorRamp )*255.0f;
-			pParticle->m_uchColor[2] = min( 1.0f, b*colorRamp )*255.0f;
+			pParticle->m_uchColor[0] = MIN( 1.0f, r*colorRamp )*255.0f;
+			pParticle->m_uchColor[1] = MIN( 1.0f, g*colorRamp )*255.0f;
+			pParticle->m_uchColor[2] = MIN( 1.0f, b*colorRamp )*255.0f;
 		}
 	}
 
@@ -1174,9 +1177,9 @@ void FX_Explosion( Vector& origin, Vector& normal, char materialType )
 		pSphereParticle->m_vecVelocity		= Vector(0,0,0);
 
 		float colorRamp = random->RandomFloat( 0.75f, 1.5f );
-		pSphereParticle->m_uchColor[0] = min( 1.0f, r*colorRamp )*255.0f;
-		pSphereParticle->m_uchColor[1] = min( 1.0f, g*colorRamp )*255.0f;
-		pSphereParticle->m_uchColor[2] = min( 1.0f, b*colorRamp )*255.0f;
+		pSphereParticle->m_uchColor[0] = MIN( 1.0f, r*colorRamp )*255.0f;
+		pSphereParticle->m_uchColor[1] = MIN( 1.0f, g*colorRamp )*255.0f;
+		pSphereParticle->m_uchColor[2] = MIN( 1.0f, b*colorRamp )*255.0f;
 	}
 
 	// Throw some smoke balls out around the normal
@@ -1203,9 +1206,9 @@ void FX_Explosion( Vector& origin, Vector& normal, char materialType )
 			pParticle->m_vecVelocity = (vecRight*x + vecUp*y) * 1024.0;
 
 			float colorRamp = random->RandomFloat( 0.75f, 1.5f );
-			pParticle->m_uchColor[0] = min( 1.0f, r*colorRamp )*255.0f;
-			pParticle->m_uchColor[1] = min( 1.0f, g*colorRamp )*255.0f;
-			pParticle->m_uchColor[2] = min( 1.0f, b*colorRamp )*255.0f;
+			pParticle->m_uchColor[0] = MIN( 1.0f, r*colorRamp )*255.0f;
+			pParticle->m_uchColor[1] = MIN( 1.0f, g*colorRamp )*255.0f;
+			pParticle->m_uchColor[2] = MIN( 1.0f, b*colorRamp )*255.0f;
 		}
 	}
 
@@ -1232,9 +1235,9 @@ void FX_Explosion( Vector& origin, Vector& normal, char materialType )
 		pParticle->m_flRollDelta	= random->RandomFloat( -1, 1 );
 
 		float colorRamp = random->RandomFloat( 0.5f, 1.25f );
-		pParticle->m_uchColor[0] = min( 1.0f, r*colorRamp )*255.0f;
-		pParticle->m_uchColor[1] = min( 1.0f, g*colorRamp )*255.0f;
-		pParticle->m_uchColor[2] = min( 1.0f, b*colorRamp )*255.0f;
+		pParticle->m_uchColor[0] = MIN( 1.0f, r*colorRamp )*255.0f;
+		pParticle->m_uchColor[1] = MIN( 1.0f, g*colorRamp )*255.0f;
+		pParticle->m_uchColor[2] = MIN( 1.0f, b*colorRamp )*255.0f;
 	}
 }
 
@@ -1531,4 +1534,4 @@ void ManhackSparkCallback( const CEffectData & data )
 	FX_SparkFan( vecPosition, vecNormal );
 }
 
-DECLARE_CLIENT_EFFECT( "ManhackSparks", ManhackSparkCallback );
+DECLARE_CLIENT_EFFECT( ManhackSparks, ManhackSparkCallback );

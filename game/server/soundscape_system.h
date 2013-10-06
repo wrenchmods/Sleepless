@@ -15,6 +15,14 @@
 #include "tier1/utlstring.h"
 class CEnvSoundscape;
 
+struct clusterSoundscapeList_t
+{
+	unsigned short	soundscapeCount;
+	unsigned short	firstSoundscape;
+};
+
+
+
 class CSoundscapeSystem : public CAutoGameSystemPerFrame
 {
 public:
@@ -45,6 +53,8 @@ private:
 	CStringRegistry							m_soundscapes;
 	int										m_soundscapeCount;
 	CUtlVector< CEnvSoundscape * >			m_soundscapeEntities;
+	CUtlVector<clusterSoundscapeList_t>		m_soundscapesInCluster;
+	CUtlVector<unsigned short>				m_soundscapeIndexList;
 	int										m_activeIndex;
 	CUtlVector< CUtlVector< CUtlString > >	m_soundscapeSounds;
 };

@@ -16,12 +16,12 @@
 
 
 //--------------------------------------------------------------------------------------------------------
-class CSDKWeaponInfo : public FileWeaponInfo_t
+class CSDK_WeaponInfo : public FileWeaponInfo_t
 {
 public:
-	DECLARE_CLASS_GAMEROOT( CSDKWeaponInfo, FileWeaponInfo_t );
+	DECLARE_CLASS_GAMEROOT( CSDK_WeaponInfo, FileWeaponInfo_t );
 	
-	CSDKWeaponInfo();
+	CSDK_WeaponInfo();
 	
 	virtual void Parse( ::KeyValues *pKeyValuesData, const char *szWeaponName );
 

@@ -21,11 +21,6 @@
 #include <malloc.h>
 #include <memory.h>
 #include <ctype.h>
-#ifdef _LINUX
-#include <ctype.h>
-#include <limits.h>
-#define _MAX_PATH PATH_MAX
-#endif
 
 // Next, include public
 #include "tier0/basetypes.h"
@@ -36,7 +31,7 @@
 #include "vstdlib/vstdlib.h"
 #include "tier1/strtools.h"
 #include "vstdlib/random.h"
-#include "tier1/KeyValues.h"
+#include "tier1/keyvalues.h"
 #include "tier1/utlmemory.h"
 #include "tier1/utlrbtree.h"
 #include "tier1/utlvector.h"

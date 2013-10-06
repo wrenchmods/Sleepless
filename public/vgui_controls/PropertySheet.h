@@ -39,7 +39,9 @@ public:
 	void		SetDraggableTabs( bool state );
 
 	// Adds a page to the sheet.  The first page added becomes the active sheet.
-	virtual void AddPage(Panel *page, const char *title, char const *imageName = NULL, bool showContextMenu = false );
+	virtual void AddPage(Panel *page, const char *title, char const *imageName = NULL, bool showContextMenu = false, int nInsertBefore = -1 );
+
+	virtual void SetPageTitle( Panel *page, const char *title );
 
 	// sets the current page
 	virtual void SetActivePage(Panel *page);
@@ -78,6 +80,9 @@ public:
 	// returns the title text of the tab
 	virtual void GetActiveTabTitle(char *textOut, int bufferLen);
 
+	// return tab "i"
+	virtual Panel *GetTab(int i);
+
 	// returns the title of tab "i"
 	virtual bool GetTabTitle(int i,char *textOut, int bufferLen);
 
@@ -95,6 +100,7 @@ public:
 
 	virtual void SetSmallTabs( bool state );
 	virtual bool IsSmallTabs() const;
+	virtual void SetShowTabs( bool state );
 
 	/* MESSAGES SENT TO PAGES
 		"PageShow"	- sent when a page is shown
@@ -119,6 +125,7 @@ public:
 	bool		IsKBNavigationEnabled() const;
 
 	virtual bool HasUserConfigSettings() { return true; }
+	virtual void OnThink();
 
 protected:
 	virtual void PaintBorder();
@@ -141,10 +148,18 @@ protected:
 	MESSAGE_FUNC_HANDLE( OnCurrentDefaultButtonSet, "CurrentDefaultButtonSet", button);
     MESSAGE_FUNC( OnFindDefaultButton, "FindDefaultButton" );
 
+	virtual void LayoutTabs();
+
 private:
 	
 	// enable/disable the page with title "title" 
 	virtual void SetPageEnabled(const char *title,bool state);
+
+	// Grabs mouse coords and figures out best tab to insert "before" or -1 if insert should be at end of tab section row
+	PageTab *FindInsertBeforeTab();
+
+	void AddPageDropTab( char const *pTabName, Panel *pPage );
+	void ClearPageDropTab();
 
 	struct Page_t
 	{
@@ -182,6 +197,10 @@ private:
 	CPanelAnimationVarAliasType( int, m_iTabHeightSmall, "tabheight_small", "14", "proportional_int" );
 
 	KeyValues	*m_pTabKV;
+
+	int			m_nPageDropTabVisibleTime;
+	PageTab		*m_pDragDropTab;
+	PageTab		*m_pTemporarilyRemoved;
 };
 
 }; // namespace vgui

@@ -40,8 +40,10 @@ public:
 	void SetTooltipFormatToMultiLine();
 	void SetTooltipDelay(int tooltipDelayMilliseconds);
 	int GetTooltipDelay();
+	void SetEnabled( bool bState );
 
 private:
+	Panel *m_pParent;
 	virtual void ApplySchemeSettings(IScheme *pScheme);
 	CUtlVector<char> m_Text;
 	int _delay;			// delay that counts down
@@ -49,6 +51,7 @@ private:
 	bool _makeVisible : 1;
 	bool _displayOnOneLine : 1;
 	bool _isDirty : 1;
+	bool _enabled : 1;
 };
 
 };

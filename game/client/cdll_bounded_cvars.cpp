@@ -1,4 +1,4 @@
-//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
+//===== Copyright ï¿½ 1996-2005, Valve Corporation, All rights reserved. ======//
 //
 // Purpose: 
 //
@@ -8,6 +8,10 @@
 #include "cbase.h"
 #include "cdll_bounded_cvars.h"
 #include "convar_serverbounded.h"
+#include "tier0/icommandline.h"
+
+// NOTE: This has to be the last file included!
+#include "tier0/memdbgon.h"
 
 
 bool g_bForceCLPredictOff = false;
@@ -22,10 +26,10 @@ public:
 	CBoundedCvar_Predict() :
 	  ConVar_ServerBounded( "cl_predict", 
 		  "1.0", 
-#if defined(DOD_DLL) || defined(CSTRIKE_DLL)
-		  FCVAR_USERINFO | FCVAR_CHEAT, 
-#else
+#ifdef INFESTED_DLL
 		  FCVAR_USERINFO, 
+#else
+		  FCVAR_USERINFO | FCVAR_CHEAT, 
 #endif
 		  "Perform client side prediction." )
 	  {
@@ -110,7 +114,7 @@ public:
 		  static const ConVar *pMin = dynamic_cast< const ConVar* >( g_pCVar->FindCommandBase( "sv_client_min_interp_ratio" ) );
 		  if ( pUpdateRate && pMin && pMin->GetFloat() != -1 )
 		  {
-			  return max( GetBaseFloatValue(), pMin->GetFloat() / pUpdateRate->GetFloat() );
+			  return MAX( GetBaseFloatValue(), pMin->GetFloat() / pUpdateRate->GetFloat() );
 		  }
 		  else
 		  {
@@ -128,11 +132,15 @@ float GetClientInterpAmount()
 	if ( pUpdateRate )
 	{
 		// #define FIXME_INTERP_RATIO
-		return max( cl_interp->GetFloat(), cl_interp_ratio->GetFloat() / pUpdateRate->GetFloat() );
+		return MAX( cl_interp->GetFloat(), cl_interp_ratio->GetFloat() / pUpdateRate->GetFloat() );
 	}
 	else
 	{
-		AssertMsgOnce( false, "GetInterpolationAmount: can't get cl_updaterate cvar." );
+		if (!CommandLine()->FindParm("-hushasserts"))
+		{
+			AssertMsgOnce( false, "GetInterpolationAmount: can't get cl_updaterate cvar." );
+		}
+	
 		return 0.1;
 	}
 }

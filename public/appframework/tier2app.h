@@ -48,6 +48,10 @@ public:
 		ConVar_Unregister();
 		DisconnectTier1Libraries();
 	}
+
+	virtual void Destroy()
+	{
+	}
 };
 
 

@@ -69,6 +69,8 @@ BEGIN_DATADESC( CAI_ActBusyBehavior )
 	DEFINE_FIELD( m_iNumEnemiesInSafeZone, FIELD_INTEGER ),
 END_DATADESC();
 
+LINK_BEHAVIOR_TO_CLASSNAME( CAI_ActBusyBehavior );
+
 enum
 {
 	ACTBUSY_SIGHT_METHOD_FULL	= 0,	// LOS and Viewcone
@@ -952,12 +954,14 @@ Activity CAI_ActBusyBehavior::NPC_TranslateActivity( Activity nActivity )
 //-----------------------------------------------------------------------------
 void CAI_ActBusyBehavior::HandleAnimEvent( animevent_t *pEvent )
 {
-	if( pEvent->event == AE_ACTBUSY_WEAPON_FIRE_ON )
+	int nEvent = pEvent->Event();
+
+	if( nEvent == AE_ACTBUSY_WEAPON_FIRE_ON )
 	{
 		m_bAutoFireWeapon = true;
 		return;
 	}
-	else if( pEvent->event == AE_ACTBUSY_WEAPON_FIRE_OFF )
+	else if( nEvent == AE_ACTBUSY_WEAPON_FIRE_OFF )
 	{
 		m_bAutoFireWeapon = false;
 		return;
@@ -1645,7 +1649,7 @@ void CAI_ActBusyBehavior::PlaySoundForActBusy( busyanimparts_t AnimPart )
 			CAI_Expresser *pExpresser = GetOuter()->GetExpresser();
 			if ( pExpresser )
 			{
-				const char *concept = STRING(pBusyAnim->iszSounds[AnimPart]);
+				AIConcept_t concept(STRING(pBusyAnim->iszSounds[AnimPart]));
 
 				// Must be able to speak the concept
 				if ( !pExpresser->IsSpeaking() && pExpresser->CanSpeakConcept( concept ) )
@@ -2094,7 +2098,7 @@ void CAI_ActBusyBehavior::RunTask( const Task_t *pTask )
 				// Trace my normal hull over this spot to see if I'm able to stand up right now.
 				trace_t tr;
 				CTraceFilterOnlyNPCsAndPlayer filter( GetOuter(), COLLISION_GROUP_NONE );
-				UTIL_TraceHull( GetOuter()->GetAbsOrigin(), GetOuter()->GetAbsOrigin(), NAI_Hull::Mins( HULL_HUMAN ), NAI_Hull::Maxs( HULL_HUMAN ), MASK_NPCSOLID, &filter, &tr );
+				UTIL_TraceHull( GetOuter()->GetAbsOrigin(), GetOuter()->GetAbsOrigin(), NAI_Hull::Mins( HULL_HUMAN ), NAI_Hull::Maxs( HULL_HUMAN ), GetOuter()->GetAITraceMask(), &filter, &tr );
 
 				if( tr.startsolid )
 				{

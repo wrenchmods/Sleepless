@@ -14,7 +14,7 @@
 #pragma once
 #endif
 
-#if ( defined(_WIN64) || defined(_X360) )
+#if ( defined( PLATFORM_X360 ) || defined( PLATFORM_WINDOWS_PC64 ) )
 #define USE_NATIVE_SLIST
 #endif
 
@@ -30,9 +30,9 @@
 
 //-----------------------------------------------------------------------------
 
-#if defined(_WIN64)
-#define TSLIST_HEAD_ALIGNMENT MEMORY_ALLOCATION_ALIGNMENT
-#define TSLIST_NODE_ALIGNMENT MEMORY_ALLOCATION_ALIGNMENT
+#if defined(PLATFORM_WINDOWS_PC64)
+#define TSLIST_HEAD_ALIGNMENT 16 //MEMORY_ALLOCATION_ALIGNMENT
+#define TSLIST_NODE_ALIGNMENT 16 //MEMORY_ALLOCATION_ALIGNMENT
 #else
 #define TSLIST_HEAD_ALIGNMENT 8
 #define TSLIST_NODE_ALIGNMENT 8
@@ -82,7 +82,7 @@ public:
 	{
 		if ( ((size_t)&m_Head) % TSLIST_HEAD_ALIGNMENT != 0 )
 		{
-			Error( "CTSListBase: Misaligned list\n" );
+			Error( _T( "CTSListBase: Misaligned list\n" ) );
 			DebuggerBreak();
 		}
 
@@ -100,11 +100,13 @@ public:
 
 	TSLNodeBase_t *Push( TSLNodeBase_t *pNode )
 	{
+#ifdef _DEBUG
 		if ( (size_t)pNode % TSLIST_NODE_ALIGNMENT != 0 )
 		{
-			Error( "CTSListBase: Misaligned node\n" );
+			Error( _T( "CTSListBase: Misaligned node\n" ) );
 			DebuggerBreak();
 		}
+#endif
 
 #ifdef USE_NATIVE_SLIST
 #ifdef _X360
@@ -198,10 +200,15 @@ public:
 #endif
 	}
 
+	TSLHead_t *AccessUnprotected()
+	{
+		return &m_Head;
+	}
+
 	int Count() const
 	{
 #ifdef USE_NATIVE_SLIST
-		return QueryDepthSList( &m_Head );
+		return QueryDepthSList( const_cast<TSLHead_t*>( &m_Head ) );
 #else
 		return m_Head.value.Depth;
 #endif
@@ -229,6 +236,61 @@ public:
 	}
 };
 
+//-------------------------------------
+// this is a replacement for CTSList<> and CObjectPool<> that does not
+// have a per-item, per-alloc new/delete overhead
+// similar to CTSSimpleList except that it allocates it's own pool objects
+// and frees them on destruct.  Also it does not overlay the TSNodeBase_t memory
+// on T's memory
+template< class T > 
+class TSLIST_HEAD_ALIGN CTSPool : public CTSListBase
+{
+	// packs the node and the item (T) into a single struct and pools those
+	struct TSLIST_NODE_ALIGN simpleTSPoolStruct_t : public TSLNodeBase_t
+	{
+		T elem;
+	};
+
+public:
+
+	~CTSPool()
+	{
+		simpleTSPoolStruct_t *pNode = NULL;
+		while ( 1 )
+		{
+			pNode = (simpleTSPoolStruct_t *)CTSListBase::Pop();
+			if ( !pNode )
+				break;
+			delete pNode;
+		}
+	}
+
+	void PutObject( T *pInfo )
+	{
+		char *pElem = (char *)pInfo;
+		pElem -= offsetof(simpleTSPoolStruct_t,elem);
+		simpleTSPoolStruct_t *pNode = (simpleTSPoolStruct_t *)pElem;
+
+		CTSListBase::Push( pNode );
+	}
+
+	T *GetObject()
+	{
+		simpleTSPoolStruct_t *pNode = (simpleTSPoolStruct_t *)CTSListBase::Pop();
+		if ( !pNode )
+		{
+			pNode = new simpleTSPoolStruct_t;
+		}
+		return &pNode->elem;
+	}
+
+	// omg windows sdk - why do you #define GetObject()?
+	FORCEINLINE T *Get()
+	{
+		return GetObject();
+	}
+
+};
 //-------------------------------------
 
 template <typename T>
@@ -296,54 +358,6 @@ public:
 		return (Node_t *)CTSListBase::Detach();
 	}
 
-};
-
-// this is a replacement for CTSList<> and CObjectPool<> that does not
-// have a per-item, per-alloc new/delete overhead
-// similar to CTSSimpleList except that it allocates it's own pool objects
-// and frees them on destruct.  Also it does not overlay the TSNodeBase_t memory
-// on T's memory
-template< class T > 
-class TSLIST_HEAD_ALIGN CTSPool : public CTSListBase
-{
-	// packs the node and the item (T) into a single struct and pools those
-	struct TSLIST_NODE_ALIGN simpleTSPoolStruct_t : public TSLNodeBase_t
-	{
-		T elem;
-	};
-
-public:
-
-	~CTSPool()
-	{
-		simpleTSPoolStruct_t *pNode = NULL;
-		while ( 1 )
-		{
-			pNode = (simpleTSPoolStruct_t *)CTSListBase::Pop();
-			if ( !pNode )
-				break;
-			delete pNode;
-		}
-	}
-
-	void PutObject( T *pInfo )
-	{
-		char *pElem = (char *)pInfo;
-		pElem -= offsetof(simpleTSPoolStruct_t,elem);
-		simpleTSPoolStruct_t *pNode = (simpleTSPoolStruct_t *)pElem;
-
-		CTSListBase::Push( pNode );
-	}
-
-	T *GetObject()
-	{
-		simpleTSPoolStruct_t *pNode = (simpleTSPoolStruct_t *)CTSListBase::Pop();
-		if ( !pNode )
-		{
-			pNode = new simpleTSPoolStruct_t;
-		}
-		return &pNode->elem;
-	}
 };
 
 //-------------------------------------
@@ -639,7 +653,7 @@ public:
 
 	Node_t *Pop()
 	{
-		#define TSQUEUE_BAD_NODE_LINK ((Node_t *)0xdeadbeef)
+		#define TSQUEUE_BAD_NODE_LINK ((Node_t *)0xdeadbeefULL)
 		NodeLink_t * volatile		pHead = &m_Head;
 		NodeLink_t * volatile		pTail = &m_Tail;
 		Node_t * volatile *			pHeadNode = &m_Head.value.pNode;

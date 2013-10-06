@@ -1,58 +1,35 @@
-//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
-//
-// Purpose: 
-//
-// $NoKeywords: $
-//
-//===========================================================================//
 #include "cbase.h"
-#include "hud.h"
 #include "clientmode_sdk.h"
+#include "vgui_int.h"
+#include "ienginevgui.h"
 #include "cdll_client_int.h"
-#include "iinput.h"
-#include "vgui/isurface.h"
-#include "vgui/ipanel.h"
-#include <vgui_controls/AnimationController.h>
+#include "engine/IEngineSound.h"
+
+#include "sdk_loading_panel.h"
+#include "sdk_logo_panel.h"
 #include "ivmodemanager.h"
-#include "BuyMenu.h"
-#include "filesystem.h"
-#include "vgui/ivgui.h"
-#include "hud_basechat.h"
-#include "view_shared.h"
-#include "view.h"
-#include "ivrenderview.h"
-#include "model_types.h"
-#include "iefx.h"
-#include "dlight.h"
-#include <imapoverview.h>
-#include "c_playerresource.h"
-#include <keyvalues.h>
-#include "text_message.h"
 #include "panelmetaclassmgr.h"
-#include "weapon_sdkbase.h"
-#include "c_sdk_player.h"
-#include "c_weapon__stubs.h"		//Tony; add stubs
+#include "nb_header_footer.h"
 
-class CHudChat;
+// memdbgon must be the last include file in a .cpp file!!!
+#include "tier0/memdbgon.h"
 
-ConVar default_fov( "default_fov", "90", FCVAR_CHEAT );
+ConVar default_fov( "default_fov", "75", FCVAR_CHEAT );
+ConVar fov_desired( "fov_desired", "75", FCVAR_USERINFO, "Sets the base field-of-view.", true, 1.0, true, 75.0 );
 
-IClientMode *g_pClientMode = NULL;
+vgui::HScheme g_hVGuiCombineScheme = 0;
 
-//Tony; add stubs for cycler weapon and cubemap.
-STUB_WEAPON_CLASS( cycler_weapon,   WeaponCycler,   C_BaseCombatWeapon );
-STUB_WEAPON_CLASS( weapon_cubemap,  WeaponCubemap,  C_BaseCombatWeapon );
+vgui::DHANDLE<CSDK_Logo_Panel> g_hLogoPanel;
 
-//-----------------------------------------------------------------------------
-// HACK: the detail sway convars are archive, and default to 0.  Existing CS:S players thus have no detail
-// prop sway.  We'll force them to DoD's default values for now.  What we really need in the long run is
-// a system to apply changes to archived convars' defaults to existing players.
-extern ConVar cl_detail_max_sway;
-extern ConVar cl_detail_avoid_radius;
-extern ConVar cl_detail_avoid_force;
-extern ConVar cl_detail_avoid_recover_speed;
+static IClientMode *g_pClientMode[ MAX_SPLITSCREEN_PLAYERS ];
+IClientMode *GetClientMode()
+{
+	ASSERT_LOCAL_PLAYER_RESOLVABLE();
+	return g_pClientMode[ GET_ACTIVE_SPLITSCREEN_SLOT() ];
+}
+
 // --------------------------------------------------------------------------------- //
-// CSDKModeManager.
+// CASWModeManager.
 // --------------------------------------------------------------------------------- //
 
 class CSDKModeManager : public IVModeManager
@@ -68,115 +45,292 @@ public:
 static CSDKModeManager g_ModeManager;
 IVModeManager *modemanager = ( IVModeManager * )&g_ModeManager;
 
+
+
 // --------------------------------------------------------------------------------- //
-// CSDKModeManager implementation.
+// CASWModeManager implementation.
 // --------------------------------------------------------------------------------- //
 
 #define SCREEN_FILE		"scripts/vgui_screens.txt"
 
 void CSDKModeManager::Init()
 {
-	g_pClientMode = GetClientModeNormal();
-	
+	for( int i = 0; i < MAX_SPLITSCREEN_PLAYERS; ++i )
+	{
+		ACTIVE_SPLITSCREEN_PLAYER_GUARD( i );
+		g_pClientMode[ i ] = GetClientModeNormal();
+	}
+
 	PanelMetaClassMgr()->LoadMetaClassDefinitionFile( SCREEN_FILE );
+
+	//GetClientVoiceMgr()->SetHeadLabelOffset( 40 );
 }
 
 void CSDKModeManager::LevelInit( const char *newmap )
 {
-	g_pClientMode->LevelInit( newmap );
-	// HACK: the detail sway convars are archive, and default to 0.  Existing CS:S players thus have no detail
-	// prop sway.  We'll force them to DoD's default values for now.
-	if ( !cl_detail_max_sway.GetFloat() &&
-		!cl_detail_avoid_radius.GetFloat() &&
-		!cl_detail_avoid_force.GetFloat() &&
-		!cl_detail_avoid_recover_speed.GetFloat() )
+	for( int i = 0; i < MAX_SPLITSCREEN_PLAYERS; ++i )
 	{
-		cl_detail_max_sway.SetValue( "5" );
-		cl_detail_avoid_radius.SetValue( "64" );
-		cl_detail_avoid_force.SetValue( "0.4" );
-		cl_detail_avoid_recover_speed.SetValue( "0.25" );
+		ACTIVE_SPLITSCREEN_PLAYER_GUARD( i );
+		GetClientMode()->LevelInit( newmap );
 	}
 }
 
 void CSDKModeManager::LevelShutdown( void )
 {
-	g_pClientMode->LevelShutdown();
+	for( int i = 0; i < MAX_SPLITSCREEN_PLAYERS; ++i )
+	{
+		ACTIVE_SPLITSCREEN_PLAYER_GUARD( i );
+		GetClientMode()->LevelShutdown();
+	}
 }
 
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-ClientModeSDKNormal::ClientModeSDKNormal()
+ClientModeSDK g_ClientModeNormal[ MAX_SPLITSCREEN_PLAYERS ];
+IClientMode *GetClientModeNormal()
 {
+	ASSERT_LOCAL_PLAYER_RESOLVABLE();
+	return &g_ClientModeNormal[ GET_ACTIVE_SPLITSCREEN_SLOT() ];
 }
 
-//-----------------------------------------------------------------------------
-// Purpose: If you don't know what a destructor is by now, you are probably going to get fired
-//-----------------------------------------------------------------------------
-ClientModeSDKNormal::~ClientModeSDKNormal()
+ClientModeSDK* GetClientModeSDK()
 {
+	ASSERT_LOCAL_PLAYER_RESOLVABLE();
+	return &g_ClientModeNormal[ GET_ACTIVE_SPLITSCREEN_SLOT() ];
 }
 
-void ClientModeSDKNormal::Init()
+// these vgui panels will be closed at various times (e.g. when the level ends/starts)
+static char const *s_CloseWindowNames[]={
+	"InfoMessageWindow",
+	"SkipIntro",
+};
+
+//-----------------------------------------------------------------------------
+// Purpose: this is the viewport that contains all the hud elements
+//-----------------------------------------------------------------------------
+class CHudViewport : public CBaseViewport
+{
+private:
+	DECLARE_CLASS_SIMPLE( CHudViewport, CBaseViewport );
+
+protected:
+	virtual void ApplySchemeSettings( vgui::IScheme *pScheme )
+	{
+		BaseClass::ApplySchemeSettings( pScheme );
+
+		GetHud().InitColors( pScheme );
+
+		SetPaintBackgroundEnabled( false );
+	}
+
+	virtual void CreateDefaultPanels( void ) { /* don't create any panels yet*/ };
+};
+//--------------------------------------------------------------------------------------------------------
+
+// See interface.h/.cpp for specifics:  basically this ensures that we actually Sys_UnloadModule the dll and that we don't call Sys_LoadModule 
+//  over and over again.
+static CDllDemandLoader g_GameUI( "gameui" );
+
+class FullscreenSDKViewport : public CHudViewport
+{
+private:
+	DECLARE_CLASS_SIMPLE( FullscreenSDKViewport, CHudViewport );
+
+private:
+	virtual void InitViewportSingletons( void )
+	{
+		SetAsFullscreenViewportInterface();
+	}
+};
+
+class ClientModeSDKFullscreen : public	ClientModeSDK
+{
+	DECLARE_CLASS_SIMPLE( ClientModeSDKFullscreen, ClientModeSDK );
+public:
+	virtual void InitViewport()
+	{
+		// Skip over BaseClass!!!
+		BaseClass::BaseClass::InitViewport();
+		m_pViewport = new FullscreenSDKViewport();
+		m_pViewport->Start( gameuifuncs, gameeventmanager );
+	}
+	virtual void Init()
+	{
+		CreateInterfaceFn gameUIFactory = g_GameUI.GetFactory();
+		if ( gameUIFactory )
+		{
+			IGameUI *pGameUI = (IGameUI *) gameUIFactory(GAMEUI_INTERFACE_VERSION, NULL );
+			if ( NULL != pGameUI )
+			{
+				// insert stats summary panel as the loading background dialog
+				CSDK_Loading_Panel *pPanel = GSDKLoadingPanel();
+				pPanel->InvalidateLayout( false, true );
+				pPanel->SetVisible( false );
+				pPanel->MakePopup( false );
+				pGameUI->SetLoadingBackgroundDialog( pPanel->GetVPanel() );
+
+				// add ASI logo to main menu
+				CSDK_Logo_Panel *pLogo = new CSDK_Logo_Panel( NULL, "ASILogo" );
+				vgui::VPANEL GameUIRoot = enginevgui->GetPanel( PANEL_GAMEUIDLL );
+				pLogo->SetParent( GameUIRoot );
+				g_hLogoPanel = pLogo;
+			}		
+		}
+
+		// 
+		//CASW_VGUI_Debug_Panel *pDebugPanel = new CASW_VGUI_Debug_Panel( GetViewport(), "ASW Debug Panel" );
+		//g_hDebugPanel = pDebugPanel;
+
+		// Skip over BaseClass!!!
+		BaseClass::BaseClass::Init();
+
+		// Load up the combine control panel scheme
+		if ( !g_hVGuiCombineScheme )
+		{
+			g_hVGuiCombineScheme = vgui::scheme()->LoadSchemeFromFileEx( enginevgui->GetPanel( PANEL_CLIENTDLL ), IsXbox() ? "resource/ClientScheme.res" : "resource/CombinePanelScheme.res", "CombineScheme" );
+			if (!g_hVGuiCombineScheme)
+			{
+				Warning( "Couldn't load combine panel scheme!\n" );
+			}
+		}
+	}
+	void Shutdown()
+	{
+		DestroySDKLoadingPanel();
+		if (g_hLogoPanel.Get())
+		{
+			delete g_hLogoPanel.Get();
+		}
+	}
+};
+
+//--------------------------------------------------------------------------------------------------------
+static ClientModeSDKFullscreen g_FullscreenClientMode;
+IClientMode *GetFullscreenClientMode( void )
+{
+	return &g_FullscreenClientMode;
+}
+
+
+void ClientModeSDK::Init()
 {
 	BaseClass::Init();
+
+	gameeventmanager->AddListener( this, "game_newmap", false );
+}
+void ClientModeSDK::Shutdown()
+{
+	if ( SDKBackgroundMovie() )
+	{
+		SDKBackgroundMovie()->ClearCurrentMovie();
+	}
+	DestroySDKLoadingPanel();
+	if (g_hLogoPanel.Get())
+	{
+		delete g_hLogoPanel.Get();
+	}
 }
 
-void ClientModeSDKNormal::InitViewport()
+void ClientModeSDK::InitViewport()
 {
-	m_pViewport = new SDKViewport();
+	m_pViewport = new CHudViewport();
 	m_pViewport->Start( gameuifuncs, gameeventmanager );
 }
 
-ClientModeSDKNormal g_ClientModeNormal;
-
-IClientMode *GetClientModeNormal()
+void ClientModeSDK::LevelInit( const char *newmap )
 {
-	return &g_ClientModeNormal;
-}
+	// reset ambient light
+	static ConVarRef mat_ambient_light_r( "mat_ambient_light_r" );
+	static ConVarRef mat_ambient_light_g( "mat_ambient_light_g" );
+	static ConVarRef mat_ambient_light_b( "mat_ambient_light_b" );
 
-
-ClientModeSDKNormal* GetClientModeSDKNormal()
-{
-	Assert( dynamic_cast< ClientModeSDKNormal* >( GetClientModeNormal() ) );
-
-	return static_cast< ClientModeSDKNormal* >( GetClientModeNormal() );
-}
-
-float ClientModeSDKNormal::GetViewModelFOV( void )
-{
-	//Tony; retrieve the fov from the view model script, if it overrides it.
-	float viewFov = 74.0;
-
-	C_WeaponSDKBase *pWeapon = (C_WeaponSDKBase*)GetActiveWeapon();
-	if ( pWeapon )
+	if ( mat_ambient_light_r.IsValid() )
 	{
-		viewFov = pWeapon->GetWeaponFOV();
-	}
-	return viewFov;
-}
-
-int ClientModeSDKNormal::GetDeathMessageStartHeight( void )
-{
-	return m_pViewport->GetDeathMessageStartHeight();
-}
-
-void ClientModeSDKNormal::PostRenderVGui()
-{
-}
-
-bool ClientModeSDKNormal::CanRecordDemo( char *errorMsg, int length ) const
-{
-	C_SDKPlayer *player = C_SDKPlayer::GetLocalSDKPlayer();
-	if ( !player )
-	{
-		return true;
+		mat_ambient_light_r.SetValue( "0" );
 	}
 
-	if ( !player->IsAlive() )
+	if ( mat_ambient_light_g.IsValid() )
 	{
-		return true;
+		mat_ambient_light_g.SetValue( "0" );
 	}
 
-	return true;
+	if ( mat_ambient_light_b.IsValid() )
+	{
+		mat_ambient_light_b.SetValue( "0" );
+	}
+
+	BaseClass::LevelInit(newmap);
+
+	// sdk: make sure no windows are left open from before
+	SDK_CloseAllWindows();
+
+	// clear any DSP effects
+	CLocalPlayerFilter filter;
+	enginesound->SetRoomType( filter, 0 );
+	enginesound->SetPlayerDSP( filter, 0, true );
+}
+
+void ClientModeSDK::LevelShutdown( void )
+{
+	BaseClass::LevelShutdown();
+
+	// sdk:shutdown all vgui windows
+	SDK_CloseAllWindows();
+}
+void ClientModeSDK::FireGameEvent( IGameEvent *event )
+{
+	const char *eventname = event->GetName();
+
+	if ( Q_strcmp( "asw_mission_restart", eventname ) == 0 )
+	{
+		SDK_CloseAllWindows();
+	}
+	else if ( Q_strcmp( "game_newmap", eventname ) == 0 )
+	{
+		engine->ClientCmd("exec newmapsettings\n");
+	}
+	else
+	{
+		BaseClass::FireGameEvent(event);
+	}
+}
+// Close all ASW specific VGUI windows that the player might have open
+void ClientModeSDK::SDK_CloseAllWindows()
+{
+	SDK_CloseAllWindowsFrom(GetViewport());
+}
+
+// recursive search for matching window names
+void ClientModeSDK::SDK_CloseAllWindowsFrom(vgui::Panel* pPanel)
+{
+	if (!pPanel)
+		return;
+
+	int num_names = NELEMS(s_CloseWindowNames);
+
+	for (int k=0;k<pPanel->GetChildCount();k++)
+	{
+		Panel *pChild = pPanel->GetChild(k);
+		if (pChild)
+		{
+			SDK_CloseAllWindowsFrom(pChild);
+		}
+	}
+
+	// When VGUI is shutting down (i.e. if the player closes the window), GetName() can return NULL
+	const char *pPanelName = pPanel->GetName();
+	if ( pPanelName != NULL )
+	{
+		for (int i=0;i<num_names;i++)
+		{
+			if ( !strcmp( pPanelName, s_CloseWindowNames[i] ) )
+			{
+				pPanel->SetVisible(false);
+				pPanel->MarkForDeletion();
+			}
+		}
+	}
+}
+
+void ClientModeSDK::DoPostScreenSpaceEffects( const CViewSetup *pSetup )
+{
+
 }

@@ -12,19 +12,17 @@
 #pragma once
 #endif
 
-#include <vgui/VGUI.h>
-#include <vgui/IHTML.h> // CreateHTML, PaintHTML 
+#include "vgui/VGUI.h"
+#include "vgui/IHTML.h" // CreateHTML, PaintHTML 
 #include "tier1/interface.h"
 #include "bitmap/imageformat.h"
 
 #include "appframework/IAppSystem.h"
 #include "mathlib/vector2d.h"  // must be before the namespace line
+#include "vgui/ischemesurface.h"
 
 #include "IVguiMatInfo.h"
 
-#ifdef CreateFont
-#undef CreateFont
-#endif
 
 #ifdef PlaySound
 #undef PlaySound
@@ -39,70 +37,9 @@ class IImage;
 class Image;
 class Point;
 
-// handles
-typedef unsigned long HCursor;
-typedef unsigned long HTexture;
-typedef unsigned long HFont;
 
-
-//SRC only defines
-
-
-struct Vertex_t
-{
-	Vertex_t() {}
-	Vertex_t( const Vector2D &pos, const Vector2D &coord = Vector2D( 0, 0 ) )
-	{
-		m_Position = pos;
-		m_TexCoord = coord;
-	}
-	void Init( const Vector2D &pos, const Vector2D &coord = Vector2D( 0, 0 ) )
-	{
-		m_Position = pos;
-		m_TexCoord = coord;
-	}
-	
-	Vector2D	m_Position;
-	Vector2D	m_TexCoord;
-};
-
-
-enum FontDrawType_t
-{
-	// Use the "additive" value from the scheme file
-	FONT_DRAW_DEFAULT = 0,
-
-	// Overrides
-	FONT_DRAW_NONADDITIVE,
-	FONT_DRAW_ADDITIVE,
-
-	FONT_DRAW_TYPE_COUNT = 2,
-};
-
-
-// Refactor these two
-struct CharRenderInfo
-{
-	// In:
-	FontDrawType_t	drawType;
-	wchar_t			ch;
-
-	// Out
-	bool			valid;
-
-	// In/Out (true by default)
-	bool			shouldclip;
-	// Text pos
-	int				x, y;
-	// Top left and bottom right
-	Vertex_t		verts[ 2 ];
-	int				textureId;
-	int				abcA;
-	int				abcB;
-	int				abcC;
-	int				fontTall;
-	HFont			currentFont;
-};
+typedef FontHandle_t HFont;
+typedef FontVertex_t Vertex_t;
 
 
 struct IntRect
@@ -111,6 +48,34 @@ struct IntRect
 	int y0;
 	int x1;
 	int y1;
+};
+
+struct DrawTexturedRectParms_t
+{
+	DrawTexturedRectParms_t()
+	{
+		s0 = t0 = 0;
+		s1 = t1 = 1.0f;
+		alpha_ul = alpha_ur = alpha_lr = alpha_ll = 255;
+		angle = 0;
+	}
+
+	int x0;
+	int	y0;
+	int x1;
+	int y1;
+
+	float s0;
+	float t0;
+	float s1; 
+	float t1;
+
+	unsigned char alpha_ul;
+	unsigned char alpha_ur;
+	unsigned char alpha_lr;
+	unsigned char alpha_ll;
+
+	float angle;
 };
 
 //-----------------------------------------------------------------------------
@@ -158,19 +123,15 @@ public:
 	virtual void DeleteHTMLWindow(IHTML *htmlwin)=0;
 
 	virtual int	 DrawGetTextureId( char const *filename ) = 0;
-	virtual bool DrawGetTextureFile(int id, char *filename, int maxlen ) = 0;
-	virtual void DrawSetTextureFile(int id, const char *filename, int hardwareFilter, bool forceReload) = 0;
-	virtual void DrawSetTextureRGBA(int id, const unsigned char *rgba, int wide, int tall, int hardwareFilter, bool forceReload)=0;
+	virtual bool DrawGetTextureFile( int id, char *filename, int maxlen ) = 0;
+	virtual void DrawSetTextureFile( int id, const char *filename, int hardwareFilter, bool forceReload ) = 0;
+	virtual void DrawSetTextureRGBA( int id, const unsigned char *rgba, int wide, int tall ) = 0 ;
 	virtual void DrawSetTexture(int id) = 0;
 	virtual void DrawGetTextureSize(int id, int &wide, int &tall) = 0;
 	virtual void DrawTexturedRect(int x0, int y0, int x1, int y1) = 0;
 	virtual bool IsTextureIDValid(int id) = 0;
 
 	virtual int CreateNewTextureID( bool procedural = false ) = 0;
-#ifdef _X360
-	virtual void DestroyTextureID( int id ) = 0;
-	virtual void UncacheUnusedMaterials() = 0;
-#endif
 
 	virtual void GetScreenSize(int &wide, int &tall) = 0;
 	virtual void SetAsTopMost(VPANEL panel, bool state) = 0;
@@ -194,21 +155,21 @@ public:
 	virtual bool HasFocus() = 0;
 	
 	// returns true if the surface supports minimize & maximize capabilities
-	enum SurfaceFeature_e
+	enum SurfaceFeature_t
 	{
-		ANTIALIASED_FONTS	= 1,
-		DROPSHADOW_FONTS	= 2,
+		ANTIALIASED_FONTS = FONT_FEATURE_ANTIALIASED_FONTS,
+		DROPSHADOW_FONTS = FONT_FEATURE_DROPSHADOW_FONTS,
 		ESCAPE_KEY			= 3,
 		OPENING_NEW_HTML_WINDOWS = 4,
 		FRAME_MINIMIZE_MAXIMIZE	 = 5,
-		OUTLINE_FONTS	= 6,
+		OUTLINE_FONTS = FONT_FEATURE_OUTLINE_FONTS,
 		DIRECT_HWND_RENDER		= 7,
 	};
-	virtual bool SupportsFeature(SurfaceFeature_e feature) = 0;
+	virtual bool SupportsFeature( SurfaceFeature_t feature ) = 0;
 
 	// restricts what gets drawn to one panel and it's children
 	// currently only works in the game
-	virtual void RestrictPaintToSinglePanel(VPANEL panel) = 0;
+	virtual void RestrictPaintToSinglePanel(VPANEL panel, bool bForceAllowNonModalSurface = false) = 0;
 
 	// these two functions obselete, use IInput::SetAppModalSurface() instead
 	virtual void SetModalPanel(VPANEL ) = 0;
@@ -225,24 +186,6 @@ public:
 	// fonts
 	// creates an empty handle to a vgui font.  windows fonts can be add to this via SetFontGlyphSet().
 	virtual HFont CreateFont() = 0;
-
-	// adds to the font
-	enum EFontFlags
-	{
-		FONTFLAG_NONE,
-		FONTFLAG_ITALIC			= 0x001,
-		FONTFLAG_UNDERLINE		= 0x002,
-		FONTFLAG_STRIKEOUT		= 0x004,
-		FONTFLAG_SYMBOL			= 0x008,
-		FONTFLAG_ANTIALIAS		= 0x010,
-		FONTFLAG_GAUSSIANBLUR	= 0x020,
-		FONTFLAG_ROTARY			= 0x040,
-		FONTFLAG_DROPSHADOW		= 0x080,
-		FONTFLAG_ADDITIVE		= 0x100,
-		FONTFLAG_OUTLINE		= 0x200,
-		FONTFLAG_CUSTOM			= 0x400,		// custom generated font - never fall back to asian compatibility mode
-		FONTFLAG_BITMAP			= 0x800,		// compiled bitmap font - no fallbacks
-	};
 
 	virtual bool SetFontGlyphSet(HFont font, const char *windowsFontName, int tall, int weight, int blur, int scanlines, int flags, int nRangeMin = 0, int nRangeMax = 0) = 0;
 
@@ -296,20 +239,23 @@ public:
 	virtual void SurfaceGetCursorPos(int &x, int &y) = 0;
 	virtual void SurfaceSetCursorPos(int x, int y) = 0;
 
-
 	// SRC only functions!!!
 	virtual void DrawTexturedLine( const Vertex_t &a, const Vertex_t &b ) = 0;
 	virtual void DrawOutlinedCircle(int x, int y, int radius, int segments) = 0;
 	virtual void DrawTexturedPolyLine( const Vertex_t *p,int n ) = 0; // (Note: this connects the first and last points).
 	virtual void DrawTexturedSubRect( int x0, int y0, int x1, int y1, float texs0, float text0, float texs1, float text1 ) = 0;
-	virtual void DrawTexturedPolygon(int n, Vertex_t *pVertices) = 0;
+	virtual void DrawTexturedPolygon(int n, Vertex_t *pVertice, bool bClipVertices = true ) = 0;
 	virtual const wchar_t *GetTitle(VPANEL panel) = 0;
 	virtual bool IsCursorLocked( void ) const = 0;
 	virtual void SetWorkspaceInsets( int left, int top, int right, int bottom ) = 0;
 
+	// squarish comic book word bubble with pointer, rect params specify the space inside the bubble
+	virtual void DrawWordBubble( int x0, int y0, int x1, int y1, int nBorderThickness, Color rgbaBackground, Color rgbaBorder, 
+								 bool bPointer = false, int nPointerX = 0, int nPointerY = 0, int nPointerBaseThickness = 16 ) = 0;
+
 	// Lower level char drawing code, call DrawGet then pass in info to DrawRender
-	virtual bool DrawGetUnicodeCharRenderInfo( wchar_t ch, CharRenderInfo& info ) = 0;
-	virtual void DrawRenderCharFromInfo( const CharRenderInfo& info ) = 0;
+	virtual bool DrawGetUnicodeCharRenderInfo( wchar_t ch, FontCharRenderInfo& info ) = 0;
+	virtual void DrawRenderCharFromInfo( const FontCharRenderInfo& info ) = 0;
 
 	// global alpha setting functions
 	// affect all subsequent draw calls - shouldn't normally be used directly, only in Panel::PaintTraverse()
@@ -333,6 +279,7 @@ public:
 
 	// From the Xbox
 	virtual void SetPanelForInput( VPANEL vpanel ) = 0;
+	virtual void DrawFilledRectFastFade( int x0, int y0, int x1, int y1, int fadeStartPt, int fadeEndPt, unsigned int alpha0, unsigned int alpha1, bool bHorizontal ) = 0;
 	virtual void DrawFilledRectFade( int x0, int y0, int x1, int y1, unsigned int alpha0, unsigned int alpha1, bool bHorizontal ) = 0;
 	virtual void DrawSetTextureRGBAEx(int id, const unsigned char *rgba, int wide, int tall, ImageFormat imageFormat ) = 0;
 	virtual void DrawSetTextScale(float sx, float sy) = 0;
@@ -350,10 +297,34 @@ public:
 	virtual void PrecacheFontCharacters(HFont font, wchar_t *pCharacters) = 0;
 	// Console-only.  Get the string to use for the current video mode for layout files.
 	virtual const char *GetResolutionKey( void ) const = 0;
+
+	virtual const char *GetFontName( HFont font ) = 0;
+
+	virtual bool ForceScreenSizeOverride( bool bState, int wide, int tall ) = 0;
+	// LocalToScreen, ParentLocalToScreen fixups for explicit PaintTraverse calls on Panels not at 0, 0 position
+	virtual bool ForceScreenPosOffset( bool bState, int x, int y ) = 0;
+	virtual void OffsetAbsPos( int &x, int &y ) = 0;
+
+	virtual void SetAbsPosForContext( int id, int x, int y ) = 0;
+	virtual void GetAbsPosForContext( int id, int &x, int& y ) = 0;
+
+	// Causes fonts to get reloaded, etc.
+	virtual void ResetFontCaches() = 0;
+
+	virtual bool IsScreenSizeOverrideActive( void ) = 0;
+	virtual bool IsScreenPosOverrideActive( void ) = 0;
+
+	virtual void DestroyTextureID( int id ) = 0;
+
+	virtual int GetTextureNumFrames( int id ) = 0;
+	virtual void DrawSetTextureFrame( int id, int nFrame, unsigned int *pFrameCache ) = 0;
+
+	virtual void GetClipRect( int &x0, int &y0, int &x1, int &y1 ) = 0;
+	virtual void SetClipRect( int x0, int y0, int x1, int y1 ) = 0;
+
+	virtual void DrawTexturedRectEx( DrawTexturedRectParms_t *pDrawParms ) = 0;
 };
 
 }
-
-#define VGUI_SURFACE_INTERFACE_VERSION "VGUI_Surface030"
 
 #endif // ISURFACE_H

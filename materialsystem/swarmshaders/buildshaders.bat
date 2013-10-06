@@ -156,7 +156,7 @@ if /i "%DIRECTX_SDK_VER%" == "pc09.30" (
 	echo %SrcDirBase%\devtools\bin\d3dx9_33.dll >> filestocopy.txt
 )
 
-echo %SrcDirBase%\%DIRECTX_SDK_BIN_DIR%\dx_proxy.dll >> filestocopy.txt
+echo dx_proxy.dll >> filestocopy.txt
 
 echo %SDKBINDIR%\shadercompile.exe >> filestocopy.txt
 echo %SDKBINDIR%\shadercompile_dll.dll >> filestocopy.txt
@@ -166,6 +166,7 @@ echo %SDKBINDIR%\tier0.dll >> filestocopy.txt
 REM ****************
 REM Cull duplicate entries in work/build list
 REM ****************
+
 if exist filestocopy.txt type filestocopy.txt | perl "%SrcDirBase%\devtools\bin\uniqifylist.pl" > uniquefilestocopy.txt
 if exist filelistgen.txt if not "%dynamic_shaders%" == "1" (
     echo Generating action list...
@@ -205,4 +206,5 @@ REM ****************
 
 %TTEXE% -diff %tt_start%
 echo.
+PAUSE
 

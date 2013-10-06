@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright ï¿½ 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: Linked list container class 
 //
@@ -19,6 +19,8 @@
 #include "utlblockmemory.h"
 #include "tier0/dbg.h"
 
+// define to enable asserts griping about things you shouldn't be doing with multilists
+// #define MULTILIST_PEDANTIC_ASSERTS 1 
 
 // This is a useful macro to iterate from head to tail in a linked list.
 #define FOR_EACH_LL( listName, iteratorName ) \
@@ -61,7 +63,7 @@ class CUtlLinkedList
 public:
 	typedef T ElemType_t;
 	typedef S IndexType_t; // should really be called IndexStorageType_t, but that would be a huge change
-typedef I IndexLocalType_t;
+	typedef I IndexLocalType_t;
 	typedef M MemoryAllocator_t;
 
 	// constructor, destructor
@@ -119,13 +121,18 @@ typedef I IndexLocalType_t;
 	void	LinkToHead( I elem );
 	void	LinkToTail( I elem );
 
-	// invalid index
+	// invalid index (M will never allocate an element at this index)
 	inline static S  InvalidIndex()  { return ( S )M::InvalidIndex(); }
+
+	// Is a given index valid to use? (representible by S and not the invalid index)
+	static bool IndexInRange( I index );
+
 	inline static size_t ElementSize() { return sizeof( ListElem_t ); }
 
 	// list statistics
 	int	Count() const;
 	I	MaxElementIndex() const;
+	I	NumAllocated( void ) const { return m_NumAlloced; }
 
 	// Traversing the list
 	I  Head() const;
@@ -158,6 +165,7 @@ protected:
 	I	m_Tail;
 	I	m_FirstFree;
 	I	m_ElementCount;		// The number actually in the list
+	I	m_NumAlloced;		// The number of allocated elements
 	typename M::Iterator_t	m_LastAlloc; // the last index allocated
 
 	// For debugging purposes; 
@@ -178,15 +186,15 @@ protected:
 
 // this is kind of ugly, but until C++ gets templatized typedefs in C++0x, it's our only choice
 template < class T >
-class CUtlFixedLinkedList : public CUtlLinkedList< T, int, true, int, CUtlFixedMemory< UtlLinkedListElem_t< T, int > > >
+class CUtlFixedLinkedList : public CUtlLinkedList< T, intp, true, intp, CUtlFixedMemory< UtlLinkedListElem_t< T, intp > > >
 {
 public:
 	CUtlFixedLinkedList( int growSize = 0, int initSize = 0 )
-		: CUtlLinkedList< T, int, true, int, CUtlFixedMemory< UtlLinkedListElem_t< T, int > > >( growSize, initSize ) {}
+		: CUtlLinkedList< T, intp, true, intp, CUtlFixedMemory< UtlLinkedListElem_t< T, intp > > >( growSize, initSize ) {}
 
-	bool IsValidIndex( int i ) const
+	bool IsValidIndex( intp i ) const
 	{
-		if ( !Memory().IsIdxValid( i ) )
+		if ( !this->Memory().IsIdxValid( i ) )
 			return false;
 
 #ifdef _DEBUG // it's safe to skip this here, since the only way to get indices after m_LastAlloc is to use MaxElementIndex
@@ -197,11 +205,11 @@ public:
 		}
 #endif
 
-		return ( Memory()[ i ].m_Previous != i ) || ( Memory()[ i ].m_Next == i );
+		return ( this->Memory()[ i ].m_Previous != i ) || ( this->Memory()[ i ].m_Next == i );
 	}
 
 private:
-	int	MaxElementIndex() const { Assert( 0 ); return InvalidIndex(); } // fixedmemory containers don't support iteration from 0..maxelements-1
+	int	MaxElementIndex() const { Assert( 0 ); return this->InvalidIndex(); } // fixedmemory containers don't support iteration from 0..maxelements-1
 	void ResetDbgInfo() {}
 };
 
@@ -244,6 +252,7 @@ void CUtlLinkedList<T,S,ML,I,M>::ConstructList()
 	m_Tail = InvalidIndex();
 	m_FirstFree = InvalidIndex();
 	m_ElementCount = 0;
+	m_NumAlloced = 0;
 }
 
 
@@ -282,6 +291,9 @@ inline T const& CUtlLinkedList<T,S,ML,I,M>::operator[]( I i ) const
 template <class T, class S, bool ML, class I, class M>
 inline int CUtlLinkedList<T,S,ML,I,M>::Count() const      
 { 
+#ifdef MULTILIST_PEDANTIC_ASSERTS
+	AssertMsg( !ML, "CUtlLinkedList::Count() is meaningless for linked lists." );
+#endif
 	return m_ElementCount; 
 }
 
@@ -326,6 +338,28 @@ inline I  CUtlLinkedList<T,S,ML,I,M>::Next( I i ) const
 //-----------------------------------------------------------------------------
 // Are nodes in the list or valid?
 //-----------------------------------------------------------------------------
+
+#pragma warning(push)
+#pragma warning( disable: 4310 ) // Allows "(I)(S)M::INVALID_INDEX" below
+template <class T, class S, bool ML, class I, class M>
+inline bool CUtlLinkedList<T,S,ML,I,M>::IndexInRange( I index ) // Static method
+{
+	// Since S is not necessarily the type returned by M, we need to check that M returns indices
+	// which are representable by S. A common case is 'S === unsigned short', 'I == int', in which
+	// case CUtlMemory will have 'InvalidIndex == (int)-1' (which casts to 65535 in S), and will
+	// happily return elements at index 65535 and above.
+
+	// Do some static checks here:
+	//  'I' needs to be able to store 'S'
+	COMPILE_TIME_ASSERT( sizeof(I) >= sizeof(S) );
+	//  'S' should be unsigned (to avoid signed arithmetic errors for plausibly exhaustible ranges)
+	COMPILE_TIME_ASSERT( ( sizeof(S) > 2 ) || ( ( (S)-1 ) > 0 ) );
+	//  M::INVALID_INDEX should be storable in S to avoid ambiguities (e.g. with 65536)
+	COMPILE_TIME_ASSERT( ( M::INVALID_INDEX == -1 ) || ( M::INVALID_INDEX == (S)M::INVALID_INDEX ) );
+
+	return ( ( (S)index == index ) && ( (S)index != InvalidIndex() ) );
+}
+#pragma warning(pop)
 
 template <class T, class S, bool ML, class I, class M>
 inline bool CUtlLinkedList<T,S,ML,I,M>::IsValidIndex( I i ) const  
@@ -388,6 +422,7 @@ void  CUtlLinkedList<T,S,ML,I,M>::Purge()
 
 	m_Memory.Purge();
 	m_FirstFree = InvalidIndex();
+	m_NumAlloced = 0;
 
 	//Routing "m_LastAlloc = m_Memory.InvalidIterator();" through a local const to sidestep an internal compiler error on 360 builds
 	const typename M::Iterator_t scInvalidIterator = m_Memory.InvalidIterator();
@@ -399,8 +434,8 @@ void  CUtlLinkedList<T,S,ML,I,M>::Purge()
 template<class T, class S, bool ML, class I, class M>
 void CUtlLinkedList<T,S,ML,I,M>::PurgeAndDeleteElements()
 {
-	int iNext;
-	for( int i=Head(); i != InvalidIndex(); i=iNext )
+	I iNext;
+	for( I i=Head(); i != InvalidIndex(); i=iNext )
 	{
 		iNext = Next(i);
 		delete Element(i);
@@ -417,26 +452,42 @@ template <class T, class S, bool ML, class I, class M>
 I CUtlLinkedList<T,S,ML,I,M>::AllocInternal( bool multilist ) RESTRICT
 {
 	Assert( !multilist || ML );
+#ifdef MULTILIST_PEDANTIC_ASSERTS
+	Assert( multilist == ML );
+#endif
 	I elem;
 	if ( m_FirstFree == InvalidIndex() )
 	{
 		Assert( m_Memory.IsValidIterator( m_LastAlloc ) || m_ElementCount == 0 );
+
 		typename M::Iterator_t it = m_Memory.IsValidIterator( m_LastAlloc ) ? m_Memory.Next( m_LastAlloc ) : m_Memory.First();
+
 		if ( !m_Memory.IsValidIterator( it ) )
 		{
 			MEM_ALLOC_CREDIT_CLASS();
 			m_Memory.Grow();
+			ResetDbgInfo();
 
 			it = m_Memory.IsValidIterator( m_LastAlloc ) ? m_Memory.Next( m_LastAlloc ) : m_Memory.First();
 
 			Assert( m_Memory.IsValidIterator( it ) );
 			if ( !m_Memory.IsValidIterator( it ) )
 			{
-				Error( "CUtlLinkedList overflow!\n" );
+				ExecuteNTimes( 10, Warning( "CUtlLinkedList overflow! (exhausted memory allocator)\n" ) );
+				return InvalidIndex();
 			}
 		}
+
+		// We can overflow before the utlmemory overflows, since S != I
+		if ( !IndexInRange( m_Memory.GetIndex( it ) ) )
+		{
+			ExecuteNTimes( 10, Warning( "CUtlLinkedList overflow! (exhausted index range)\n" ) );
+			return InvalidIndex();
+		}
+
 		m_LastAlloc = it;
 		elem = m_Memory.GetIndex( m_LastAlloc );
+		m_NumAlloced++;
 	} 
 	else
 	{
@@ -455,8 +506,6 @@ I CUtlLinkedList<T,S,ML,I,M>::AllocInternal( bool multilist ) RESTRICT
 		InternalElement( elem ).m_Previous = InvalidIndex();
 	}
 
-	ResetDbgInfo();
-
 	return elem;
 }
 
@@ -464,6 +513,9 @@ template <class T, class S, bool ML, class I, class M>
 I CUtlLinkedList<T,S,ML,I,M>::Alloc( bool multilist )
 {
 	I elem = AllocInternal( multilist );
+	if ( elem == InvalidIndex() )
+		return elem;
+
 	Construct( &Element(elem) );
 
 	return elem;
@@ -472,7 +524,7 @@ I CUtlLinkedList<T,S,ML,I,M>::Alloc( bool multilist )
 template <class T, class S, bool ML, class I, class M>
 void  CUtlLinkedList<T,S,ML,I,M>::Free( I elem )
 {
-	Assert( IsValidIndex(elem) );
+	Assert( IsValidIndex(elem) && IndexInRange( elem ) );
 	Unlink(elem);
 
 	ListElem_t &internalElem = InternalElement(elem);
@@ -490,7 +542,9 @@ I CUtlLinkedList<T,S,ML,I,M>::InsertBefore( I before )
 {
 	// Make a new node
 	I   newNode = AllocInternal();
-	
+	if ( newNode == InvalidIndex() )
+		return newNode;
+
 	// Link it in
 	LinkBefore( before, newNode );
 	
@@ -505,7 +559,9 @@ I CUtlLinkedList<T,S,ML,I,M>::InsertAfter( I after )
 {
 	// Make a new node
 	I   newNode = AllocInternal();
-	
+	if ( newNode == InvalidIndex() )
+		return newNode;
+
 	// Link it in
 	LinkAfter( after, newNode );
 	
@@ -537,7 +593,9 @@ I CUtlLinkedList<T,S,ML,I,M>::InsertBefore( I before, T const& src )
 {
 	// Make a new node
 	I   newNode = AllocInternal();
-	
+	if ( newNode == InvalidIndex() )
+		return newNode;
+
 	// Link it in
 	LinkBefore( before, newNode );
 	
@@ -552,7 +610,9 @@ I CUtlLinkedList<T,S,ML,I,M>::InsertAfter( I after, T const& src )
 {
 	// Make a new node
 	I   newNode = AllocInternal();
-	
+	if ( newNode == InvalidIndex() )
+		return newNode;
+
 	// Link it in
 	LinkAfter( after, newNode );
 	
@@ -965,7 +1025,7 @@ private:
 	struct Node_t
 	{
 		Node_t() {}
-		Node_t( const T &elem ) : elem( elem ) {}
+		Node_t( const T &_elem ) : elem( _elem ) {}
 
 		T elem;
 		Node_t *pPrev, *pNext;

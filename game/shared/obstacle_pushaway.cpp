@@ -8,6 +8,10 @@
 #include "obstacle_pushaway.h"
 #include "props_shared.h"
 
+// NOTE: This has to be the last file included!
+#include "tier0/memdbgon.h"
+
+
 //-----------------------------------------------------------------------------------------------------
 ConVar sv_pushaway_force( "sv_pushaway_force", "30000", FCVAR_REPLICATED | FCVAR_DEVELOPMENTONLY, "How hard physics objects are pushed away from the players on the server." );
 ConVar sv_pushaway_min_player_speed( "sv_pushaway_min_player_speed", "75", FCVAR_REPLICATED | FCVAR_DEVELOPMENTONLY, "If a player is moving slower than this, don't push away physics objects (enables ducking behind things)." );
@@ -192,7 +196,14 @@ void AvoidPushawayProps( CBaseCombatCharacter *pPlayer, CUserCmd *pCmd )
 	// against physics objects.
 	Vector currentdir;
 	Vector rightdir;
-	AngleVectors( pCmd->viewangles, &currentdir, &rightdir, NULL );
+	if (g_pGameRules->IsTopDown())
+	{
+		AngleVectors( g_pGameRules->GetTopDownMovementAxis(), &currentdir, &rightdir, NULL );
+	}
+	else
+	{
+		AngleVectors( pCmd->viewangles, &currentdir, &rightdir, NULL );
+	}
 
 	CBaseEntity *props[512];
 #ifdef CLIENT_DLL
@@ -221,7 +232,7 @@ void AvoidPushawayProps( CBaseCombatCharacter *pPlayer, CUserCmd *pCmd )
 		}
 		mass = clamp( mass, minMass, maxMass );
 		
-		mass = max( mass, 0 );
+		mass = MAX( mass, 0 );
 		mass /= maxMass; // bring into a 0..1 range
 
 		// Push away from the collision point. The closer our center is to the collision point,
@@ -251,10 +262,10 @@ void AvoidPushawayProps( CBaseCombatCharacter *pPlayer, CUserCmd *pCmd )
 			flDist = VectorNormalize( vPushAway );
 		}
 
-		flDist = max( flDist, 1 );
+		flDist = MAX( flDist, 1 );
 
 		float flForce = sv_pushaway_player_force.GetFloat() / flDist * mass;
-		flForce = min( flForce, sv_pushaway_max_player_force.GetFloat() );
+		flForce = MIN( flForce, sv_pushaway_max_player_force.GetFloat() );
 
 #ifndef CLIENT_DLL
 		pPlayer->PushawayTouch( props[i] );
@@ -290,7 +301,7 @@ void PerformObstaclePushaway( CBaseCombatCharacter *pPushingEntity )
 
 	// if sv_pushaway_clientside is 1, only local player can push them
 	CBasePlayer *pPlayer = pPushingEntity->IsPlayer() ? (dynamic_cast< CBasePlayer * >(pPushingEntity)) : NULL;
-	if ( (sv_pushaway_clientside.GetInt() == 1) && (!pPlayer || !pPlayer->IsLocalPlayer()) )
+	if ( (sv_pushaway_clientside.GetInt() == 1) && (!pPlayer || !C_BasePlayer::IsLocalPlayer( pPlayer )) )
 		return;
 
 	int nEnts = GetPushawayEnts( pPushingEntity, props, ARRAYSIZE( props ), 3.0f, PARTITION_CLIENT_RESPONSIVE_EDICTS, NULL );
@@ -318,10 +329,10 @@ void PerformObstaclePushaway( CBaseCombatCharacter *pPushingEntity )
 			vPushAway.z = 0;
 			
 			float flDist = VectorNormalize( vPushAway );
-			flDist = max( flDist, 1 );
+			flDist = MAX( flDist, 1 );
 			
 			float flForce = sv_pushaway_force.GetFloat() / flDist;
-			flForce = min( flForce, sv_pushaway_max_force.GetFloat() );
+			flForce = MIN( flForce, sv_pushaway_max_force.GetFloat() );
 
 			pObj->ApplyForceOffset( vPushAway * flForce, pPushingEntity->WorldSpaceCenter() );
 		}

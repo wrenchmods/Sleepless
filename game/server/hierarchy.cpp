@@ -111,7 +111,10 @@ void UnlinkFromParent( CBaseEntity *pRemove )
 		pRemove->SetLocalAngles(angAbsRotation);
 		pRemove->SetLocalVelocity(vecAbsVelocity);
 //		pRemove->SetLocalAngularVelocity(vecAbsAngVelocity);
-		pRemove->UpdateWaterState();
+		if ( pRemove->GetMoveType() != MOVETYPE_NONE && pRemove->GetMoveType() != MOVETYPE_VPHYSICS )
+		{
+			pRemove->UpdateWaterState();
+		}
 	}
 }
 

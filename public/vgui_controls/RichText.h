@@ -111,8 +111,14 @@ public:
 	virtual void SetFgColor( Color color );
 	virtual void SetDrawOffsets( int ofsx, int ofsy );
 	bool IsScrollbarVisible();
+	ScrollBar* GetScrollBar() { return _vertScrollBar; }
 
 	void SetUnderlineFont( HFont font );
+
+	bool IsAllTextAlphaZero() const;
+	bool HasText() const;
+
+	void SetDrawTextOnly();
 
 protected:
 	virtual void OnThink();
@@ -152,8 +158,6 @@ protected:
 	virtual void Validate( CValidator &validator, char *pchName );
 #endif // DBGFLAG_VALIDATE
 	
-	void SetDrawTextOnly();
-
 protected:
 	ScrollBar			*_vertScrollBar;	// the scroll bar used in the window
 
@@ -213,6 +217,7 @@ private:
 	bool m_bResetFades;
 	bool m_bInteractive;
 	bool m_bUnusedScrollbarInvis;
+	bool m_bAllTextAlphaIsZero;
 
 	// data
 	CUtlVector<wchar_t>   m_TextStream;		// the text in the text window is stored in this buffer

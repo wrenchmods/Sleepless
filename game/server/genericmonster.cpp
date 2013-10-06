@@ -109,7 +109,7 @@ void CGenericNPC::TempGunEffect( void )
 //=========================================================
 void CGenericNPC::HandleAnimEvent( animevent_t *pEvent )
 {
-	switch( pEvent->event )
+	switch( pEvent->Event() )
 	{
 	case 1:
 		// TEMPORARLY. Makes the May 2001 sniper demo work (sjb)

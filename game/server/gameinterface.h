@@ -14,6 +14,10 @@
 
 #include "mapentities.h"
 
+#ifndef NO_STEAM
+#include "steam/steam_gameserver.h"
+#endif
+
 extern INetworkStringTable *g_pStringTableInfoPanel;
 
 // Player / Client related functions
@@ -23,6 +27,7 @@ class CServerGameClients : public IServerGameClients
 public:
 	virtual bool			ClientConnect( edict_t *pEntity, char const* pszName, char const* pszAddress, char *reject, int maxrejectlen );
 	virtual void			ClientActive( edict_t *pEntity, bool bLoadGame );
+	virtual void			ClientFullyConnect( edict_t *pEntity );
 	virtual void			ClientDisconnect( edict_t *pEntity );
 	virtual void			ClientPutInServer( edict_t *pEntity, const char *playername );
 	virtual void			ClientCommand( edict_t *pEntity, const CCommand &args );
@@ -43,7 +48,16 @@ public:
 	// Anything this game .dll wants to add to the bug reporter text (e.g., the entity/model under the picker crosshair)
 	//  can be added here
 	virtual void			GetBugReportInfo( char *buf, int buflen );
+
+	// A player sent a voice packet
+	virtual void			ClientVoice( edict_t *pEdict );
+
 	virtual void			NetworkIDValidated( const char *pszUserName, const char *pszNetworkID );
+	virtual int				GetMaxSplitscreenPlayers();
+	virtual int				GetMaxHumanPlayers();
+
+	// The client has submitted a keyvalues command
+	virtual void			ClientCommandKeyValues( edict_t *pEntity, KeyValues *pKeyValues );
 };
 
 
@@ -87,6 +101,7 @@ public:
 	virtual void			ReadRestoreHeaders( CSaveRestoreData * );
 	virtual void			Restore( CSaveRestoreData *, bool );
 	virtual bool			IsRestoring();
+	virtual bool			SupportsSaveRestore();
 
 	// Retrieve info needed for parsing the specified user message
 	virtual bool			GetUserMessageInfo( int msg_type, char *name, int maxnamelength, int& size );
@@ -94,6 +109,7 @@ public:
 	virtual CStandardSendProxies*	GetStandardSendProxies();
 
 	virtual void			PostInit();
+	virtual void			PostToolsInit();
 	virtual void			Think( bool finalTick );
 
 	virtual void			OnQueryCvarValueFinished( QueryCvarCookie_t iCookie, edict_t *pPlayerEntity, EQueryCvarValueStatus eStatus, const char *pCvarName, const char *pCvarValue );
@@ -106,8 +122,32 @@ public:
 
 	virtual void			InvalidateMdlCache();
 
+	// Called to apply lobby settings to a dedicated server
+	virtual void			ApplyGameSettings( KeyValues *pKV );
+
+	virtual void			GetMatchmakingTags( char *buf, size_t bufSize );
+
+	virtual void			ServerHibernationUpdate( bool bHibernating );
+
+	virtual bool			ShouldPreferSteamAuth();
+
+	virtual void			GetMatchmakingGameData( char *buf, size_t bufSize );
+
+	// does this game support randomly generated maps?
+	virtual bool			SupportsRandomMaps();
+
+	// return true to disconnect client due to timeout (used to do stricter timeouts when the game is sure the client isn't loading a map)
+	virtual bool			ShouldTimeoutClient( int nUserID, float flTimeSinceLastReceived );
+
 	float	m_fAutoSaveDangerousTime;
 	float	m_fAutoSaveDangerousMinHealthToCommit;
+	bool	m_bIsHibernating;
+
+	// Called after the steam API has been activated post-level startup
+	virtual void			GameServerSteamAPIActivated( void );
+
+protected:
+	KeyValues*				FindLaunchOptionByValue( KeyValues *pLaunchOptions, char const *szLaunchOption );
 
 private:
 
@@ -178,6 +218,39 @@ public:
 
 };
 EXPOSE_SINGLE_INTERFACE( CServerGameTags, IServerGameTags, INTERFACEVERSION_SERVERGAMETAGS );
+
+#ifndef NO_STEAM
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+class CSteam3Server : public CSteamGameServerAPIContext
+{
+public:
+	CSteam3Server();
+
+	void Shutdown( void )
+	{
+		Clear();
+		m_bInitialized = false;
+	}
+
+	bool CheckInitialized( void )
+	{
+		if ( !m_bInitialized )
+		{
+			Init();
+			m_bInitialized = true;
+			return true;
+		}
+
+		return false;
+	}
+
+private:
+	bool	m_bInitialized;
+};
+CSteam3Server &Steam3Server();
+#endif
 
 #endif // GAMEINTERFACE_H
 

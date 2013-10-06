@@ -57,6 +57,8 @@ public:
 	int		m_nMaterial;
 	int		m_nDamageType;
 	int		m_nHitBox;
+
+	int		m_nOtherEntIndex;
 	
 	unsigned char	m_nColor;
 
@@ -87,6 +89,8 @@ public:
 		m_nHitBox = 0;
 
 		m_nColor = 0;
+
+		m_nOtherEntIndex = 0;
 	}
 
 	int GetEffectNameIndex() { return m_iEffectName; }

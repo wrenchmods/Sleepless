@@ -13,6 +13,11 @@
 #include "interface.h"
 
 //-----------------------------------------------------------------------------
+// Forward declarations
+//-----------------------------------------------------------------------------
+class CServerDemo;
+
+//-----------------------------------------------------------------------------
 // Purpose: exposed from engine to game .dll
 //-----------------------------------------------------------------------------
 class IServerEngineTools : public IBaseInterface
@@ -39,6 +44,7 @@ public:
 	// The server uses this to call into the tools to get the actual
 	// entities to spawn on startup
 	virtual const char* GetEntityData( const char *pActualEntityData ) = 0;
+	virtual void* QueryInterface( const char *pInterfaceName ) = 0;
 
 	virtual void PreSetupVisibilityAllTools() = 0;
 

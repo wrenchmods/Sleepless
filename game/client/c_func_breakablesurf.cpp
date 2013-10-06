@@ -4,7 +4,7 @@
 //
 // $NoKeywords: $
 //
-//=============================================================================//
+//===========================================================================//
 #include "cbase.h"
 #include "particles_simple.h"
 #include "IViewRender.h"
@@ -12,8 +12,9 @@
 #include "materialsystem/IMaterialVar.h"
 #include "model_types.h"
 #include "engine/ivmodelinfo.h"
-#include "ClientEffectPrecacheSystem.h"
+#include "c_physbox.h"
 
+#include "imaterialproxydict.h"
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
@@ -33,9 +34,9 @@ enum WinSide_t
 enum WinEdge_t 
 {
 	EDGE_NOT	= -1,		// No edge
-	EDGE_NONE,				// No edge on both sides	/##\  
-	EDGE_FULL,				// Edge on both sides		|##|
-	EDGE_LEFT,				// Edge is on left only		|##\ 
+	EDGE_NONE,				/* No edge on both sides	/##\  */
+	EDGE_FULL,				// Edge on both sides		|##| 
+	EDGE_LEFT,				/* Edge is on left only		|##\  */
 	EDGE_RIGHT,				// Edge is on right only	/##|
 };
 
@@ -73,7 +74,6 @@ struct EdgeTexture_t
 #define BITS_PANEL_IS_SOLID		(1<<0)
 #define BITS_PANEL_IS_STALE		(1<<1)
 
-
 class C_BreakableSurface : public C_BaseEntity, public IBrushRenderer
 {
 public:
@@ -106,10 +106,10 @@ public:
 	virtual void		OnDataChanged( DataUpdateType_t updateType );
 	virtual void		OnPreDataChanged( DataUpdateType_t updateType );
 
-	bool		IsTransparent( void );
+	RenderableTranslucencyType_t ComputeTranslucencyType( void );
 	bool		HavePanel(int nWidth, int nHeight);
 	bool		RenderBrushModelSurface( IClientEntity* pBaseEntity, IBrushSurface* pBrushSurface ); 
-	int			DrawModel( int flags );
+	int			DrawModel( int flags, const RenderableInstance_t &instance );
 	void		DrawSolidBlocks( IBrushSurface* pBrushSurface );
 
 	virtual void	OnRestore();
@@ -285,7 +285,7 @@ END_RECV_TABLE()
 //-----------------------------------------------------------------------------
 void C_BreakableSurface::FindCrackedMaterial()
 {
-	m_pCrackedMaterial = 0;
+	m_pCrackedMaterial.Init( NULL );
 
 	// First time we've seen it, get the material on the brush model
 	int materialCount = modelinfo->GetModelMaterialCount( const_cast<model_t*>(GetModel()) );
@@ -391,6 +391,9 @@ void C_BreakableSurface::OnDataChanged( DataUpdateType_t updateType )
 {
 	C_BaseEntity::OnDataChanged( updateType );
 
+	// FIXME: Slightly bogus, recomputation only necessary when m_bBroken changed
+	OnTranslucencyTypeChanged();
+
 	if ( updateType == DATA_UPDATE_CREATED )
 	{
 		// Get at the cracked material
@@ -494,22 +497,22 @@ void C_BreakableSurface::OnDataChanged( DataUpdateType_t updateType )
 	Q_memcpy( m_PrevRawPanelBitVec, m_RawPanelBitVec.Base(), sizeof( m_PrevRawPanelBitVec ) );
 }
 
-bool C_BreakableSurface::IsTransparent( void )
+RenderableTranslucencyType_t C_BreakableSurface::ComputeTranslucencyType( void )
 {
 	// Not an identity brush if it's broken
-	if (m_bIsBroken)
-		return true;
+	if ( m_bIsBroken )
+		return RENDERABLE_IS_TRANSLUCENT;
 
-	return C_BaseEntity::IsTransparent();
+	return BaseClass::ComputeTranslucencyType();
 }
-  
+
 
 //------------------------------------------------------------------------------
 // Purpose :
 // Input   :
 // Output  :
 //------------------------------------------------------------------------------
-int C_BreakableSurface::DrawModel( int flags )
+int C_BreakableSurface::DrawModel( int flags, const RenderableInstance_t &instance )
 {
 	if ( !m_bReadyToDraw )
 		return 0;
@@ -519,7 +522,7 @@ int C_BreakableSurface::DrawModel( int flags )
 		render->InstallBrushSurfaceRenderer( this );
 
 	// If it's broken, always draw it translucent
-	BaseClass::DrawModel( m_bIsBroken ? flags | STUDIO_TRANSPARENCY : flags );
+	BaseClass::DrawModel( m_bIsBroken ? flags | STUDIO_TRANSPARENCY : flags, instance );
 
 	// Remove our nonstandard brush surface renderer...
 	render->InstallBrushSurfaceRenderer( 0 );
@@ -1287,7 +1290,7 @@ public:
 	virtual ~CBreakableSurfaceProxy();
 	virtual bool Init( IMaterial *pMaterial, KeyValues *pKeyValues );
 	virtual void OnBind( C_BaseEntity *pC_BaseEntity );
-	virtual IMaterial *CBreakableSurfaceProxy::GetMaterial();
+	virtual IMaterial *GetMaterial();
 
 private:
 	// get at the material whose texture we're going to steal
@@ -1333,4 +1336,4 @@ IMaterial *CBreakableSurfaceProxy::GetMaterial()
 	return m_BaseTextureVar->GetOwningMaterial();
 }
 
-EXPOSE_INTERFACE( CBreakableSurfaceProxy, IMaterialProxy, "BreakableSurface" IMATERIAL_PROXY_INTERFACE_VERSION );
+EXPOSE_MATERIAL_PROXY( CBreakableSurfaceProxy, BreakableSurface );

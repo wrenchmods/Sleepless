@@ -12,14 +12,13 @@
 #include "env_wind_shared.h"
 #include "engine/IEngineTrace.h"
 #include "tier0/vprof.h"
-#include "ClientEffectPrecacheSystem.h"
 #include "particles_ez.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
 IMPLEMENT_CLIENTCLASS_DT_NOBASE( C_Func_Dust, DT_Func_Dust, CFunc_Dust )
-	RecvPropInt( RECVINFO(m_Color) ),
+	RecvPropInt( RECVINFO(m_Color), 0, RecvProxy_Int32ToColor32 ),
 	RecvPropInt( RECVINFO(m_SpawnRate) ),
 	RecvPropFloat( RECVINFO(m_flSizeMin) ),
 	RecvPropFloat( RECVINFO(m_flSizeMax) ),
@@ -186,7 +185,7 @@ void C_Func_Dust::ClientThink()
 	// Spawn particles?
 	if( m_DustFlags & DUSTFLAGS_ON )
 	{
-		float flDelta = min( gpGlobals->frametime, 0.1f );
+		float flDelta = MIN( gpGlobals->frametime, 0.1f );
 		while( m_Spawner.NextEvent( flDelta ) )
 		{
 			AttemptSpawnNewParticle();

@@ -76,18 +76,20 @@ protected:
 //-----------------------------------------------------------------------------
 // Specialization for string
 //-----------------------------------------------------------------------------
-class CDmaString : public CDmaVar< CUtlString >
+class CDmaString : public CDmaVar< CUtlSymbolLarge >
 {
 public:
 	const char *Get( ) const;
 	operator const char*() const;
 
+	void InitAndSet( CDmElement *pOwner, const char *pAttributeName, const char *pValue, int flags = 0 );
 	void Set( const char *pValue );
 	CDmaString &operator=( const char *src );
 	const CDmaString& operator=( const CDmaString& src );
 
 	// Returns strlen
 	int	Length() const;
+	bool IsEmpty() const;
 };
 
 #endif // DMVAR_H

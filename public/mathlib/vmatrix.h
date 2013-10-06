@@ -260,6 +260,9 @@ VMatrix		SetupMatrixProjection(const Vector &vOrigin, const VPlane &thePlane);
 // Setup a matrix to rotate the specified amount around the specified axis.
 VMatrix		SetupMatrixAxisRot(const Vector &vAxis, vec_t fDegrees);
 
+// Setup a matrix to rotate one axis onto another. Input vectors must be normalized.
+VMatrix		SetupMatrixAxisToAxisRot(const Vector &vFromAxis, const Vector &vToAxis);
+
 // Setup a matrix from euler angles. Just sets identity and calls MatrixAngles.
 VMatrix		SetupMatrixAngles(const QAngle &vAngles);
 
@@ -683,7 +686,7 @@ inline VMatrix VMatrix::operator-() const
 	VMatrix ret;
 	for( int i=0; i < 16; i++ )
 	{
-		((float*)ret.m)[i] = ((float*)m)[i];
+		((float*)ret.m)[i] = -((float*)m)[i];
 	}
 	return ret;
 }

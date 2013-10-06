@@ -1,24 +1,17 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright © 1996-2008, Valve Corporation, All rights reserved. ====
 //
 // Purpose:		Player for HL2.
 //
-// $NoKeywords: $
-//=============================================================================//
+//=============================================================================
 
 #ifndef HL2_PLAYER_H
 #define HL2_PLAYER_H
 #pragma once
 
-
 #include "player.h"
 #include "hl2_playerlocaldata.h"
 #include "simtimer.h"
 #include "soundenvelope.h"
-
-// In HL2MP we need to inherit from  BaseMultiplayerPlayer!
-#if defined ( HL2MP )
-#include "basemultiplayerplayer.h"
-#endif
 
 class CAI_Squad;
 class CPropCombineBall;
@@ -32,11 +25,11 @@ enum HL2PlayerPhysFlag_e
 {
 	// 1 -- 5 are used by enum PlayerPhysFlag_e in player.h
 
-	PFLAG_ONBARNACLE	= ( 1<<6 )		// player is hangning from the barnalce
+	PFLAG_ONBARNACLE	= ( 1<<6 ),		// player is hangning from the barnalce
+	PFLAG_IMMOBILIZED	= ( 1<<7 )		// player is immobilized
 };
 
 class IPhysicsPlayerController;
-class CLogicPlayerProxy;
 
 struct commandgoal_t
 {
@@ -80,19 +73,10 @@ public:
 //=============================================================================
 // >> HL2_PLAYER
 //=============================================================================
-class CHL2_Player : public 
-#if defined ( HL2MP )
-	CBaseMultiplayerPlayer
-#else
-	CBasePlayer
-#endif
+class CHL2_Player : public CBasePlayer
 {
 public:
-#if defined ( HL2MP )
-	DECLARE_CLASS( CHL2_Player, CBaseMultiplayerPlayer );
-#else
 	DECLARE_CLASS( CHL2_Player, CBasePlayer );
-#endif
 
 	CHL2_Player();
 	~CHL2_Player( void );
@@ -135,6 +119,8 @@ public:
 	WeaponProficiency_t CalcWeaponProficiency( CBaseCombatWeapon *pWeapon );
 
 	Class_T				Classify ( void );
+
+	void				CreateSounds( void );
 
 	// from CBasePlayer
 	virtual void		SetupVisibility( CBaseEntity *pViewEntity, unsigned char *pvs, int pvssize );
@@ -192,6 +178,8 @@ public:
 	bool IsZooming( void );
 	void CheckSuitZoom( void );
 
+
+
 	// Walking
 	void StartWalking( void );
 	void StopWalking( void );
@@ -234,15 +222,11 @@ public:
 	virtual bool		Weapon_Switch( CBaseCombatWeapon *pWeapon, int viewmodelindex = 0 );
 	virtual bool		Weapon_CanSwitchTo( CBaseCombatWeapon *pWeapon );
 
-	void FirePlayerProxyOutput( const char *pszOutputName, variant_t variant, CBaseEntity *pActivator, CBaseEntity *pCaller );
-
-	CLogicPlayerProxy	*GetPlayerProxy( void );
-
 	// Flashlight Device
 	void				CheckFlashlight( void );
 	int					FlashlightIsOn( void );
-	void				FlashlightTurnOn( void );
-	void				FlashlightTurnOff( void );
+	virtual bool 		FlashlightTurnOn( bool playSound = false );
+	virtual void		FlashlightTurnOff( bool playSound = false );
 	bool				IsIlluminatedByFlashlight( CBaseEntity *pEntity, float *flReturnDot );
 	void				SetFlashlightPowerDrainScale( float flScale ) { m_flFlashlightPowerDrainScale = flScale; }
 
@@ -255,9 +239,8 @@ public:
 	virtual	bool		IsHoldingEntity( CBaseEntity *pEnt );
 	virtual void		ForceDropOfCarriedPhysObjects( CBaseEntity *pOnlyIfHoldindThis );
 	virtual float		GetHeldObjectMass( IPhysicsObject *pHeldObject );
-	virtual CBaseEntity	*CHL2_Player::GetHeldObject( void );
 
-	virtual bool		IsFollowingPhysics( void ) { return (m_afPhysicsFlags & PFLAG_ONBARNACLE) > 0; }
+	virtual bool		IsFollowingPhysics( void ) { return (m_afPhysicsFlags & ( PFLAG_ONBARNACLE | PFLAG_IMMOBILIZED ) ) > 0; }
 	void				InputForceDropPhysObjects( inputdata_t &data );
 
 	virtual void		Event_Killed( const CTakeDamageInfo &info );
@@ -274,6 +257,9 @@ public:
 	virtual void RemoveSuit( void );
 	void  HandleAdmireGlovesAnimation( void );
 	void  StartAdmireGlovesAnimation( void );
+
+	virtual void				SetActiveSpecialSuitAbility( CBaseCombatWeapon *pAbility );
+	virtual CBaseCombatWeapon	*GetActiveSpecialSuitAbility( void ) const;
 	
 	void  HandleSpeedChanges( void );
 
@@ -307,6 +293,7 @@ protected:
 	virtual void		UpdateWeaponPosture( void );
 
 	virtual void		ItemPostFrame();
+	virtual void		SpecialSuitAbilityPostFrame();
 	virtual void		PlayUseDenySound();
 
 private:
@@ -315,9 +302,6 @@ private:
 	void				OnSquadMemberKilled( inputdata_t &data );
 
 	Class_T				m_nControlClass;			// Class when player is controlling another entity
-	// This player's HL2 specific data that should only be replicated to 
-	//  the player and not to other players.
-	CNetworkVarEmbedded( CHL2PlayerLocalData, m_HL2Local );
 
 	float				m_flTimeAllSuitDevicesOff;
 
@@ -329,9 +313,15 @@ private:
 	CNetworkVarForDerived( bool, m_fIsWalking );
 
 protected:	// Jeep: Portal_Player needs access to this variable to overload PlayerUse for picking up objects through portals
+	// This player's HL2 specific data that should only be replicated to 
+	//  the player and not to other players.
+	CNetworkVarEmbedded( CHL2PlayerLocalData, m_HL2Local );
+
 	bool				m_bPlayUseDenySound;		// Signaled by PlayerUse, but can be unset by HL2 ladder code...
 
 private:
+
+
 
 	CAI_Squad *			m_pPlayerAISquad;
 	CSimpleSimTimer		m_CommanderUpdateTimer;
@@ -351,13 +341,16 @@ private:
 	float				m_flNextFlashlightCheckTime;
 	float				m_flFlashlightPowerDrainScale;
 
+	bool				m_bAlt1ToggledOn;
+	bool				m_bAlt1ToggledNotReady;
+
+	CHandle<CBaseCombatWeapon>	m_hActiveSpecialSuitAbility;
+
 	// Aiming heuristics code
 	float				m_flIdleTime;		//Amount of time we've been motionless
 	float				m_flMoveTime;		//Amount of time we've been in motion
 	float				m_flLastDamageTime;	//Last time we took damage
 	float				m_flTargetFindTime;
-
-	EHANDLE				m_hPlayerProxy;
 
 	bool				m_bFlashlightDisabled;
 	bool				m_bUseCappedPhysicsDamageTable;

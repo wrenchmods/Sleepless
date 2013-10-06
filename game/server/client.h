@@ -19,6 +19,7 @@ class CBasePlayer;
 
 
 void ClientActive( edict_t *pEdict, bool bLoadGame );
+void ClientFullyConnect( edict_t *pEdict );
 void ClientPutInServer( edict_t *pEdict, const char *playername );
 void ClientCommand( CBasePlayer *pSender, const CCommand &args );
 void ClientPrecache( void );

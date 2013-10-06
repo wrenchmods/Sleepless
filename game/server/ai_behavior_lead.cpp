@@ -5,9 +5,7 @@
 //=============================================================================//
 
 #include "cbase.h"
-
 #include "ai_behavior_lead.h"
-
 #include "ai_goalentity.h"
 #include "ai_navigator.h"
 #include "ai_speech.h"
@@ -145,13 +143,11 @@ bool CAI_LeadBehavior::IsNavigationUrgent( void )
 
 void CAI_LeadBehavior::LeadPlayer( const AI_LeadArgs_t &leadArgs, CAI_LeadBehaviorHandler *pSink )
 {
-#ifndef CSTRIKE_DLL
 	CAI_PlayerAlly *pOuter = dynamic_cast<CAI_PlayerAlly*>(GetOuter());
 	if ( pOuter && AI_IsSinglePlayer() )
 	{
 		pOuter->SetSpeechTarget( UTIL_GetLocalPlayer() );
 	}
-#endif
 
 	if( SetGoal( leadArgs ) )
 	{
@@ -255,7 +251,7 @@ bool CAI_LeadBehavior::GetClosestPointOnRoute( const Vector &targetPos, Vector *
 			return true;
 
 		// Build a temp route to the gold and use that
-		builtwaypoints = GetOuter()->GetPathfinder()->BuildRoute( GetOuter()->GetAbsOrigin(), m_goal, NULL, GetOuter()->GetDefaultNavGoalTolerance(), GetOuter()->GetNavType(), true );
+		builtwaypoints = GetOuter()->GetPathfinder()->BuildRoute( GetOuter()->GetAbsOrigin(), m_goal, NULL, GetOuter()->GetDefaultNavGoalTolerance(), GetOuter()->GetNavType(), bits_BUILD_GET_CLOSE );
 		if ( !builtwaypoints )
 			return false;
 

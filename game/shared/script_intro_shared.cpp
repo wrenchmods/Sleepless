@@ -1,4 +1,9 @@
+
 #include "cbase.h"
+
+// NOTE: This has to be the last file included!
+#include "tier0/memdbgon.h"
+
 
 //-----------------------------------------------------------------------------
 // Purpose: Calculate the FOV for the intro sequence (needed by both server and client)

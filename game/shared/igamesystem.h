@@ -18,7 +18,10 @@
 // order in which they are initialized and updated. They are shut down in
 // reverse order from which they are initialized.
 //-----------------------------------------------------------------------------
-
+#ifdef GAME_DLL
+class CBasePlayer;
+class CUserCmd;
+#endif
 
 // UNDONE: Do these need GameInit/GameShutdown as well?
 // UNDONE: Remove the Pre/Post entity semantics and rely on system ordering?
@@ -93,8 +96,10 @@ public:
 	static void PreClientUpdateAllSystems();
 
 	// Accessors for the above function
+#ifdef GAME_DLL
 	static CBasePlayer *RunCommandPlayer();
 	static CUserCmd *RunCommandUserCmd();
+#endif
 #endif
 };
 

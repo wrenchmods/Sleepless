@@ -24,13 +24,9 @@ class CUtlBuffer;
 
 
 //-----------------------------------------------------------------------------
-// Used for attribute change callbacks
+// Used for in-place modification
 //-----------------------------------------------------------------------------
-typedef unsigned short DmMailingList_t;
-enum
-{
-	DMMAILINGLIST_INVALID = (DmMailingList_t)~0
-};
+typedef void *DmAttributeModifyHandle_t;
 
 
 //-----------------------------------------------------------------------------
@@ -44,10 +40,15 @@ public:
 	const char *GetTypeString() const;
 	template< class T > bool IsA() const;
 
+	// ChangeType fails (and returns false) for external attributes (ones who's data is owned by their element)
+	bool ChangeType_UNSAFE( DmAttributeType_t type );
+
+	bool IsStandard() const;
+
 	// Returns the name. NOTE: The utlsymbol
 	// can be turned into a string by using g_pDataModel->String();
 	const char *GetName() const;
-	UtlSymId_t	GetNameSymbol() const;
+	CUtlSymbolLarge	GetNameSymbol() const;
 	void		SetName( const char *newName );
 
 	// Gets the attribute value
@@ -75,10 +76,15 @@ public:
 	void SetValueFromString( const char *pValue );
 	const char *GetValueAsString( char *pBuffer, size_t nBufLen ) const;
 
+	// Used for in-place modification of the data; preferable to set value
+	// for large data like arrays or binary blocks
+	template< class T > T& BeginModifyValueInPlace( DmAttributeModifyHandle_t *pHandle );
+	template< class T > void EndModifyValueInPlace( DmAttributeModifyHandle_t handle );
+
 	// Used for element and element array attributes; it specifies which type of
 	// elements are valid to be referred to by this attribute
-	void		SetElementTypeSymbol( UtlSymId_t typeSymbol );
-	UtlSymId_t	GetElementTypeSymbol() const;
+	void		SetElementTypeSymbol( CUtlSymbolLarge typeSymbol );
+	CUtlSymbolLarge	GetElementTypeSymbol() const;
 
 	// Returns the next attribute
 	CDmAttribute *NextAttribute();
@@ -97,6 +103,7 @@ public:
 	// Serialization
 	bool	Serialize( CUtlBuffer &buf ) const;
 	bool	Unserialize( CUtlBuffer &buf );
+	bool    IsIdenticalToSerializedValue( CUtlBuffer &buf ) const;
 
 	// Serialization of a single element. 
 	// First version of UnserializeElement adds to tail if it worked
@@ -110,10 +117,6 @@ public:
 
 	// Get the attribute/create an attribute handle
 	DmAttributeHandle_t GetHandle( bool bCreate = true );
-
-	// Notify external elements upon change ( Calls OnAttributeChanged )
-	// Pass false here to stop notification
-	void	NotifyWhenChanged( DmElementHandle_t h, bool bNotify );
 
 	// estimate memory overhead
 	int		EstimateMemoryUsage( TraversalDepth_t depth ) const;
@@ -135,11 +138,7 @@ private:
 	// Used when shutting down, indicates DmAttributeHandle_t referring to this are invalid
 	void InvalidateHandle();
 
-	// Used when shutting down, indicates no more change notifications will be sent to listening elements
-	void CleanupMailingList();
-
 	// Called when the attribute changes
-	void PreChanged();
 	void OnChanged( bool bArrayCountChanged = false, bool bIsTopological = false );
 
 	// Is modification allowed in this phase?
@@ -181,10 +180,9 @@ private:
 	CDmAttribute *m_pNext;
 	void *m_pData;
 	CDmElement *m_pOwner;
-	int m_nFlags;
 	DmAttributeHandle_t m_Handle;
-	CUtlSymbol m_Name;
-	DmMailingList_t m_hMailingList;
+	uint16 m_nFlags;
+	CUtlSymbolLarge m_Name;
 
 	friend class CDmElement;
 	friend class CDmAttributeAccessor;
@@ -212,10 +210,10 @@ template< class T > inline bool CDmAttribute::IsA() const
 
 inline const char *CDmAttribute::GetName() const
 {
-	return g_pDataModel->GetString( m_Name );
+	return m_Name.String();
 }
 
-inline UtlSymId_t CDmAttribute::GetNameSymbol() const
+inline CUtlSymbolLarge CDmAttribute::GetNameSymbol() const
 {
 	return m_Name;
 }
@@ -250,7 +248,7 @@ inline CDmElement *CDmAttribute::GetOwner()
 template< class T > 
 inline const T& CDmAttribute::GetValue( const T& defaultValue ) const
 {
-	if ( GetType() == CDmAttributeInfo< T >::ATTRIBUTE_TYPE )
+	if ( (int)GetType() == (int)CDmAttributeInfo< T >::ATTRIBUTE_TYPE )
 		return *reinterpret_cast< const T* >( m_pData );
 
 	if ( IsTypeConvertable< T >() )
@@ -277,7 +275,8 @@ inline const char *CDmAttribute::GetValueString() const
 	if ( GetType() != AT_STRING )
 		return NULL;
 
-	return GetValue< CUtlString >();
+	CUtlSymbolLarge symbol = GetValue< CUtlSymbolLarge >();
+	return symbol.String();
 }
 
 // used with GetType() for use w/ SetValue( type, void* )
@@ -286,7 +285,7 @@ inline const void* CDmAttribute::GetValueUntyped() const
 	return m_pData; 
 } 
 
-#ifndef _LINUX
+#ifndef POSIX
 template< class E > 
 inline E* CDmAttribute::GetValueElement() const
 {
@@ -314,9 +313,8 @@ inline void CDmAttribute::SetValue( E* pValue )
 template<>
 inline void CDmAttribute::SetValue( const char *pValue )
 {
-	int nLen = pValue ? Q_strlen( pValue ) + 1 : 0;
-	CUtlString str( pValue, nLen );
-	return SetValue( str );
+	CUtlSymbolLarge symbol = g_pDataModel->GetSymbol( pValue );
+	return SetValue( symbol );
 }
 
 template<>
@@ -337,32 +335,32 @@ inline void CDmAttribute::SetValue( const void *pValue, size_t nSize )
 //-----------------------------------------------------------------------------
 inline void CDmAttribute::AddFlag( int nFlags )
 {
-	m_nFlags |= nFlags;
+	m_nFlags |= ( nFlags & ~FATTRIB_TYPEMASK );
 }
 
 inline void CDmAttribute::RemoveFlag( int nFlags )
 {
-	m_nFlags &= ~nFlags;
+	m_nFlags &= ~nFlags | FATTRIB_TYPEMASK;
 }
 
 inline void CDmAttribute::ClearFlags()
 {
-	m_nFlags = 0;
+	RemoveFlag( 0xffffffff );
 }
 
 inline int CDmAttribute::GetFlags() const
 {
-	return m_nFlags;
+	return m_nFlags & ~FATTRIB_TYPEMASK;
 }
 
 inline bool CDmAttribute::IsFlagSet( int nFlags ) const
 {
-	return ( nFlags & m_nFlags ) ? true : false;
+	return ( nFlags & GetFlags() ) != 0;
 }
 
 inline bool CDmAttribute::IsDataInline() const
 { 
-	return !IsFlagSet(FATTRIB_EXTERNAL); 
+	return !IsFlagSet( FATTRIB_EXTERNAL ); 
 }
 
 

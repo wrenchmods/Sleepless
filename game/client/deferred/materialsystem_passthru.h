@@ -34,6 +34,9 @@ public:
 	virtual void *QueryInterface( const char *pInterfaceName ) { return m_pBaseMaterialsPassThru->QueryInterface( pInterfaceName ); }
 	virtual InitReturnVal_t Init() { return m_pBaseMaterialsPassThru->Init( ); }
 	virtual void Shutdown() { m_pBaseMaterialsPassThru->Shutdown( ); }
+	virtual const AppSystemInfo_t* GetDependencies() { return m_pBaseMaterialsPassThru->GetDependencies( ); }
+	virtual AppSystemTier_t GetTier()  { return m_pBaseMaterialsPassThru->GetTier( ); }
+	virtual void Reconnect( CreateInterfaceFn factory, const char *pInterfaceName )  { m_pBaseMaterialsPassThru->Reconnect( factory, pInterfaceName ); }
 
 	virtual CreateInterfaceFn	Init( char const* pShaderAPIDLL, 
 		IMaterialProxyFactory *pMaterialProxyFactory,
@@ -110,6 +113,10 @@ public:
 	virtual void				AddRestoreFunc( MaterialBufferRestoreFunc_t func ) { m_pBaseMaterialsPassThru->AddRestoreFunc( func ); }
 	virtual void				RemoveRestoreFunc( MaterialBufferRestoreFunc_t func ) { m_pBaseMaterialsPassThru->RemoveRestoreFunc( func ); }
 	
+	// Installs a function to be called when we need to delete objects at the end of the render frame
+	virtual void				AddEndFrameCleanupFunc( EndFrameCleanupFunc_t func ) { m_pBaseMaterialsPassThru->AddEndFrameCleanupFunc( func ); }
+	virtual void				RemoveEndFrameCleanupFunc( EndFrameCleanupFunc_t func ) { m_pBaseMaterialsPassThru->RemoveEndFrameCleanupFunc( func ); }
+
 	virtual void				ResetTempHWMemory( bool bExitingLevel = false ) { m_pBaseMaterialsPassThru->ResetTempHWMemory( bExitingLevel ); }
 
 	virtual void				HandleDeviceLost() { m_pBaseMaterialsPassThru->HandleDeviceLost( ); }
@@ -127,6 +134,7 @@ public:
 	virtual void				SetMaterialProxyFactory( IMaterialProxyFactory* pFactory ) { m_pBaseMaterialsPassThru->SetMaterialProxyFactory( pFactory ); }
 
 	virtual void				EnableEditorMaterials() { m_pBaseMaterialsPassThru->EnableEditorMaterials( ); }
+	virtual void                EnableGBuffers() { m_pBaseMaterialsPassThru->EnableGBuffers( ); }
 
 	virtual void				SetInStubMode( bool bInStubMode ) { m_pBaseMaterialsPassThru->SetInStubMode( bInStubMode ); }
 
@@ -284,7 +292,25 @@ public:
 	virtual void				CompactMemory() { m_pBaseMaterialsPassThru->CompactMemory(); }
 
 	virtual void ReloadFilesInList( IFileList *pFilesToReload ) { m_pBaseMaterialsPassThru->ReloadFilesInList( pFilesToReload ); }
+
+
+	// Get information about the texture for texture management tools
+	virtual bool				GetTextureInformation( char const *szTextureName, MaterialTextureInfo_t &info ) const { return m_pBaseMaterialsPassThru->GetTextureInformation( szTextureName, info ); }
+
+	// call this once the render targets are allocated permanently at the beginning of the game
+	virtual void FinishRenderTargetAllocation( void ) { m_pBaseMaterialsPassThru->FinishRenderTargetAllocation( ); }
 	
+	virtual void ReEnableRenderTargetAllocation_IRealizeIfICallThisAllTexturesWillBeUnloadedAndLoadTimeWillSufferHorribly( void ) { m_pBaseMaterialsPassThru->ReEnableRenderTargetAllocation_IRealizeIfICallThisAllTexturesWillBeUnloadedAndLoadTimeWillSufferHorribly( ); }
+	virtual	bool				AllowThreading( bool bAllow, int nServiceThread ) { return m_pBaseMaterialsPassThru->AllowThreading( bAllow, nServiceThread ); }
+
+	virtual bool				GetRecommendedVideoConfig( KeyValues *pKeyValues ) { return m_pBaseMaterialsPassThru->GetRecommendedVideoConfig( pKeyValues ); }
+
+	virtual IClientMaterialSystem*	GetClientMaterialSystemInterface() { return m_pBaseMaterialsPassThru->GetClientMaterialSystemInterface( ); }
+
+	virtual bool				CanDownloadTextures() const { return m_pBaseMaterialsPassThru->CanDownloadTextures( ); }
+	virtual int					GetNumLightmapPages() const { return m_pBaseMaterialsPassThru->GetNumLightmapPages( ); }
+
+	virtual IPaintMapTextureManager *RegisterPaintMapDataManager( IPaintMapDataManager *pDataManager ) { return m_pBaseMaterialsPassThru->RegisterPaintMapDataManager( pDataManager ); }
 
 protected:
 	IMaterialSystem *m_pBaseMaterialsPassThru;

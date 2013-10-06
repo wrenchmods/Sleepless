@@ -15,10 +15,6 @@
 #include "tier1/keyvalues.h"
 #include "toolframework_client.h"
 
-#if CSTRIKE_DLL
-#include "c_cs_player.h"
-#endif
-
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
@@ -378,15 +374,6 @@ void C_ParticleSmokeGrenade::Start(CParticleMgr *pParticleMgr, IPrototypeArgAcce
 
 	m_bStarted = true;
 	SetNextClientThink( CLIENT_THINK_ALWAYS );
-
-#if CSTRIKE_DLL
-	C_CSPlayer *pPlayer = C_CSPlayer::GetLocalCSPlayer();
-
-	if ( pPlayer )
-	{
-		 pPlayer->m_SmokeGrenades.AddToTail( this );
-	}
-#endif
 		 
 }
 
@@ -396,8 +383,9 @@ void C_ParticleSmokeGrenade::ClientThink()
 	if ( m_CurrentStage == 1 )
 	{
 		// Add our influence to the global smoke fog alpha.
-		
-		float testDist = (MainViewOrigin() - m_SmokeBasePos).Length();
+		ASSERT_LOCAL_PLAYER_RESOLVABLE();
+		int nSlot = GET_ACTIVE_SPLITSCREEN_SLOT();
+		float testDist = (MainViewOrigin(nSlot) - m_SmokeBasePos).Length();
 
 		float fadeEnd = m_ExpandRadius;
 
@@ -662,7 +650,7 @@ inline void C_ParticleSmokeGrenade::ApplyDynamicLight( const Vector &vParticlePo
 		}
 	
 		// Rescale the color..
-		float flMax = max( color.x, max( color.y, color.z ) );
+		float flMax = MAX( color.x, MAX( color.y, color.z ) );
 		if ( flMax > 1 )
 		{
 			color /= flMax;
@@ -765,15 +753,6 @@ void C_ParticleSmokeGrenade::SimulateParticles( CParticleSimulateIterator *pIter
 void C_ParticleSmokeGrenade::NotifyRemove()
 {
 	m_xCount = m_yCount = m_zCount = 0;
-
-#if CSTRIKE_DLL
-	C_CSPlayer *pPlayer = C_CSPlayer::GetLocalCSPlayer();
-
-	if ( pPlayer )
-	{
-		 pPlayer->m_SmokeGrenades.FindAndRemove( this );
-	}
-#endif
 
 }
 

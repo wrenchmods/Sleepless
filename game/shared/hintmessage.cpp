@@ -12,6 +12,10 @@
 	#include "util.h"
 #endif
 
+// NOTE: This has to be the last file included!
+#include "tier0/memdbgon.h"
+
+
 //--------------------------------------------------------------------------------------------------------
 /**
 * Simple utility function to allocate memory and duplicate a string

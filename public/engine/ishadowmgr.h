@@ -13,7 +13,7 @@
 #pragma once
 #endif
 
-#include "interface.h"
+#include "tier1/interface.h"
 #include "mathlib/vmatrix.h"
 
 
@@ -28,6 +28,8 @@ struct model_t;
 typedef unsigned short ModelInstanceHandle_t;
 class IClientRenderable;
 class ITexture;
+struct FlashlightInstance_t;
+struct FlashlightState_t;
 
 // change this when the new version is incompatable with the old
 #define ENGINE_SHADOWMGR_INTERFACE_VERSION	"VEngineShadowMgr002"
@@ -41,11 +43,12 @@ enum ShadowFlags_t
 	SHADOW_FLAGS_FLASHLIGHT				= (1 << 0),
 	SHADOW_FLAGS_SHADOW					= (1 << 1),
 	SHADOW_FLAGS_SIMPLE_PROJECTION		= (1 << 2),
+
 	// Update this if you add flags
-	SHADOW_FLAGS_LAST_FLAG				= SHADOW_FLAGS_SHADOW
+	SHADOW_FLAGS_LAST_FLAG				= SHADOW_FLAGS_SIMPLE_PROJECTION
 };
 
-#define SHADOW_FLAGS_PROJECTED_TEXTURE_TYPE_MASK ( SHADOW_FLAGS_FLASHLIGHT | SHADOW_FLAGS_SHADOW )
+#define SHADOW_FLAGS_PROJECTED_TEXTURE_TYPE_MASK ( SHADOW_FLAGS_FLASHLIGHT | SHADOW_FLAGS_SHADOW | SHADOW_FLAGS_SIMPLE_PROJECTION )
 
 
 //-----------------------------------------------------------------------------
@@ -71,10 +74,11 @@ enum
 //-----------------------------------------------------------------------------
 enum ShadowCreateFlags_t
 {
-	SHADOW_CACHE_VERTS =  ( 1 << 0 ),
-	SHADOW_FLASHLIGHT =   ( 1 << 1 ),
+	SHADOW_CACHE_VERTS			= ( 1 << 0 ),
+	SHADOW_FLASHLIGHT			= ( 1 << 1 ),
+	SHADOW_SIMPLE_PROJECTION	= ( 1 << 2 ),
 
-	SHADOW_LAST_FLAG = SHADOW_FLASHLIGHT,
+	SHADOW_LAST_FLAG = SHADOW_SIMPLE_PROJECTION,
 };
 
 
@@ -96,7 +100,9 @@ struct ShadowInfo_t
 	unsigned char	m_FalloffBias;
 };
 
-struct FlashlightState_t;
+typedef void (*ShadowDrawCallbackFn_t)( void * );
+
+typedef void (*ShadowDrawCallbackFn_t)( void * );
 
 //-----------------------------------------------------------------------------
 // The engine's interface to the shadow manager
@@ -176,8 +182,7 @@ public:
 
 	virtual void DrawFlashlightDepthTexture( ) = 0;
 
-	virtual void AddFlashlightRenderable( ShadowHandle_t shadow, IClientRenderable *pRenderable ) = 0;
-	virtual ShadowHandle_t CreateShadowEx( IMaterial* pMaterial, IMaterial* pModelMaterial, void* pBindProxy, int creationFlags ) = 0;
+	virtual ShadowHandle_t CreateShadowEx( IMaterial* pMaterial, IMaterial* pModelMaterial, void* pBindProxy, int creationFlags, int nEntIndex ) = 0;
 
 	virtual void SetFlashlightDepthTexture( ShadowHandle_t shadowHandle, ITexture *pFlashlightDepthTexture, unsigned char ucShadowStencilBit ) = 0;
 
@@ -190,6 +195,9 @@ public:
 
 	virtual int GetNumShadowsOnModel( ModelInstanceHandle_t instance ) = 0;
 	virtual int GetShadowsOnModel( ModelInstanceHandle_t instance, ShadowHandle_t* pShadowArray, bool bNormalShadows, bool bFlashlightShadows ) = 0;
+
+	virtual void FlashlightDrawCallback( ShadowDrawCallbackFn_t pCallback, void *pData ) = 0; //used to draw each additive flashlight pass. The callback is called once per flashlight state for an additive pass.
+
 	//Way for the client to determine which flashlight to use in single-pass modes. Does not actually enable the flashlight in any way.
 	virtual void SetSinglePassFlashlightRenderState( ShadowHandle_t handle ) = 0;
 
@@ -208,6 +216,8 @@ public:
 	virtual int SetupFlashlightRenderInstanceInfo( ShadowHandle_t *pUniqueFlashlights, uint32 *pModelUsageMask, int nUsageStride, int nInstanceCount, const ModelInstanceHandle_t *pInstance ) = 0;
 
 	// Returns the flashlight state for multiple flashlights
+	virtual void GetFlashlightRenderInfo( FlashlightInstance_t *pFlashlightState, int nCount, const ShadowHandle_t *pHandles ) = 0;
+
 	virtual void RemoveAllDecalsFromShadow( ShadowHandle_t handle ) = 0;
 
 	virtual void SkipShadowForEntity( int nEntIndex ) = 0;

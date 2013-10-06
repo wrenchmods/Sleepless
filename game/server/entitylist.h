@@ -66,14 +66,6 @@ public:
 	virtual CBaseEntity *GetFilterResult( void ) = 0;
 };
 
-// New enum for findentity functions that use a radius to search for them
-// default is normal, which uses GetCollisionOrigin()
-// nearest uses CalcNearestPoint
-enum brushPrecision_e
-{
-	BRUSHPRECISION_NORMAL = 0,
-	BRUSHPRECISION_NEAREST,
-};
 //-----------------------------------------------------------------------------
 // Purpose: a global list of all the entities in the game.  All iteration through
 //			entities is done through this object.
@@ -122,7 +114,7 @@ public:
 	// entity is about to be removed, notify the listeners
 	void NotifyCreateEntity( CBaseEntity *pEnt );
 	void NotifySpawn( CBaseEntity *pEnt );
-	void NotifyRemoveEntity( CBaseHandle hEnt );
+	void NotifyRemoveEntity( CBaseEntity *pEnt );
 	// iteration functions
 
 	// returns the next entity after pCurrentEnt;  if pCurrentEnt is NULL, return the first entity
@@ -153,15 +145,18 @@ public:
 	CBaseEntity *FindEntityInSphere( CBaseEntity *pStartEntity, const Vector &vecCenter, float flRadius );
 	CBaseEntity *FindEntityByTarget( CBaseEntity *pStartEntity, const char *szName );
 	CBaseEntity *FindEntityByModel( CBaseEntity *pStartEntity, const char *szModelName );
+	CBaseEntity	*FindEntityByOutputTarget( CBaseEntity *pStartEntity, string_t iTarget );
 
-	CBaseEntity *FindEntityByNameNearest( const char *szName, const Vector &vecSrc, float flRadius, CBaseEntity *pSearchingEntity = NULL, CBaseEntity *pActivator = NULL, CBaseEntity *pCaller = NULL, int brushPrecision = BRUSHPRECISION_NORMAL );
-	CBaseEntity *FindEntityByNameWithin( CBaseEntity *pStartEntity, const char *szName, const Vector &vecSrc, float flRadius, CBaseEntity *pSearchingEntity = NULL, CBaseEntity *pActivator = NULL, CBaseEntity *pCaller = NULL, int brushPrecision = BRUSHPRECISION_NORMAL );
-	CBaseEntity *FindEntityByClassnameNearest( const char *szName, const Vector &vecSrc, float flRadius, int brushPrecision = BRUSHPRECISION_NORMAL );
-	CBaseEntity *FindEntityByClassnameWithin( CBaseEntity *pStartEntity , const char *szName, const Vector &vecSrc, float flRadius, int brushPrecision = BRUSHPRECISION_NORMAL );
+	CBaseEntity *FindEntityByNameNearest( const char *szName, const Vector &vecSrc, float flRadius, CBaseEntity *pSearchingEntity = NULL, CBaseEntity *pActivator = NULL, CBaseEntity *pCaller = NULL );
+	CBaseEntity *FindEntityByNameWithin( CBaseEntity *pStartEntity, const char *szName, const Vector &vecSrc, float flRadius, CBaseEntity *pSearchingEntity = NULL, CBaseEntity *pActivator = NULL, CBaseEntity *pCaller = NULL );
+	CBaseEntity *FindEntityByClassnameNearest( const char *szName, const Vector &vecSrc, float flRadius );
+	CBaseEntity *FindEntityByClassnameNearest2D( const char *szName, const Vector &vecSrc, float flRadius );
+	CBaseEntity *FindEntityByClassnameWithin( CBaseEntity *pStartEntity , const char *szName, const Vector &vecSrc, float flRadius );
+	CBaseEntity *FindEntityByClassnameWithin( CBaseEntity *pStartEntity , const char *szName, const Vector &vecMins, const Vector &vecMaxs );
 
 	CBaseEntity *FindEntityGeneric( CBaseEntity *pStartEntity, const char *szName, CBaseEntity *pSearchingEntity = NULL, CBaseEntity *pActivator = NULL, CBaseEntity *pCaller = NULL );
-	CBaseEntity *FindEntityGenericWithin( CBaseEntity *pStartEntity, const char *szName, const Vector &vecSrc, float flRadius, CBaseEntity *pSearchingEntity = NULL, CBaseEntity *pActivator = NULL, CBaseEntity *pCaller = NULL, int brushPrecision = BRUSHPRECISION_NORMAL );
-	CBaseEntity *FindEntityGenericNearest( const char *szName, const Vector &vecSrc, float flRadius, CBaseEntity *pSearchingEntity = NULL, CBaseEntity *pActivator = NULL, CBaseEntity *pCaller = NULL, int brushPrecision = BRUSHPRECISION_NORMAL );
+	CBaseEntity *FindEntityGenericWithin( CBaseEntity *pStartEntity, const char *szName, const Vector &vecSrc, float flRadius, CBaseEntity *pSearchingEntity = NULL, CBaseEntity *pActivator = NULL, CBaseEntity *pCaller = NULL );
+	CBaseEntity *FindEntityGenericNearest( const char *szName, const Vector &vecSrc, float flRadius, CBaseEntity *pSearchingEntity = NULL, CBaseEntity *pActivator = NULL, CBaseEntity *pCaller = NULL );
 	
 	CBaseEntity *FindEntityNearestFacing( const Vector &origin, const Vector &facing, float threshold);
 	CBaseEntity *FindEntityClassNearestFacing( const Vector &origin, const Vector &facing, float threshold, char *classname);
@@ -169,6 +164,11 @@ public:
 
 	CBaseEntity *FindEntityProcedural( const char *szName, CBaseEntity *pSearchingEntity = NULL, CBaseEntity *pActivator = NULL, CBaseEntity *pCaller = NULL );
 	
+	// Fast versions that require a (real) string_t, and won't do wildcarding
+	CBaseEntity *FindEntityByClassnameFast( CBaseEntity *pStartEntity, string_t iszClassname );
+	CBaseEntity *FindEntityByClassnameNearestFast( string_t iszClassname, const Vector &vecSrc, float flRadius );
+	CBaseEntity *FindEntityByNameFast( CBaseEntity *pStartEntity, string_t iszName );
+
 	CGlobalEntityList();
 
 // CBaseEntityList overrides.
@@ -365,6 +365,7 @@ extern INotify *g_pNotify;
 void EntityTouch_Add( CBaseEntity *pEntity );
 int AimTarget_ListCount();
 int AimTarget_ListCopy( CBaseEntity *pList[], int listMax );
+CBaseEntity *AimTarget_ListElement( int iIndex );
 void AimTarget_ForceRepopulateList();
 
 void SimThink_EntityChanged( CBaseEntity *pEntity );

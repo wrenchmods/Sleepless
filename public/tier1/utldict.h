@@ -31,7 +31,7 @@ enum EDictCompareType
 //-----------------------------------------------------------------------------
 // A dictionary mapping from symbol to structure
 //-----------------------------------------------------------------------------
-template <class T, class I> 
+template <class T, class I = int > 
 class CUtlDict
 {
 public:
@@ -83,6 +83,10 @@ public:
 	// Iteration methods
 	I		First() const;
 	I		Next( I i ) const;
+
+	// Nested typedefs, for code that might need 
+	// to fish out the index type from a given dict
+	typedef I IndexType_t;
 
 protected:
 	typedef CUtlMap<const char *, T, I> DictElementMap_t;

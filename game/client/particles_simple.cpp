@@ -225,6 +225,7 @@ CSimpleEmitter::CSimpleEmitter( const char *pDebugName ) : CParticleEffect( pDeb
 {
 	m_flNearClipMin	= 16.0f;
 	m_flNearClipMax	= 64.0f;
+	m_nSplitScreenPlayerSlot = -1;
 }
 
 
@@ -386,6 +387,10 @@ void CSimpleEmitter::SimulateParticles( CParticleSimulateIterator *pIterator )
 
 void CSimpleEmitter::RenderParticles( CParticleRenderIterator *pIterator )
 {
+	ASSERT_LOCAL_PLAYER_RESOLVABLE();
+	if ( m_nSplitScreenPlayerSlot != -1 && m_nSplitScreenPlayerSlot != GET_ACTIVE_SPLITSCREEN_SLOT() )
+		return;
+
 	const SimpleParticle *pParticle = (const SimpleParticle *)pIterator->GetFirst();
 	while ( pParticle )
 	{
@@ -416,6 +421,11 @@ void CSimpleEmitter::RenderParticles( CParticleRenderIterator *pIterator )
 void CSimpleEmitter::SetDrawBeforeViewModel( bool state )
 {
 	m_ParticleEffect.SetDrawBeforeViewModel( state );
+}
+
+void CSimpleEmitter::SetShouldDrawForSplitScreenUser( int nSlot )
+{
+	m_nSplitScreenPlayerSlot = nSlot;
 }
 
 //==================================================
@@ -526,7 +536,7 @@ Vector CFireParticle::UpdateColor( const SimpleParticle *pParticle )
 	for ( int i = 0; i < 3; i++ )
 	{
 		//FIXME: This is frame dependant... but I don't want to store off start/end colors yet
-		//pParticle->m_uchColor[i] = max( 0, pParticle->m_uchColor[i]-2 );
+		//pParticle->m_uchColor[i] = MAX( 0, pParticle->m_uchColor[i]-2 );
 	}
 
 	return CSimpleEmitter::UpdateColor( pParticle );

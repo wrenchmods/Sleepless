@@ -1,4 +1,4 @@
-//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
+//===== Copyright ï¿½ 1996-2005, Valve Corporation, All rights reserved. ======//
 //
 // Purpose: 
 //
@@ -25,12 +25,12 @@
 
 //-----------------------------------------------------------------------------
 
-#ifdef UTLMEMORY_TRACK
-#define UTLMEMORY_TRACK_ALLOC()		MemAlloc_RegisterAllocation( "Sum of all UtlFixedMemory", 0, NumAllocated() * sizeof(T), NumAllocated() * sizeof(T), 0 )
-#define UTLMEMORY_TRACK_FREE()		if ( !m_pMemory ) ; else MemAlloc_RegisterDeallocation( "Sum of all UtlFixedMemory", 0, NumAllocated() * sizeof(T), NumAllocated() * sizeof(T), 0 )
+#ifdef UTLFIXEDMEMORY_TRACK
+#define UTLFIXEDMEMORY_TRACK_ALLOC()		MemAlloc_RegisterAllocation( "Sum of all UtlFixedMemory", 0, NumAllocated() * sizeof(T), NumAllocated() * sizeof(T), 0 )
+#define UTLFIXEDMEMORY_TRACK_FREE()		if ( !m_pMemory ) ; else MemAlloc_RegisterDeallocation( "Sum of all UtlFixedMemory", 0, NumAllocated() * sizeof(T), NumAllocated() * sizeof(T), 0 )
 #else
-#define UTLMEMORY_TRACK_ALLOC()		((void)0)
-#define UTLMEMORY_TRACK_FREE()		((void)0)
+#define UTLFIXEDMEMORY_TRACK_ALLOC()		((void)0)
+#define UTLFIXEDMEMORY_TRACK_FREE()		((void)0)
 #endif
 
 
@@ -115,7 +115,10 @@ public:
 
 	// Can we use this index?
 	bool IsIdxValid( int i ) const;
-	static int InvalidIndex() { return 0; }
+
+	// Specify the invalid ('null') index that we'll only return on failure
+	static const int INVALID_INDEX = 0; // For use with COMPILE_TIME_ASSERT
+	static int InvalidIndex() { return INVALID_INDEX; }
 
 	// Size
 	int NumAllocated() const;
@@ -179,9 +182,9 @@ CUtlFixedMemory<T>::~CUtlFixedMemory()
 template< class T >
 void CUtlFixedMemory<T>::Swap( CUtlFixedMemory< T > &mem )
 {
-	swap( m_pBlocks, mem.m_pBlocks );
-	swap( m_nAllocationCount, mem.m_nAllocationCount );
-	swap( m_nGrowSize, mem.m_nGrowSize );
+	V_swap( m_pBlocks, mem.m_pBlocks );
+	V_swap( m_nAllocationCount, mem.m_nAllocationCount );
+	V_swap( m_nGrowSize, mem.m_nGrowSize );
 }
 
 
@@ -193,11 +196,6 @@ void CUtlFixedMemory<T>::Init( int nGrowSize /* = 0 */, int nInitSize /* = 0 */ 
 {
 	Purge();
 
-	if ( nGrowSize == 0)
-	{
-		// Compute an allocation which is at least as big as a cache line...
-		nGrowSize = ( 31 + sizeof( T ) ) / sizeof( T );
-	}
 	m_nGrowSize = nGrowSize;
 
 	Grow( nInitSize );

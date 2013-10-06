@@ -127,6 +127,7 @@ CStandardRecvProxies::CStandardRecvProxies()
 	m_Int32ToInt8 = RecvProxy_Int32ToInt8;
 	m_Int32ToInt16 = RecvProxy_Int32ToInt16;
 	m_Int32ToInt32 = RecvProxy_Int32ToInt32;
+	m_Int64ToInt64 = RecvProxy_Int64ToInt64;
 	m_FloatToFloat = RecvProxy_FloatToFloat;
 	m_VectorToVector = RecvProxy_VectorToVector;
 }
@@ -238,6 +239,32 @@ RecvProp RecvPropVector(
 	return ret;
 }
 
+RecvProp RecvPropVectorXY(
+	char *pVarName, 
+	int offset, 
+	int sizeofVar,
+	int flags, 
+	RecvVarProxyFn varProxy
+	)
+{
+	RecvProp ret;
+
+#ifdef _DEBUG
+	if ( varProxy == RecvProxy_VectorToVector )
+	{
+		Assert( sizeofVar == sizeof( Vector ) );
+	}
+#endif
+
+	ret.m_pVarName = pVarName;
+	ret.SetOffset( offset );
+	ret.m_RecvType = DPT_VectorXY;
+	ret.m_Flags = flags;
+	ret.SetProxyFn( varProxy );
+
+	return ret;
+}
+
 #if 0 // We can't ship this since it changes the size of DTVariant to be 20 bytes instead of 16 and that breaks MODs!!!
 
 RecvProp RecvPropQuaternion(
@@ -292,6 +319,10 @@ RecvProp RecvPropInt(
 		{
 			varProxy = RecvProxy_Int32ToInt32;
 		}
+		else if (sizeofVar == 8)
+		{
+			varProxy = RecvProxy_Int64ToInt64;
+		}
 		else
 		{
 			Assert(!"RecvPropInt var has invalid size");
@@ -301,7 +332,7 @@ RecvProp RecvPropInt(
 
 	ret.m_pVarName = pVarName;
 	ret.SetOffset( offset );
-	ret.m_RecvType = DPT_Int;
+	ret.m_RecvType = (sizeofVar == 8) ? DPT_Int64 : DPT_Int;
 	ret.m_Flags = flags;
 	ret.SetProxyFn( varProxy );
 
@@ -422,6 +453,15 @@ void RecvProxy_VectorToVector( const CRecvProxyData *pData, void *pStruct, void 
 	((float*)pOut)[2] = v[2];
 }
 
+void RecvProxy_VectorXYToVectorXY( const CRecvProxyData *pData, void *pStruct, void *pOut )
+{
+	const float *v = pData->m_Value.m_Vector;
+	
+	Assert( IsFinite( v[0] ) && IsFinite( v[1] ) );
+	((float*)pOut)[0] = v[0];
+	((float*)pOut)[1] = v[1];
+}
+
 void RecvProxy_QuaternionToQuaternion( const CRecvProxyData *pData, void *pStruct, void *pOut )
 {
 	const float *v = pData->m_Value.m_Vector;
@@ -446,6 +486,17 @@ void RecvProxy_Int32ToInt16( const CRecvProxyData *pData, void *pStruct, void *p
 void RecvProxy_Int32ToInt32( const CRecvProxyData *pData, void *pStruct, void *pOut )
 {
 	*((unsigned long*)pOut) = (unsigned long)pData->m_Value.m_Int;
+}
+
+void RecvProxy_Int32ToColor32( const CRecvProxyData *pData, void *pStruct, void *pOut )
+{
+	//Always send/receive as little endian to preserve byte order across network byte swaps
+	*((uint32*)pOut) = LittleDWord((uint32)pData->m_Value.m_Int);
+}
+
+void RecvProxy_Int64ToInt64( const CRecvProxyData *pData, void *pStruct, void *pOut )
+{
+	*((int64*)pOut) = (int64)pData->m_Value.m_Int64;
 }
 
 void RecvProxy_StringToString( const CRecvProxyData *pData, void *pStruct, void *pOut )

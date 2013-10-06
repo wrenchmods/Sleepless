@@ -9,7 +9,7 @@
 #include "ammodef.h"
 #include "tier0/vprof.h"
 #include "KeyValues.h"
-#include "achievementmgr.h"
+#include "iachievementmgr.h"
 
 #ifdef CLIENT_DLL
 
@@ -143,6 +143,32 @@ CGameRules::CGameRules() : CAutoGameSystemPerFrame( "CGameRules" )
 }
 
 //-----------------------------------------------------------------------------
+// Precache game-specific resources
+//-----------------------------------------------------------------------------
+void CGameRules::Precache( void ) 
+{
+	// Used by particle property
+	PrecacheEffect( "ParticleEffect" );
+	PrecacheEffect( "ParticleEffectStop" );
+
+	// Used by default impact system
+	PrecacheEffect( "GlassImpact" );
+	PrecacheEffect( "Impact" );
+	PrecacheEffect( "RagdollImpact" );
+	PrecacheEffect( "gunshotsplash"	);
+	PrecacheEffect( "TracerSound" );
+	PrecacheEffect( "Tracer" );
+
+	// Used by physics impacts
+	PrecacheEffect( "watersplash" );
+	PrecacheEffect( "waterripple" );
+
+	// Used by UTIL_BloodImpact, which is used in many places
+	PrecacheEffect( "bloodimpact" );
+}
+
+
+//-----------------------------------------------------------------------------
 // Purpose: Return true if the specified player can carry any more of the ammo type
 //-----------------------------------------------------------------------------
 bool CGameRules::CanHaveAmmo( CBaseCombatCharacter *pPlayer, int iAmmoIndex )
@@ -150,7 +176,7 @@ bool CGameRules::CanHaveAmmo( CBaseCombatCharacter *pPlayer, int iAmmoIndex )
 	if ( iAmmoIndex > -1 )
 	{
 		// Get the max carrying capacity for this ammo
-		int iMaxCarry = GetAmmoDef()->MaxCarry( iAmmoIndex );
+		int iMaxCarry = GetAmmoDef()->MaxCarry( iAmmoIndex, pPlayer );
 
 		// Does the player have room for more of this type of ammo?
 		if ( pPlayer->GetAmmoCount( iAmmoIndex ) < iMaxCarry )
@@ -174,6 +200,8 @@ CBaseEntity *CGameRules::GetPlayerSpawnSpot( CBasePlayer *pPlayer )
 {
 	CBaseEntity *pSpawnSpot = pPlayer->EntSelectSpawnPoint();
 	Assert( pSpawnSpot );
+	if ( pSpawnSpot == NULL )
+		return NULL;
 
 	pPlayer->SetLocalOrigin( pSpawnSpot->GetAbsOrigin() + Vector(0,0,1) );
 	pPlayer->SetAbsVelocity( vec3_origin );
@@ -312,13 +340,13 @@ void CGameRules::RadiusDamage( const CTakeDamageInfo &info, const Vector &vecSrc
 	else
 		falloff = 1.0;
 
-	int bInWater = (UTIL_PointContents ( vecSrc ) & MASK_WATER) ? true : false;
+	int bInWater = (UTIL_PointContents ( vecSrc, MASK_WATER ) & MASK_WATER) ? true : false;
 
 #ifdef HL2_DLL
 	if( bInWater )
 	{
 		// Only muffle the explosion if deeper than 2 feet in water.
-		if( !(UTIL_PointContents(vecSrc + Vector(0, 0, 24)) & MASK_WATER) )
+		if( !(UTIL_PointContents(vecSrc + Vector(0, 0, 24), MASK_WATER) & MASK_WATER) )
 		{
 			bInWater = false;
 		}
@@ -451,7 +479,8 @@ void CGameRules::RadiusDamage( const CTakeDamageInfo &info, const Vector &vecSrc
 			}
 		}
 		// decrease damage for an ent that's farther from the bomb.
-		flAdjustedDamage = ( vecSrc - tr.endpos ).Length() * falloff;
+		float flDistanceToEnt = ( vecSrc - tr.endpos ).Length();
+		flAdjustedDamage = flDistanceToEnt * falloff;
 		flAdjustedDamage = info.GetDamage() - flAdjustedDamage;
 
 		if ( flAdjustedDamage <= 0 )
@@ -469,6 +498,7 @@ void CGameRules::RadiusDamage( const CTakeDamageInfo &info, const Vector &vecSrc
 		
 		CTakeDamageInfo adjustedInfo = info;
 		//Msg("%s: Blocked damage: %f percent (in:%f  out:%f)\n", pEntity->GetClassname(), flBlockedDamagePercent * 100, flAdjustedDamage, flAdjustedDamage - (flAdjustedDamage * flBlockedDamagePercent) );
+		adjustedInfo.SetRadius( flRadius );
 		adjustedInfo.SetDamage( flAdjustedDamage - (flAdjustedDamage * flBlockedDamagePercent) );
 
 		// Now make a consideration for skill level!
@@ -550,7 +580,7 @@ void CGameRules::FrameUpdatePostEntityThink()
 }
 
 // Hook into the convar from the engine
-ConVar skill( "skill", "1" );
+ConVar skill( "skill", "1", FCVAR_ARCHIVE | FCVAR_ARCHIVE_XBOX );
 
 void CGameRules::Think()
 {
@@ -606,8 +636,22 @@ void CGameRules::MarkAchievement( IRecipientFilter& filter, char const *pchAchie
 	IAchievementMgr *pAchievementMgr = engine->GetAchievementMgr();
 	if ( !pAchievementMgr )
 		return;
-	pAchievementMgr->OnMapEvent( pchAchievementName );
+
+#ifdef GAME_DLL
+	pAchievementMgr->OnMapEvent( pchAchievementName, SINGLE_PLAYER_SLOT );
+#else
+	pAchievementMgr->OnMapEvent( pchAchievementName, GET_ACTIVE_SPLITSCREEN_SLOT() );
+#endif
 }
+
+//-----------------------------------------------------------------------------
+// Purpose: Wrapper allowing gamerules to change the way client-finding in PVS works
+//-----------------------------------------------------------------------------
+edict_t *CGameRules::DoFindClientInPVS( edict_t *pEdict, unsigned char *pvs, unsigned pvssize )
+{
+	return UTIL_FindClientInPVSGuts( pEdict, pvs, pvssize );
+}
+
 
 #endif //} !CLIENT_DLL
 
@@ -620,6 +664,15 @@ CGameRules::~CGameRules()
 {
 	Assert( g_pGameRules == this );
 	g_pGameRules = NULL;
+}
+
+bool CGameRules::Init()
+{
+#ifndef CLIENT_DLL
+	RefreshSkillData( true );
+#endif
+
+	return true;
 }
 
 bool CGameRules::SwitchToNextBestWeapon( CBaseCombatCharacter *pPlayer, CBaseCombatWeapon *pCurrentWeapon )
@@ -637,22 +690,27 @@ bool CGameRules::ShouldCollide( int collisionGroup0, int collisionGroup1 )
 	if ( collisionGroup0 > collisionGroup1 )
 	{
 		// swap so that lowest is always first
-		swap(collisionGroup0,collisionGroup1);
+		V_swap(collisionGroup0,collisionGroup1);
 	}
 
-#ifndef HL2MP
 	if ( (collisionGroup0 == COLLISION_GROUP_PLAYER || collisionGroup0 == COLLISION_GROUP_PLAYER_MOVEMENT) &&
 		collisionGroup1 == COLLISION_GROUP_PUSHAWAY )
 	{
 		return false;
 	}
-#endif
 
 	if ( collisionGroup0 == COLLISION_GROUP_DEBRIS && collisionGroup1 == COLLISION_GROUP_PUSHAWAY )
 	{
 		// let debris and multiplayer objects collide
 		return true;
 	}
+
+	// Only let projectile blocking debris collide with projectiles
+	if ( collisionGroup0 == COLLISION_GROUP_PROJECTILE && collisionGroup1 == COLLISION_GROUP_DEBRIS_BLOCK_PROJECTILE )
+		return true;
+
+	if ( collisionGroup0 == COLLISION_GROUP_DEBRIS_BLOCK_PROJECTILE || collisionGroup1 == COLLISION_GROUP_DEBRIS_BLOCK_PROJECTILE )
+		return false;
 	
 	// --------------------------------------------------------------------------
 	// NOTE: All of this code assumes the collision groups have been sorted!!!!
@@ -687,12 +745,12 @@ bool CGameRules::ShouldCollide( int collisionGroup0, int collisionGroup1 )
 	if ( collisionGroup0 == COLLISION_GROUP_INTERACTIVE_DEBRIS && collisionGroup1 == COLLISION_GROUP_INTERACTIVE_DEBRIS )
 		return false;
 
-#ifndef HL2MP
 	// This change was breaking HL2DM
 	// Adrian: TEST! Interactive Debris doesn't collide with the player.
 	if ( collisionGroup0 == COLLISION_GROUP_INTERACTIVE_DEBRIS && ( collisionGroup1 == COLLISION_GROUP_PLAYER_MOVEMENT || collisionGroup1 == COLLISION_GROUP_PLAYER ) )
 		 return false;
-#endif
+
+
 
 	if ( collisionGroup0 == COLLISION_GROUP_BREAKABLE_GLASS && collisionGroup1 == COLLISION_GROUP_BREAKABLE_GLASS )
 		return false;
@@ -771,7 +829,6 @@ float CGameRules::GetAmmoDamage( CBaseEntity *pAttacker, CBaseEntity *pVictim, i
 
 	return flDamage;
 }
-
 
 #ifndef CLIENT_DLL
 const char *CGameRules::GetChatPrefix( bool bTeamOnly, CBasePlayer *pPlayer )

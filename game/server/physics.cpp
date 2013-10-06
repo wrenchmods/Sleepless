@@ -32,9 +32,7 @@
 #include "tier0/vprof.h"
 #include "engine/IStaticPropMgr.h"
 #include "physics_prop_ragdoll.h"
-#if HL2_EPISODIC
 #include "particle_parse.h"
-#endif
 #include "vphysics/object_hash.h"
 #include "vphysics/collision_set.h"
 #include "vphysics/friction.h"
@@ -45,13 +43,10 @@
 #include "positionwatcher.h"
 #include "tier1/callqueue.h"
 #include "vphysics/constraints.h"
+#include "tier0/miniprofiler.h"
+#include "tier1.h"
 
-#ifdef PORTAL
-#include "portal_physics_collisionevent.h"
-#include "physicsshadowclone.h"
-#include "PortalSimulation.h"
-void PortalPhysFrame( float deltaTime ); //small wrapper for PhysFrame that simulates all 3 environments at once
-#endif
+
 
 void PrecachePhysicsSounds( void );
 
@@ -62,12 +57,12 @@ ConVar phys_speeds( "phys_speeds", "0" );
 
 // defined in phys_constraint
 extern IPhysicsConstraintEvent *g_pConstraintEvents;
+//DLL_IMPORT CLinkedMiniProfiler *g_pPhysicsMiniProfilers;
+//CLinkedMiniProfiler g_mp_ServerPhysicsSimulate("ServerPhysicsSimulate",&g_pPhysicsMiniProfilers);
 
 
 CEntityList *g_pShadowEntities = NULL;
-#ifdef PORTAL
-CEntityList *g_pShadowEntities_Main = NULL;
-#endif
+
 
 // local variables
 static float g_PhysAverageSimTime;
@@ -93,11 +88,9 @@ ConVar phys_timescale( "phys_timescale", "1", 0, "Scale time for physics", Times
 ConVar phys_dontprintint( "phys_dontprintint", "1", FCVAR_NONE, "Don't print inter-penetration warnings." );
 #endif
 
-#ifdef PORTAL
-	CPortal_CollisionEvent g_Collisions;
-#else
+
 	CCollisionEvent g_Collisions;
-#endif
+
 
 
 IPhysicsCollisionSolver * const g_pCollisionSolver = &g_Collisions;
@@ -225,9 +218,7 @@ void CPhysicsHook::LevelInitPreEntity()
 	params.maxCollisionsPerObjectPerTimestep = 10;
 	physenv->SetPerformanceSettings( &params );
 
-#ifdef PORTAL
-	physenv_main = physenv;
-#endif
+
 	{
 	g_EntityCollisionHash = physics->CreateObjectPairHash();
 	}
@@ -251,9 +242,7 @@ void CPhysicsHook::LevelInitPreEntity()
 	g_PhysWorldObject = PhysCreateWorld( GetWorldEntity() );
 
 	g_pShadowEntities = new CEntityList;
-#ifdef PORTAL
-	g_pShadowEntities_Main  = g_pShadowEntities;
-#endif
+
 
 	PrecachePhysicsSounds();
 
@@ -384,20 +373,15 @@ void CPhysicsHook::FrameUpdatePostEntityThink( )
 	{
 		m_isFinalTick = false;
 
-#ifdef PORTAL //slight detour if we're the portal mod
-		PortalPhysFrame( interval );
-#else
+
 		PhysFrame( interval );
-#endif
+
 
 	}
 	m_isFinalTick = true;
 
-#ifdef PORTAL //slight detour if we're the portal mod
-	PortalPhysFrame( interval );
-#else
+
 	PhysFrame( interval );
-#endif
 
 }
 
@@ -428,11 +412,6 @@ IPhysicsObject *PhysCreateWorld( CBaseEntity *pWorld )
 // because they aren't in the game physics world at present
 static bool WheelCollidesWith( IPhysicsObject *pObj, CBaseEntity *pEntity )
 {
-#if defined( INVASION_DLL )
-	if ( pEntity->GetCollisionGroup() == TFCOLLISION_GROUP_OBJECT )
-		return false;
-#endif
-
 	// Cull against interactive debris
 	if ( pEntity->GetCollisionGroup() == COLLISION_GROUP_INTERACTIVE_DEBRIS )
 		return false;
@@ -553,6 +532,15 @@ int CCollisionEvent::ShouldCollide_2( IPhysicsObject *pObj0, IPhysicsObject *pOb
 	// physics forces on the rest of the system.
 	bool aiMove0 = (movetype0==MOVETYPE_PUSH) ? true : false;
 	bool aiMove1 = (movetype1==MOVETYPE_PUSH) ? true : false;
+	// Anything with custom movement and a shadow controller is assumed to do its own world/AI collisions
+	if ( movetype0 == MOVETYPE_CUSTOM && pObj0->GetShadowController() )
+	{
+		aiMove0 = true;
+	}
+	if ( movetype1 == MOVETYPE_CUSTOM && pObj1->GetShadowController() )
+	{
+		aiMove1 = true;
+	}
 
 	if ( pEntity0->GetMoveParent() )
 	{
@@ -680,7 +668,7 @@ bool CCollisionEvent::ShouldFreezeObject( IPhysicsObject *pObject )
 	// After doing the experiment of constraining the dynamic range of mass while solving friction
 	// contacts, I like the results of this tradeoff better.  So damage or remove the debris object
 	// wherever possible once we hit this case:
-	if ( IsDebris( pEntity->GetCollisionGroup()) && !pEntity->IsNPC() )
+	if ( pEntity && IsDebris( pEntity->GetCollisionGroup()) && !pEntity->IsNPC() )
 	{
 		IPhysicsObject *pOtherObject = NULL;
 		Vector contactPos;
@@ -1584,9 +1572,12 @@ CON_COMMAND( physics_budget, "Times the cost of each active object" )
 		CUtlVector<float> times;
 		float totalTime = 0.f;
 		g_Collisions.BufferTouchEvents( true );
-		float full = engine->Time();
-		physenv->Simulate( DEFAULT_TICK_INTERVAL );
-		full = engine->Time() - full;
+		float full = Plat_FloatTime();
+		{
+			//CMiniProfilerGuard mpg3(&g_mp_ServerPhysicsSimulate);
+			physenv->Simulate( DEFAULT_TICK_INTERVAL );
+		}
+		full = Plat_FloatTime() - full;
 		float lastTime = full;
 
 		times.SetSize( ents.Count() );
@@ -1601,9 +1592,12 @@ CON_COMMAND( physics_budget, "Times the cost of each active object" )
 			{
 				PhysForceEntityToSleep( ents[j], ents[j]->VPhysicsGetObject() );
 			}
-			float start = engine->Time();
-			physenv->Simulate( DEFAULT_TICK_INTERVAL );
-			float end = engine->Time();
+			float start = Plat_FloatTime();
+			{
+				//CMiniProfilerGuard mpg3(&g_mp_ServerPhysicsSimulate);
+				physenv->Simulate( DEFAULT_TICK_INTERVAL );
+			}
+			float end = Plat_FloatTime();
 
 			float elapsed = end - start;
 			float avgTime = lastTime - elapsed;
@@ -1612,7 +1606,7 @@ CON_COMMAND( physics_budget, "Times the cost of each active object" )
 			lastTime = elapsed;
  		}
 
-		totalTime = max( totalTime, 0.001 );
+		totalTime = MAX( totalTime, 0.001 );
 		for ( i = 0; i < ents.Count(); i++ )
 		{
 			float fraction = times[i] / totalTime;
@@ -1624,27 +1618,7 @@ CON_COMMAND( physics_budget, "Times the cost of each active object" )
 }
 
 
-#ifdef PORTAL
-ConVar sv_fullsyncclones("sv_fullsyncclones", "1", FCVAR_CHEAT );
-void PortalPhysFrame( float deltaTime ) //small wrapper for PhysFrame that simulates all environments at once
-{
-	CPortalSimulator::PrePhysFrame();
 
-	if( sv_fullsyncclones.GetBool() )
-		CPhysicsShadowClone::FullSyncAllClones();
-
-	g_Collisions.BufferTouchEvents( true );
-
-	PhysFrame( deltaTime );
-
-	g_Collisions.PortalPostSimulationFrame();
-
-	g_Collisions.BufferTouchEvents( false );
-	g_Collisions.FrameUpdate();
-
-	CPortalSimulator::PostPhysFrame();
-}
-#endif
 
 // Advance physics by time (in seconds)
 void PhysFrame( float deltaTime )
@@ -1677,23 +1651,29 @@ void PhysFrame( float deltaTime )
 
 	if ( bProfile )
 	{
-		simRealTime = engine->Time();
+		simRealTime = Plat_FloatTime();
 	}
 
 #ifdef _DEBUG
 	physenv->DebugCheckContacts();
 #endif
 
-#ifndef PORTAL //instead of wrapping 1 simulation with this, portal needs to wrap 3
-	g_Collisions.BufferTouchEvents( true );
-#endif
 
-	physenv->Simulate( deltaTime );
+	g_Collisions.BufferTouchEvents( true );
+
+
+	{
+		//CMiniProfilerGuard mpg3(&g_mp_ServerPhysicsSimulate);
+		VPROF( "physenv->Simulate()" );
+		physenv->Simulate( deltaTime );
+	}
 
 	int activeCount = physenv->GetActiveObjectCount();
 	IPhysicsObject **pActiveList = NULL;
 	if ( activeCount )
 	{
+		VPROF( "physenv->GetActiveObjects->VPhysicsUpdate" );
+
 		pActiveList = (IPhysicsObject **)stackalloc( sizeof(IPhysicsObject *)*activeCount );
 		physenv->GetActiveObjects( pActiveList );
 
@@ -1712,6 +1692,8 @@ void PhysFrame( float deltaTime )
 		stackfree( pActiveList );
 	}
 
+	{
+	VPROF( "PhysFrame VPhysicsShadowUpdate" );
 	for ( pItem = g_pShadowEntities->m_pItemList; pItem; pItem = pItem->pNext )
 	{
 		CBaseEntity *pEntity = pItem->hEnt.Get();
@@ -1728,10 +1710,11 @@ void PhysFrame( float deltaTime )
 			pEntity->VPhysicsShadowUpdate( pPhysics );
 		}
 	}
+	}
 
 	if ( bProfile )
 	{
-		simRealTime = engine->Time() - simRealTime;
+		simRealTime = Plat_FloatTime() - simRealTime;
 
 		if ( simRealTime < 0 )
 			simRealTime = 0;
@@ -1745,10 +1728,10 @@ void PhysFrame( float deltaTime )
 		lastObjectCount = activeCount;
 	}
 
-#ifndef PORTAL //instead of wrapping 1 simulation with this, portal needs to wrap 3
+
 	g_Collisions.BufferTouchEvents( false );
 	g_Collisions.FrameUpdate();
-#endif
+
 }
 
 
@@ -1822,10 +1805,10 @@ void CCollisionEvent::PreCollision( vcollisionevent_t *pEvent )
 					// so make it fairly small and have a tiny collision instead.
 					pObject->GetVelocity( &velocity, &angVel );
 					float len = VectorNormalize(velocity);
-					len = max( len, 10 );
+					len = MAX( len, 10 );
 					velocity *= len;
 					len = VectorNormalize(angVel);
-					len = max( len, 1 );
+					len = MAX( len, 1 );
 					angVel *= len;
 					pObject->SetVelocity( &velocity, &angVel );
 				}
@@ -2156,6 +2139,8 @@ void CCollisionEvent::UpdateDamageEvents( void )
 			}
 		}
 #endif
+
+
 
 		event.pEntity->TakeDamage( event.info );
 		int iEntBits2 = event.pEntity->IsAlive() ? 0x0001 : 0;
@@ -2620,6 +2605,7 @@ void PhysCollisionWarpEffect( gamevcollisionevent_t *pEvent, surfacedata_t *phit
 }
 #endif
 
+
 void PhysCollisionDust( gamevcollisionevent_t *pEvent, surfacedata_t *phit )
 {
 
@@ -2654,14 +2640,16 @@ void PhysCollisionDust( gamevcollisionevent_t *pEvent, surfacedata_t *phit )
 	}
 
 	//Kick up dust
-	Vector	vecPos, vecVel;
+	Vector	vecPos, vecVel, vecNormal;
+	QAngle angNormal;
 
 	pEvent->pInternalData->GetContactPoint( vecPos );
+	pEvent->pInternalData->GetSurfaceNormal( vecNormal );
+	VectorAngles( vecNormal, angNormal );
+	vecVel = Vector ( pEvent->collisionSpeed, pEvent->collisionSpeed, pEvent->collisionSpeed );
 
-	vecVel.Random( -1.0f, 1.0f );
-	vecVel.z = random->RandomFloat( 0.3f, 1.0f );
-	VectorNormalize( vecVel );
-	g_pEffects->Dust( vecPos, vecVel, 8.0f, pEvent->collisionSpeed );
+	DispatchParticleEffect( "impact_physics_dust", vecPos, vecVel, angNormal );
+
 }
 
 void PhysFrictionSound( CBaseEntity *pEntity, IPhysicsObject *pObject, const char *pSoundName, HSOUNDSCRIPTHANDLE& handle, float flVolume )

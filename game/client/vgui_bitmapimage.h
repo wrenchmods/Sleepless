@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -37,7 +37,7 @@ public:
 	void DoPaint( vgui::VPANEL panel, float yaw = 0, float flAlphaModulate = 1.0f );
 	void DoPaint( int x, int y, int w, int h, float yaw = 0, float flAlphaModulate = 1.0f );
 	void Paint( );
-	void SetColor( Color& clr );
+	void SetColor( const Color& clr );
 	Color GetColor( );
 	void GetColor( int& r,int& g,int& b,int& a );
 	void GetSize( int& wide, int& tall );

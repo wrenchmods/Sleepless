@@ -11,16 +11,16 @@
 
 FileWeaponInfo_t* CreateWeaponInfo()
 {
-	return new CSDKWeaponInfo;
+	return new CSDK_WeaponInfo;
 }
 
 
-CSDKWeaponInfo::CSDKWeaponInfo()
+CSDK_WeaponInfo::CSDK_WeaponInfo()
 {
 }
 
 
-void CSDKWeaponInfo::Parse( KeyValues *pKeyValuesData, const char *szWeaponName )
+void CSDK_WeaponInfo::Parse( KeyValues *pKeyValuesData, const char *szWeaponName )
 {
 	BaseClass::Parse( pKeyValuesData, szWeaponName );
 

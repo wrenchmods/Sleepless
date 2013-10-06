@@ -1481,7 +1481,7 @@ void CC_CollisionTest( const CCommand &args )
 
 	for ( int j = 0; j < 2; j++ )
 	{
-		float startTime = engine->Time();
+		float startTime = Plat_FloatTime();
 		if ( testType == 1 )
 		{
 			const CPhysCollide *pCollide = g_PhysWorldObject->GetCollide();
@@ -1507,7 +1507,7 @@ void CC_CollisionTest( const CCommand &args )
 			}
 		}
 
-		duration += engine->Time() - startTime;
+		duration += Plat_FloatTime() - startTime;
 	}
 	test[testType] = duration;
 	Msg("%d collisions in %.2f ms (%u dots)\n", NUM_COLLISION_TESTS, duration*1000, dots );

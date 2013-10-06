@@ -78,6 +78,27 @@ bool CAI_LocalNavigator::HaveObstacles()
 	return m_pPlaneSolver->HaveObstacles();
 }
 
+Obstacle_t CAI_LocalNavigator::AddGlobalObstacle( const Vector &pos, float radius, AI_MoveSuggType_t type )
+{
+	return CAI_PlaneSolver::AddGlobalObstacle( pos, radius, NULL, type );
+}
+
+void CAI_LocalNavigator::RemoveGlobalObstacle( Obstacle_t hObstacle )
+{
+	CAI_PlaneSolver::RemoveGlobalObstacle( hObstacle );
+}
+
+void CAI_LocalNavigator::RemoveGlobalObstacles( void )
+{
+	CAI_PlaneSolver::RemoveGlobalObstacles();
+}
+
+
+bool CAI_LocalNavigator::IsSegmentBlockedByGlobalObstacles( const Vector &vecStart, const Vector &vecEnd )
+{
+	return CAI_PlaneSolver::IsSegmentBlockedByGlobalObstacles( vecStart, vecEnd );
+}
+
 //-------------------------------------
 
 bool CAI_LocalNavigator::MoveCalcDirect( AILocalMoveGoal_t *pMoveGoal, bool bOnlyCurThink, float *pDistClear, AIMoveResult_t *pResult )
@@ -91,13 +112,13 @@ bool CAI_LocalNavigator::MoveCalcDirect( AILocalMoveGoal_t *pMoveGoal, bool bOnl
 		CAI_Motor *pMotor = GetOuter()->GetMotor();
 		float  minCheckDist = pMotor->MinCheckDist();
 		float  probeDist	= m_pPlaneSolver->CalcProbeDist( pMoveGoal->speed ); // having this match steering allows one fewer traces
-		float  checkDist	= max( minCheckDist, probeDist );
-		float  checkStepDist = max( 16.0, probeDist * 0.5 );
+		float  checkDist	= MAX( minCheckDist, probeDist );
+		float  checkStepDist = MAX( 16.0, probeDist * 0.5 );
 
 		if ( pMoveGoal->flags & ( AILMG_TARGET_IS_TRANSITION | AILMG_TARGET_IS_GOAL ) )
 		{
-			// clamp checkDist to be no farther than max distance to goal
-			checkDist = min( checkDist, pMoveGoal->maxDist );
+			// clamp checkDist to be no farther than MAX distance to goal
+			checkDist = MIN( checkDist, pMoveGoal->maxDist );
 		}
 
 		if ( checkDist <= 0.0 )
@@ -133,7 +154,7 @@ bool CAI_LocalNavigator::MoveCalcDirect( AILocalMoveGoal_t *pMoveGoal, bool bOnl
 		{
 			testPos = GetLocalOrigin() + pMoveGoal->dir * moveThisInterval;
 			bTraceClear = GetMoveProbe()->MoveLimit( pMoveGoal->navType, GetLocalOrigin(), testPos, 
-													 MASK_NPCSOLID, pMoveGoal->pMoveTarget, 
+													 GetOuter()->GetAITraceMask(), pMoveGoal->pMoveTarget, 
 													 100.0, 
 													 ( pMoveGoal->navType == NAV_GROUND ) ? AIMLF_2D : AIMLF_DEFAULT, 
 													 &pMoveGoal->directTrace );
@@ -175,7 +196,7 @@ bool CAI_LocalNavigator::MoveCalcDirect( AILocalMoveGoal_t *pMoveGoal, bool bOnl
 					checkStepPct = 100.0;
 				
 				bTraceClear = GetMoveProbe()->MoveLimit( pMoveGoal->navType, GetLocalOrigin(), testPos, 
-														 MASK_NPCSOLID, pMoveGoal->pMoveTarget, 
+														 GetOuter()->GetAITraceMask(), pMoveGoal->pMoveTarget, 
 														 checkStepPct, 
 														 ( pMoveGoal->navType == NAV_GROUND ) ? AIMLF_2D : AIMLF_DEFAULT, 
 														 &pMoveGoal->directTrace );

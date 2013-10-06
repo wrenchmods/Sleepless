@@ -11,6 +11,7 @@
 #pragma once
 #endif
 
+#if defined( USE_PREDICTABLEID )
 #if !defined( NO_ENTITY_PREDICTION )
 //-----------------------------------------------------------------------------
 // Purpose: Wraps 32bit predictID to allow access and creation
@@ -71,5 +72,7 @@ private:
 };
 
 #endif
-
+#else
+typedef void *CPredictableId;
+#endif // USE_PREDICTABLEID
 #endif // PREDICTABLEID_H

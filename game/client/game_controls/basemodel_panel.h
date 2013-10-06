@@ -169,6 +169,7 @@ public:
 	int FindDefaultAnim( void );
 	int FindAnimByName( const char *pszName );
 	void SetModelAnim( int iAnim );
+	void SetModelAnim( const char *pszName );
 
 	// Manipulation.
 	virtual void OnKeyCodePressed ( vgui::KeyCode code );

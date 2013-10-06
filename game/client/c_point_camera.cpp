@@ -1,4 +1,4 @@
-//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
+//===== Copyright 1996-2005, Valve Corporation, All rights reserved. ======//
 //
 // Purpose: 
 //
@@ -19,16 +19,18 @@ IMPLEMENT_CLIENTCLASS_DT( C_PointCamera, DT_PointCamera, CPointCamera )
 	RecvPropFloat( RECVINFO( m_FOV ) ), 
 	RecvPropFloat( RECVINFO( m_Resolution ) ), 
 	RecvPropInt( RECVINFO( m_bFogEnable ) ),
-	RecvPropInt( RECVINFO( m_FogColor ) ),
+	RecvPropInt( RECVINFO( m_FogColor ), 0, RecvProxy_Int32ToColor32 ),
 	RecvPropFloat( RECVINFO( m_flFogStart ) ), 
 	RecvPropFloat( RECVINFO( m_flFogEnd ) ), 
 	RecvPropFloat( RECVINFO( m_flFogMaxDensity ) ), 
-	RecvPropInt( RECVINFO( m_bActive ) ),
-	RecvPropInt( RECVINFO( m_bUseScreenAspectRatio ) ),
+	RecvPropBool( RECVINFO( m_bActive ) ),
+	RecvPropBool( RECVINFO( m_bUseScreenAspectRatio ) ),
+	RecvPropBool( RECVINFO( m_bNoSky ) ),
+	RecvPropFloat( RECVINFO( m_fBrightness ) ), 
 END_RECV_TABLE()
 
 C_EntityClassList<C_PointCamera> g_PointCameraList;
-C_PointCamera *C_EntityClassList<C_PointCamera>::m_pClassList = NULL;
+template<> C_PointCamera *C_EntityClassList<C_PointCamera>::m_pClassList = NULL;
 
 C_PointCamera* GetPointCameraList()
 {

@@ -4,10 +4,15 @@
 //
 // $NoKeywords: $
 //=============================================================================//
+
 #include "cbase.h"
 #include "env_meteor_shared.h"
 #include "mapdata_shared.h"
 #include "sharedInterface.h"
+
+// NOTE: This has to be the last file included!
+#include "tier0/memdbgon.h"
+
 
 //=============================================================================
 //

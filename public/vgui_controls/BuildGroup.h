@@ -49,7 +49,7 @@ public:
 	virtual Panel *GetCurrentPanel();
 
 	// Load the control settings from file
-	virtual void LoadControlSettings(const char *controlResourceName, const char *pathID = NULL, KeyValues *pPreloadedKeyValues = NULL);
+	virtual void LoadControlSettings(const char *controlResourceName, const char *pathID = NULL, KeyValues *pPreloadedKeyValues = NULL, KeyValues *pConditions = NULL);
 
 	// Reload the control settings from file
 	void ReloadControlSettings();
@@ -92,7 +92,8 @@ public:
 	// Get the resource file name used
 	virtual const char *GetResourceName(void) { return m_pResourceName; }
 
-	virtual void PanelAdded(Panel* panel);
+	void PanelAdded(Panel* panel);
+	void PanelRemoved(Panel *panel);
 
 	virtual bool MousePressed(MouseCode code,Panel* panel);
 	virtual bool MouseReleased(MouseCode code,Panel* panel);
@@ -122,6 +123,9 @@ public:
 
 	// dialog variables
 	KeyValues *GetDialogVariables();
+
+	// conditional keys for selectively reading keyvalues
+	void ProcessConditionalKeys( KeyValues *pDat, KeyValues *pConditions );
 
 protected:
 	virtual bool CursorMoved(int x, int y, Panel *panel);

@@ -7,6 +7,7 @@
 #include "cbase.h"
 #include "sdk_fx_shared.h"
 #include "weapon_sdkbase.h"
+#include "sdk_weapon_parse.h"
 
 #ifndef CLIENT_DLL
 	#include "ilagcompensationmanager.h"
@@ -22,7 +23,7 @@
 		int iPlayerIndex,
 		WeaponSound_t sound_type,
 		const Vector &vOrigin,
-		CSDKWeaponInfo *pWeaponInfo )
+		const CSDK_WeaponInfo *pWeaponInfo )
 	{
 
 		// If we have some sounds from the weapon classname.txt file, play a random one of them
@@ -88,7 +89,6 @@
 #else
 
 	#include "sdk_player.h"
-	#include "te_firebullets.h"
 	
 	// Server doesn't play sounds anyway.
 	void StartGroupingSounds() {}
@@ -96,7 +96,7 @@
 	void FX_WeaponSound ( int iPlayerIndex,
 		WeaponSound_t sound_type,
 		const Vector &vOrigin,
-		CSDKWeaponInfo *pWeaponInfo ) {};
+		const CSDK_WeaponInfo *pWeaponInfo ) {};
 
 #endif
 
@@ -109,7 +109,7 @@ void FX_FireBullets(
 	int	iPlayerIndex,
 	const Vector &vOrigin,
 	const QAngle &vAngles,
-	int	iWeaponID,
+	const CSDK_WeaponInfo *pWeaponInfo,
 	int	iMode,
 	int iSeed,
 	float flSpread
@@ -118,51 +118,9 @@ void FX_FireBullets(
 	bool bDoEffects = true;
 
 #ifdef CLIENT_DLL
-	C_SDKPlayer *pPlayer = ToSDKPlayer( ClientEntityList().GetBaseEntity( iPlayerIndex ) );
+	C_SDK_Player *pPlayer = ToSDK_Player( ClientEntityList().GetBaseEntity( iPlayerIndex ) );
 #else
-	CSDKPlayer *pPlayer = ToSDKPlayer( UTIL_PlayerByIndex( iPlayerIndex) );
-#endif
-
-	const char * weaponAlias =	WeaponIDToAlias( iWeaponID );
-
-	if ( !weaponAlias )
-	{
-		DevMsg("FX_FireBullets: weapon alias for ID %i not found\n", iWeaponID );
-		return;
-	}
-
-	char wpnName[128];
-	Q_snprintf( wpnName, sizeof( wpnName ), "weapon_%s", weaponAlias );
-	WEAPON_FILE_INFO_HANDLE	hWpnInfo = LookupWeaponInfoSlot( wpnName );
-
-	if ( hWpnInfo == GetInvalidWeaponInfoHandle() )
-	{
-		DevMsg("FX_FireBullets: LookupWeaponInfoSlot failed for weapon %s\n", wpnName );
-		return;
-	}
-
-	CSDKWeaponInfo *pWeaponInfo = static_cast< CSDKWeaponInfo* >( GetFileWeaponInfoFromHandle( hWpnInfo ) );
-
-#ifdef CLIENT_DLL
-	// Do the firing animation event.
-	if ( pPlayer && !pPlayer->IsDormant() )
-	{
-		pPlayer->m_PlayerAnimState->DoAnimationEvent( PLAYERANIMEVENT_ATTACK_PRIMARY );
-	}
-#else
-	// if this is server code, send the effect over to client as temp entity
-	// Dispatch one message for all the bullet impacts and sounds.
-	TE_FireBullets( 
-		iPlayerIndex,
-		vOrigin, 
-		vAngles, 
-		iWeaponID,
-		iMode,
-		iSeed,
-		flSpread
-		);
-
-	bDoEffects = false; // no effects on server
+	CSDK_Player *pPlayer = ToSDK_Player( UTIL_PlayerByIndex( iPlayerIndex) );
 #endif
 
 	iSeed++;
@@ -187,7 +145,7 @@ void FX_FireBullets(
 
 #if !defined (CLIENT_DLL)
 	// Move other players back to history positions based on local player's lag
-	lagcompensation->StartLagCompensation( pPlayer, pPlayer->GetCurrentCommand() );
+	//lagcompensation->StartLagCompensation( pPlayer, pPlayer->GetCurrentCommand() );
 #endif
 
 	for ( int iBullet=0; iBullet < pWeaponInfo->m_iBullets; iBullet++ )
@@ -213,7 +171,7 @@ void FX_FireBullets(
 	}
 
 #if !defined (CLIENT_DLL)
-	lagcompensation->FinishLagCompensation( pPlayer );
+	//lagcompensation->FinishLagCompensation( pPlayer );
 #endif
 
 	EndGroupingSounds();

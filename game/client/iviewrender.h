@@ -15,6 +15,7 @@
 
 #include "ivrenderview.h"
 
+
 #define MAX_DEPTH_TEXTURE_SHADOWS 1
 #define MAX_DEPTH_TEXTURE_HIGHRES_SHADOWS 0
 
@@ -44,9 +45,9 @@ enum DrawFlags_t
 	DF_FUDGE_UP				= 0x1000,
 
 	DF_DRAW_ENTITITES		= 0x2000,
-	DF_UNUSED3				= 0x4000,
 
-	DF_UNUSED4				= 0x8000,
+	DF_SKIP_WORLD			= 0x4000,
+	DF_SKIP_WORLD_DECALS_AND_OVERLAYS	= 0x8000,
 
 	DF_UNUSED5				= 0x10000,
 	DF_SAVEGAMESCREENSHOT	= 0x20000,
@@ -87,7 +88,8 @@ public:
 	virtual	void		Render( vrect_t *rect ) = 0;
 
 	// Called to render just a particular setup ( for timerefresh and envmap creation )
-	virtual void		RenderView( const CViewSetup &view, int nClearFlags, int whatToDraw ) = 0;
+	// First argument is 3d view setup, second is for the HUD (in most cases these are ==, but in split screen the client .dll handles this differently)
+	virtual void		RenderView( const CViewSetup &view, const CViewSetup &hudViewSetup, int nClearFlags, int whatToDraw ) = 0;
 
 	// What are we currently rendering? Returns a combination of DF_ flags.
 	virtual int GetDrawFlags() = 0;
@@ -102,7 +104,7 @@ public:
 
 	virtual bool		ShouldDrawBrushModels( void ) = 0;
 
-	virtual const CViewSetup *GetPlayerViewSetup( void ) const = 0;
+	virtual const CViewSetup *GetPlayerViewSetup( int nSlot = -1 ) const = 0;
 	virtual const CViewSetup *GetViewSetup( void ) const = 0;
 
 	virtual void		DisableVis( void ) = 0;
@@ -130,6 +132,7 @@ public:
 	virtual float		GetZFar() = 0;
 
 	virtual void		GetScreenFadeDistances( float *min, float *max ) = 0;
+	virtual bool		AllowScreenspaceFade( void ) = 0;
 
 	virtual C_BaseEntity *GetCurrentlyDrawingEntity() = 0;
 	virtual void		SetCurrentlyDrawingEntity( C_BaseEntity *pEnt ) = 0;
@@ -137,8 +140,12 @@ public:
 	virtual bool		UpdateShadowDepthTexture( ITexture *pRenderTarget, ITexture *pDepthTexture, const CViewSetup &shadowView ) = 0;
 
 	virtual void		FreezeFrame( float flFreezeTime ) = 0;
+
+	virtual void		InitFadeData( void ) = 0;
 };
 
 extern IViewRender *view;
+
+extern IViewRender *GetViewRenderInstance();
 
 #endif // IVIEWRENDER_H

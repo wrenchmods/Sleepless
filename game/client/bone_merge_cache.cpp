@@ -46,10 +46,10 @@ void CBoneMergeCache::UpdateCache()
 
 	C_BaseAnimating *pTestFollow = m_pOwner->FindFollowedEntity();
 	CStudioHdr *pTestHdr = (pTestFollow ? pTestFollow->GetModelPtr() : NULL);
+	// if the follow parent has changed, or any of the underlying models has changed, reset the MergedBones list
 	if ( pTestFollow != m_pFollow || pTestHdr != m_pFollowHdr || pOwnerHdr != m_pOwnerHdr )
 	{
 		m_MergedBones.Purge();
-		m_BoneMergeBits.Purge();
 	
 		// Update the cache.
 		if ( pTestFollow && pTestHdr && pOwnerHdr )
@@ -58,12 +58,13 @@ void CBoneMergeCache::UpdateCache()
 			m_pFollowHdr = pTestHdr;
 			m_pOwnerHdr = pOwnerHdr;
 
-			m_BoneMergeBits.SetSize( pOwnerHdr->numbones() / 8 + 1 );
-			memset( m_BoneMergeBits.Base(), 0, m_BoneMergeBits.Count() );
+			m_BoneMergeBits.Resize( pOwnerHdr->numbones() );
+			m_BoneMergeBits.ClearAll();
 
 			mstudiobone_t *pOwnerBones = m_pOwnerHdr->pBone( 0 );
 			
 			m_nFollowBoneSetupMask = BONE_USED_BY_BONE_MERGE;
+			const bool bDeveloperDebugPrints = developer.GetBool();
 			for ( int i = 0; i < m_pOwnerHdr->numbones(); i++ )
 			{
 				int parentBoneIndex = Studio_BoneIndexByName( m_pFollowHdr, pOwnerBones[i].pszName() );
@@ -75,14 +76,32 @@ void CBoneMergeCache::UpdateCache()
 				mergedBone.m_iMyBone = i;
 				mergedBone.m_iParentBone = parentBoneIndex;
 				m_MergedBones.AddToTail( mergedBone );
+				m_BoneMergeBits.Set( i );
 
-				m_BoneMergeBits[i>>3] |= ( 1 << ( i & 7 ) );
-
+				// Warn for performance-negative ad hoc bone merges. They're bad. Don't do them.
 				if ( ( m_pFollowHdr->boneFlags( parentBoneIndex ) & BONE_USED_BY_BONE_MERGE ) == 0 )
 				{
-					m_nFollowBoneSetupMask = BONE_USED_BY_ANYTHING;
-					Warning("Performance warning: Merge with '%s'. Mark bone '%s' in model '%s' as being used by bone merge in the .qc!\n",
-						pOwnerHdr->pszName(), m_pFollowHdr->pBone( parentBoneIndex )->pszName(), m_pFollowHdr->pszName() ); 
+					// go ahead and mark the bone and its parents
+					int n = parentBoneIndex;
+					while (n != -1)
+					{
+						m_pFollowHdr->setBoneFlags( n, BONE_USED_BY_BONE_MERGE );
+						n = m_pFollowHdr->boneParent( n );
+					}
+					// dump out a warning
+					if ( bDeveloperDebugPrints )
+					{
+						char sz[ 256 ];
+						Q_snprintf( sz, sizeof( sz ), "Performance warning: Add $bonemerge \"%s\" to QC that builds \"%s\"\n",
+							m_pFollowHdr->pBone( parentBoneIndex )->pszName(), m_pFollowHdr->pszName() ); 
+
+						static CUtlSymbolTableMT s_FollowerWarnings;
+						if ( UTL_INVAL_SYMBOL == s_FollowerWarnings.Find( sz )  )
+						{
+							s_FollowerWarnings.AddString( sz );
+							Warning( "%s", sz );
+						}
+					}
 				}
 			}
 
@@ -102,7 +121,7 @@ void CBoneMergeCache::UpdateCache()
 	}
 }
 
-void CBoneMergeCache::MergeMatchingBones( int boneMask )
+void CBoneMergeCache::MergeMatchingBones( int boneMask, CBoneBitList &boneComputed )
 {
 	UpdateCache();
 
@@ -123,7 +142,16 @@ void CBoneMergeCache::MergeMatchingBones( int boneMask )
 		if ( !( m_pOwnerHdr->boneFlags( iOwnerBone ) & boneMask ) )
 			continue;
 
-		MatrixCopy( m_pFollow->GetBone( iParentBone ), m_pOwner->GetBoneForWrite( iOwnerBone ) );
+		// INFESTED_DLL temp comment
+		//MatrixCopy( m_pFollow->GetBone( iParentBone ), m_pOwner->GetBoneForWrite( iOwnerBone ) );
+
+		// INFESTED_DLL hack
+		matrix3x4_t matPitchUp;
+		AngleMatrix( QAngle( 15, 0, 0 ), matPitchUp );
+		ConcatTransforms( m_pFollow->GetBone( iParentBone ), matPitchUp, m_pOwner->GetBoneForWrite( iOwnerBone ) );
+		
+
+		boneComputed.Set( i );
 	}
 }
 
@@ -146,6 +174,7 @@ bool CBoneMergeCache::GetAimEntOrigin( Vector *pAbsOrigin, QAngle *pAbsAngles )
 	// all over the place, then this won't get the right results.
 	
 	// Get mFollowBone.
+	ACTIVE_SPLITSCREEN_PLAYER_GUARD( 0 );
 	m_pFollow->SetupBones( NULL, -1, m_nFollowBoneSetupMask, gpGlobals->curtime );
 	const matrix3x4_t &mFollowBone = m_pFollow->GetBone( m_MergedBones[0].m_iParentBone );
 

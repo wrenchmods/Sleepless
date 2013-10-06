@@ -15,6 +15,8 @@
 #include "playernet_vars.h"
 #include "networkvar.h"
 #include "fogcontroller.h"
+#include "postprocesscontroller.h"
+#include "colorcorrection.h"
 
 //-----------------------------------------------------------------------------
 // Purpose: Player specific data ( sent only to local player, too )
@@ -50,10 +52,10 @@ public:
 	// In process of duck-jumping
 	CNetworkVar( bool, m_bInDuckJump );
 	// During ducking process, amount of time before full duc
-	CNetworkVar( float, m_flDucktime );
-	CNetworkVar( float, m_flDuckJumpTime );
+	CNetworkVar( int, m_nDuckTimeMsecs );
+	CNetworkVar( int, m_nDuckJumpTimeMsecs );
 	// Jump time, time to auto unduck (since we auto crouch jump now).
-	CNetworkVar( float, m_flJumpTime );
+	CNetworkVar( int, m_nJumpTimeMsecs );
 	// Step sound side flip/flip
 	int m_nStepside;;
 	// Velocity at time when we hit ground
@@ -75,6 +77,9 @@ public:
 	CNetworkVar( float, m_flStepSize );
 	CNetworkVar( bool, m_bAllowAutoMovement );
 
+	// Autoaim
+	CNetworkVar( bool,	m_bAutoAimTarget );
+
 	// 3d skybox
 	CNetworkVarEmbedded( sky3dparams_t, m_skybox3d );
 	// world fog
@@ -82,9 +87,6 @@ public:
 	fogparams_t			m_fog;
 	// audio environment
 	CNetworkVarEmbedded( audioparams_t, m_audio );
-
-	//Tony; added so tonemap controller can work in multiplayer with inputs.
-	CNetworkVarEmbedded( tonemap_params_t, m_TonemapParams );
 
 	CNetworkVar( bool, m_bSlowMovement );
 };

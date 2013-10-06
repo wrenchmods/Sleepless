@@ -95,6 +95,9 @@ public:
 	virtual void PerformLayout();
 	virtual void OnMouseWheeled(int delta);
 
+	vgui::ScrollBar *GetVerticalScrollBar( void ) { return _vbar; }
+	vgui::ScrollBar *GetHorizontalScrollBar( void ) { return _hbar; }
+
 protected:
 	virtual void ApplySchemeSettings(IScheme *pScheme);
 

@@ -1,4 +1,4 @@
-//===== Copyright © 1996-2006, Valve Corporation, All rights reserved. ======//
+//===== Copyright ï¿½ 1996-2006, Valve Corporation, All rights reserved. ======//
 //
 // Purpose: Intrusive linked list templates, both for singly and doubly linked lists
 //
@@ -13,17 +13,19 @@
 #pragma once
 #endif
 
-#include "basetypes.h"
+#include "tier0/basetypes.h"
 #include "utlmemory.h"
 #include "tier0/dbg.h"
+#include "tier1/generichash.h"
+#include "tier0/threadtools.h"
 
 
 // 
 // These templates are used for intrusive linked list classes. Intrusive linked list templates
 // force the structs and classes contained within them to have their own m_pNext, (optionally),
-// m_pPrev, and other fileds contained within. All memory management is up to the caller and
-// their classes. No data will ever be copied. Nodes can only exist on one list at a time, because
-// of only having on m_Next field, and manipulating the list while walking it requires that care on
+// m_pPrev, and other fields contained within. All memory management is up to the caller and their
+// classes. No data will ever be copied. Nodes can only exist on one list at a time, because of
+// only having on m_Next field, and manipulating the list while walking it requires that care on
 // the part of the caller. All accessing and searching functions work by passing and returning
 // pointers.
 //
@@ -34,11 +36,12 @@
 // m_pPrev pointer fields.
 // Functions using Priority require an m_Priority field, which must be comparable.
 //
-// Some functions are meanto for use with lists which maintain both a head and tail pointer
+// Some functions are mean for use with lists which maintain both a head and tail pointer
 // in order to support fast adding to the end.
 
 
 /// validates that the doubly linked list has the proper structure, pointer-wise
+//#define SUPERSLOW_DEBUG_VERSION
 
 namespace IntrusiveList
 {
@@ -146,16 +149,19 @@ namespace IntrusiveList
 		if (! head)
 		{
 			head=node;
+			node->m_pPrev = NULL;
+			node->m_pNext = NULL;
 		}
 		else
 		{
-			T *ptr=head;
+			T *ptr = head;
 			while(ptr->m_pNext)
 			{
 				ptr=ptr->m_pNext;
 			}
-			ptr->m_pNext=node;
-			node->m_pPrev=ptr;   //
+			ptr->m_pNext = node;
+			node->m_pPrev = ptr;   //
+			node->m_pNext = NULL;
 		}
 	}
 
@@ -205,6 +211,7 @@ namespace IntrusiveList
 			tailptr->m_pNext=which;
 			tailptr=which;
 		}
+		ValidateDList( head );
 	}
 	
 	// Remove a node from a dlist , maintaining the tail ptr. node is not 'delete' d
@@ -416,15 +423,77 @@ namespace IntrusiveList
 
 	//Add a node to the head of a singly-linked
 	// Note that the head var passed to this will be modified.
-	template<class T,class V> static inline void AddToHead(T * & head, V * node)
+	template<class T,class V> FORCEINLINE void AddToHead(T * & head, V * node)
 	{
 		node->m_pNext=head;
 		head=node;
 	}  
 
+	//Add a node to the head of a singly-linked list in a thread safe fashion.  NOTE RESTRICTIONS
+	// EXTREMELY CAREFULLY: the ONLY thing that is thread safe about this is multiple threads
+	// adding to a list at the same time.  ANY other simultaneous operations (walking the list,
+	// modifying it in any way, ANYTHING else) is NOT thread safe. The only way to use this
+	// function in code and have that code WORK is to follow the restriction that the only
+	// simultaneous operation is an AddHead. CTSList is a better choice for ALMOST ANYTHING that
+	// wants this functionality. The m_pNext pointer in the node needs to be properly aligned for
+	// interlocked compare exchange. Do NOT use this function unless you understand every
+	// implication of the above paragraph and want something lighter than ctslist.
+	template<class T,class V> FORCEINLINE void AddToHeadTS( T * &pHead, V * pNode)
+	{
+		for(;; )
+		{
+			T *pCurHead = ReadVolatileMemory<T *>( &pHead );
+			pNode->m_pNext = pCurHead;
+			ThreadMemoryBarrier();
+			if ( ThreadInterlockedAssignPointerIf( ( void * volatile * ) ( &pHead ) , pNode, pCurHead ) )
+			{
+				break;
+			}
+		}
+	}  
+
+	// a version of AddToHeadTS which uses an alternate field to m_pnext for the linkage. Same
+	// restrictions as above.
+	template<class T,class V> FORCEINLINE void AddToHeadByFieldTS( T * &pHead, V * pNode, T * V::*field )
+	{
+		for(;; )
+		{
+			T *pCurHead = ReadVolatileMemory<T *>( &pHead );
+			( *pNode ).*field = pCurHead;
+			ThreadMemoryBarrier();
+			if ( ThreadInterlockedAssignPointerIf( ( void * volatile * ) ( &pHead ) , pNode, pCurHead ) )
+			{
+				break;
+			}
+		}
+	}  
+
+
+	// remove the head node of a list in a thread safe fashion.  It is NOT SAFE to do ANYTHING else
+	// with the list during this operation. The only thread safe usage pattern for this is multiple
+	// threads grabbing the head node at the same time.
+	template<class T> FORCEINLINE T *RemoveHeadTS( T * &pHead )
+	{
+		for(;; )
+		{
+			T *pCurHead = ReadVolatileMemory<T *>( &pHead );
+			if ( ! pCurHead )
+			{
+				return NULL;
+			}
+			ThreadMemoryBarrier();
+			if ( ThreadInterlockedAssignPointerIf( ( void * volatile * ) ( &pHead ) , pCurHead->m_pNext, pCurHead ) )
+			{
+				return pCurHead;
+			}
+		}
+	}  
+	
+
+
 	//Add a node to the tail of a singly-linked. Not fast
 	// Note that the head var passed to this will be modified.
-	template<class T,class V> static inline void AddToTail(T * & head, V * node)
+	template<class T,class V> FORCEINLINE void AddToTail(T * & head, V * node)
 	{
 		node->m_pNext = NULL;
 		if ( ! head )
@@ -439,7 +508,7 @@ namespace IntrusiveList
 	}  
 
 	//Add a node to the head of a singly-linked list, maintaining a tail pointer
-	template<class T,class V> static inline void AddToHead(T * & head, T * &tail,V * node)
+	template<class T,class V> FORCEINLINE void AddToHead(T * & head, T * &tail,V * node)
 	{
 		if (! head)
 		{
@@ -453,11 +522,12 @@ namespace IntrusiveList
 
 	// return the node in head before in a singly linked list. returns null if head is empty, n is
 	// null, or if n is the first node. not fast.
-	template<class T> static inline T * PrevNode(T *head, T *node)
+	template<class T> FORCEINLINE T * PrevNode(T *head, T *node)
 	{
-		for(T *i=head;i;i=i->m_pNext)
+		T *i;
+		for( i = head; i ; i = i->m_pNext)
 		{
-			if (i->m_pNext == node)
+			if ( i->m_pNext == node )
 				break;
 		}
 		return i;
@@ -485,7 +555,7 @@ namespace IntrusiveList
 
 	// add a node to the end of a singly linked list, maintaining a tail pointer.
 	// the head and tail pointer can be modified by this routine.
-	template<class T,class V> void AddToEndWithTail(T * & head, T * & tail,V * node)
+	template<class T,class V> void AddToEndWithTail(T * & head, V * node, T * & tail )
 	{
 		Assert((head && tail) || ((!head) && (!tail)));
 		node->m_pNext=0;
@@ -511,11 +581,16 @@ namespace IntrusiveList
 		}
 		else
 		{
-			for(T *t=head;t->m_pNext;t=t->m_pNext)                        // find the node we should be before
-				if (stricmp(t->m_pNext->m_Name,node->m_Name)>=0)
+			T * t;
+			for( t = head ; t->m_pNext ; t = t->m_pNext )                        // find the node we should be before
+			{
+				if ( stricmp( t->m_pNext->m_Name, node->m_Name) >= 0 )
+				{
 					break;
-			node->m_pNext=t->m_pNext;
-			t->m_pNext=node;
+				}
+			}
+			node->m_pNext = t->m_pNext;
+			t->m_pNext = node;
 		}
 	}
 
@@ -526,7 +601,7 @@ namespace IntrusiveList
 		while(head)
 		{
 			len++;
-			head=head->m_pNext;
+			head = static_cast< T* >( head->m_pNext );
 		}
 		return len;
 	}
@@ -556,7 +631,7 @@ namespace IntrusiveList
 	}
 
 	// find a named node in any list which has both a Next field and a Name field.
-	template <class T> static inline T * FindNamedNode(T * head, char const *name)
+	template <class T> FORCEINLINE T * FindNamedNode(T * head, char const *name)
 	{
 		for(;head && stricmp(head->m_Name,name); head=head->m_pNext)
 		{
@@ -564,7 +639,7 @@ namespace IntrusiveList
 		return head;
 	}
 
-	template <class T> static inline T * FindNamedNodeCaseSensitive(T * head, char const *name)
+	template <class T> FORCEINLINE T * FindNamedNodeCaseSensitive(T * head, char const *name)
 	{
 		for(;head && strcmp(head->m_Name,name); head=head->m_pNext)
 		{
@@ -574,29 +649,29 @@ namespace IntrusiveList
 
 	// find data in a singly linked list, using equality match on any field
 	// usage: FindNodeByField(listptr,data,&list::fieldname)
-	template <class T, class U, class V> static inline T * FindNodeByField(T * head,  U data, U V::*field)
+	template <class T, class U, class V> FORCEINLINE T * FindNodeByField(T * head,  U data, U V::*field)
 	{
-		while(head)
+		while( head )
 		{
-			if (data==(*head).*field)
+			if (data == (*head).*field)
 				return head;
-			head=head->m_pNext;
+			head = head->m_pNext;
 		}
 		return 0;
 	}
 
 	// find a node and its predecessor, matching on equality of a given field.
 	// usage: FindNodeByFieldWithPrev(listptr,data,&list::fieldname, prevptr)
-	template <class T, class U, class V> static inline T * FindNodeByFieldWithPrev(T * head,  U data, U V::*field, T * & prev)
+	template <class T, class U, class V> FORCEINLINE T * FindNodeByFieldWithPrev(T * head,  U data, U V::*field, T * & prev)
 	{
 		prev=0;
-		for(T *i=head; i; i=i->m_pNext)
+		for(T *i=head; i; i = i->m_pNext)
 		{
-			if(data==(*i).*field)
+			if( data == (*i).*field)
 				return i;
-			prev=i;
+			prev = i;
 		}
-		prev=0;
+		prev = 0;
 		return 0;
 	}
 
@@ -677,14 +752,30 @@ template<class T> class CUtlIntrusiveList
 public:
 	T *m_pHead;
 
+	FORCEINLINE T *Head( void ) const
+	{
+		return m_pHead;
+	}
+	
 	FORCEINLINE CUtlIntrusiveList(void)
 	{
 		m_pHead = NULL;
 	}
 
+
+	FORCEINLINE void RemoveAll( void )
+	{
+		// empty list. doesn't touch nodes at all
+		m_pHead = NULL;
+	}
 	FORCEINLINE void AddToHead( T * node )
 	{
 		IntrusiveList::AddToHead( m_pHead, node );
+	}
+
+	FORCEINLINE void AddToHeadTS( T * pNode)
+	{
+		IntrusiveList::AddToHeadTS( m_pHead, pNode );
 	}
 
 	FORCEINLINE void AddToTail( T * node )
@@ -733,10 +824,35 @@ public:
 		}
 	}
 
-	int Count( void )
+	int Count( void ) const
 	{
 		return IntrusiveList::ListLength( m_pHead );
 	}
+
+	FORCEINLINE T * FindNamedNodeCaseSensitive( char const *pName ) const
+	{
+		return IntrusiveList::FindNamedNodeCaseSensitive( m_pHead, pName );
+
+	}
+
+	// find data in a singly linked list, using equality match on any field
+	// usage: FindNodeByField(data,&list::fieldname)
+	template <class U, class V> FORCEINLINE T * FindNodeByField( U data, U V::*field)
+	{
+		return IntrusiveList::FindNodeByField( m_pHead, data, field );
+	}
+	T *RemoveHead( void )
+	{
+		if ( m_pHead )
+		{
+			T *pRet = m_pHead;
+			m_pHead = static_cast< T* >( pRet->m_pNext );
+			return pRet;
+		}
+		else
+			return NULL;
+	}
+
 
 };
 
@@ -744,7 +860,7 @@ public:
 template<class T> class CUtlIntrusiveDList : public CUtlIntrusiveList<T>
 {
 public:
-
+	
 	FORCEINLINE void AddToHead( T * node )
 	{
 		IntrusiveList::AddToDHead( CUtlIntrusiveList<T>::m_pHead, node );
@@ -759,11 +875,187 @@ public:
 		IntrusiveList::RemoveFromDList( CUtlIntrusiveList<T>::m_pHead, which );
 	}
 
+	T *RemoveHead( void )
+	{
+		if ( CUtlIntrusiveList<T>::m_pHead )
+		{
+			T *pRet = CUtlIntrusiveList<T>::m_pHead;
+			CUtlIntrusiveList<T>::m_pHead = CUtlIntrusiveList<T>::m_pHead->m_pNext;
+			if ( CUtlIntrusiveList<T>::m_pHead )
+				CUtlIntrusiveList<T>::m_pHead->m_pPrev = NULL;
+			return pRet;
+		}
+		else
+			return NULL;
+	}
+	
 	T * PrevNode(T *node)
 	{
 		return ( node )?node->m_Prev:NULL;
 	}
 
+};
+
+// doubly linked list with a tial ptr for fast addtotail.
+template<class T> class CUtlIntrusiveDListWithTailPtr : public CUtlIntrusiveDList<T>
+{
+public:
+	
+	T *m_pTailPtr;
+
+	FORCEINLINE CUtlIntrusiveDListWithTailPtr( void ) : CUtlIntrusiveDList<T>()
+	{
+		m_pTailPtr = NULL;
+	}
+	
+	FORCEINLINE void AddToHead( T * node )
+	{
+		IntrusiveList::AddToDHeadWithTailPtr( CUtlIntrusiveList<T>::m_pHead, node, m_pTailPtr );
+	}
+	FORCEINLINE void AddToTail( T * node )
+	{
+		IntrusiveList::AddToDTailWithTailPtr( CUtlIntrusiveList<T>::m_pHead, node, m_pTailPtr );
+	}
+
+	void RemoveNode( T *pWhich )
+	{
+		IntrusiveList::RemoveFromDListWithTailPtr( CUtlIntrusiveList<T>::m_pHead, pWhich, m_pTailPtr );
+	}
+
+	void Purge( void )
+	{
+		CUtlIntrusiveList<T>::Purge();
+		m_pTailPtr = NULL;
+	}
+
+	void Kill( void )
+	{
+		CUtlIntrusiveList<T>::Purge();
+		m_pTailPtr = NULL;
+	}
+
+	T *RemoveHead( void )
+	{
+		if ( CUtlIntrusiveDList<T>::m_pHead )
+		{
+			T *pRet = CUtlIntrusiveDList<T>::m_pHead;
+			CUtlIntrusiveDList<T>::m_pHead = CUtlIntrusiveDList<T>::m_pHead->m_pNext;
+			if ( CUtlIntrusiveDList<T>::m_pHead )
+				CUtlIntrusiveDList<T>::m_pHead->m_pPrev = NULL;
+			if (! CUtlIntrusiveDList<T>::m_pHead )
+				m_pTailPtr = NULL;
+			IntrusiveList::ValidateDList( CUtlIntrusiveDList<T>::m_pHead );
+			return pRet;
+		}
+		else
+			return NULL;
+	}
+	
+	T * PrevNode(T *node)
+	{
+		return ( node )?node->m_Prev:NULL;
+	}
+
+};
+
+template<class T> void PrependDListWithTailToDList( CUtlIntrusiveDListWithTailPtr<T> &src, 
+													CUtlIntrusiveDList<T> &dest )
+{
+	if ( src.m_pHead )
+	{
+		src.m_pTailPtr->m_pNext = dest.m_pHead;
+		if ( dest.m_pHead )
+			dest.m_pHead->m_pPrev = src.m_pTailPtr;
+		dest.m_pHead = src.m_pHead;
+		IntrusiveList::ValidateDList( dest.m_pHead );
+	}
+}
+
+template<class T> class CUtlIntrusiveListWithTailPtr : public CUtlIntrusiveList<T>
+{
+public:
+	
+	T *m_pTailPtr;
+
+	FORCEINLINE CUtlIntrusiveListWithTailPtr( void ) : CUtlIntrusiveList<T>()
+	{
+		m_pTailPtr = NULL;
+	}
+	
+	FORCEINLINE void AddToHead( T * pNode )
+	{
+		if ( !this->m_pHead )
+		{
+			m_pTailPtr = pNode;
+		}
+		IntrusiveList::AddToHead( CUtlIntrusiveList<T>::m_pHead, pNode );
+	}
+	FORCEINLINE void AddToTail( T * node )
+	{
+		IntrusiveList::AddToEndWithTail( CUtlIntrusiveList<T>::m_pHead, node, m_pTailPtr );
+	}
+
+	void Purge( void )
+	{
+		CUtlIntrusiveList<T>::Purge();
+		m_pTailPtr = NULL;
+	}
+
+	void Kill( void )
+	{
+		CUtlIntrusiveList<T>::Purge();
+		m_pTailPtr = NULL;
+	}
+
+	T *RemoveHead( void )
+	{
+		if ( CUtlIntrusiveList<T>::m_pHead )
+		{
+			T *pRet = CUtlIntrusiveList<T>::RemoveHead();
+			if ( CUtlIntrusiveList<T>::m_pHead == NULL )
+			{
+				m_pTailPtr = NULL;
+			}
+			return pRet;
+		}
+		else
+			return NULL;
+	}
+	
+	int Count( void ) const
+	{
+		return CUtlIntrusiveList<T>::Count();
+	}
+
+};
+
+template<class T, int BUCKETSIZE> class CUtlSymbolStore
+{
+	struct SymbolNode_t
+	{
+		SymbolNode_t *m_pNext;
+		T *m_pData;
+	};
+
+	CUtlIntrusiveList<SymbolNode_t> m_Buckets[BUCKETSIZE];
+
+public:
+	T const *FindOrAdd( T const *pData )
+	{
+		// see if it is there. add if not. return permanent pointer
+		uint hVal = HashItem( *pData ) % BUCKETSIZE;
+		for( SymbolNode_t *i = m_Buckets[hVal].m_pHead; i; i = i->m_pNext )
+		{
+			if ( memcmp( pData, i->m_pData, sizeof( T ) ) == 0 )
+				return i->m_pData;
+		}
+		// need to add it
+		SymbolNode_t *pNew = new SymbolNode_t;
+		pNew->m_pData = new T;
+		*( pNew->m_pData ) = ( *pData );
+		m_Buckets[hVal].AddToHead( pNew );
+		return pNew->m_pData;
+	}
 };
 
 

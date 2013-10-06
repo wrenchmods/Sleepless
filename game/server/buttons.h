@@ -16,6 +16,7 @@ class CBaseButton : public CBaseToggle
 public:
 
 	DECLARE_CLASS( CBaseButton, CBaseToggle );
+	DECLARE_SERVERCLASS();
 
 	void Spawn( void );
 	virtual void Precache( void );

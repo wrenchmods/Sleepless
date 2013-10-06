@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright (c) 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -184,7 +184,7 @@ public:
 	virtual void SetZombieModel( void ) { };
 	virtual void BecomeTorso( const Vector &vecTorsoForce, const Vector &vecLegsForce );
 	virtual bool CanBecomeLiveTorso() { return false; }
-	virtual bool CNPC_BaseZombie::HeadcrabFits( CBaseAnimating *pCrab );
+	virtual bool HeadcrabFits( CBaseAnimating *pCrab );
 	void ReleaseHeadcrab( const Vector &vecOrigin, const Vector &vecVelocity, bool fRemoveHead, bool fRagdollBody, bool fRagdollCrab = false );
 	void SetHeadcrabSpawnLocation( int iCrabAttachment, CBaseAnimating *pCrab );
 
@@ -238,8 +238,6 @@ public:
 
 public:
 	CAI_ActBusyBehavior		m_ActBusyBehavior;
-
-
 
 protected:
 

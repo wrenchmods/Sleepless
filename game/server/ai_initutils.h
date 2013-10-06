@@ -37,11 +37,13 @@ struct HintNodeData
 	int			nNodeID;
 	string_t	strGroup;
 	int			iDisabled;
+	string_t	iszGenericType;
 	string_t	iszActivityName;
 	int			nTargetWCNodeID;
 	HintIgnoreFacing_t fIgnoreFacing;
 	NPC_STATE	minState;
 	NPC_STATE	maxState;
+	int			nRadius;
 
 	int			nWCNodeID;			// Node ID assigned by worldcraft (not same as engine!)
 

@@ -29,3 +29,9 @@
 #define free( pv ) HEY_DONT_USE_FREE_USE_FREEPV
 
 #endif
+
+
+// Long is evil because it's treated differently by different compilers
+#ifdef DISALLOW_USE_OF_LONG
+	#define long			long_is_the_devil_stop_using_it_use_int32_or_int64
+#endif

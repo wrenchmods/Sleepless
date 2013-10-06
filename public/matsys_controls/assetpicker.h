@@ -10,7 +10,7 @@
 #pragma once
 #endif
 
-#include "matsys_controls/BaseAssetPicker.h"
+#include "matsys_controls/baseassetpicker.h"
 
 
 //-----------------------------------------------------------------------------

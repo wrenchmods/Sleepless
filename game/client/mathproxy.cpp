@@ -1,21 +1,19 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
 // $NoKeywords: $
 //=============================================================================//
 #include "cbase.h"
+#include "sharedInterface.h"
 #include "materialsystem/IMaterial.h"
 #include <KeyValues.h>
 #include "materialsystem/IMaterialVar.h"
 #include "FunctionProxy.h"
-#include "toolframework_client.h"
 
+#include "imaterialproxydict.h"
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
-
-// forward declarations
-void ToolFramework_RecordMaterialParams( IMaterial *pMaterial );
 
 class C_BaseEntity;
 
@@ -66,14 +64,9 @@ void CAddProxy::OnBind( void *pC_BaseEntity )
 		m_pResult->SetFloatValue( m_pSrc1->GetIntValue() + m_pSrc2->GetIntValue() );
 		break;
 	}
-
-	if ( ToolsEnabled() )
-	{
-		ToolFramework_RecordMaterialParams( GetMaterial() );
-	}
 }
 
-EXPOSE_INTERFACE( CAddProxy, IMaterialProxy, "Add" IMATERIAL_PROXY_INTERFACE_VERSION );
+EXPOSE_MATERIAL_PROXY( CAddProxy, Add );
 
 
 //-----------------------------------------------------------------------------
@@ -123,14 +116,9 @@ void CSubtractProxy::OnBind( void *pC_BaseEntity )
 		m_pResult->SetFloatValue( m_pSrc1->GetIntValue() - m_pSrc2->GetIntValue() );
 		break;
 	}
-
-	if ( ToolsEnabled() )
-	{
-		ToolFramework_RecordMaterialParams( GetMaterial() );
-	}
 }
 
-EXPOSE_INTERFACE( CSubtractProxy, IMaterialProxy, "Subtract" IMATERIAL_PROXY_INTERFACE_VERSION );
+EXPOSE_MATERIAL_PROXY( CSubtractProxy, Subtract );
 
 
 //-----------------------------------------------------------------------------
@@ -180,15 +168,10 @@ void CMultiplyProxy::OnBind( void *pC_BaseEntity )
 		m_pResult->SetFloatValue( m_pSrc1->GetIntValue() * m_pSrc2->GetIntValue() );
 		break;
 	}
-
-	if ( ToolsEnabled() )
-	{
-		ToolFramework_RecordMaterialParams( GetMaterial() );
-	}
 }
 
 
-EXPOSE_INTERFACE( CMultiplyProxy, IMaterialProxy, "Multiply" IMATERIAL_PROXY_INTERFACE_VERSION );
+EXPOSE_MATERIAL_PROXY( CMultiplyProxy, Multiply );
 
 
 //-----------------------------------------------------------------------------
@@ -252,14 +235,9 @@ void CDivideProxy::OnBind( void *pC_BaseEntity )
 		}
 		break;
 	}
-
-	if ( ToolsEnabled() )
-	{
-		ToolFramework_RecordMaterialParams( GetMaterial() );
-	}
 }
 
-EXPOSE_INTERFACE( CDivideProxy, IMaterialProxy, "Divide" IMATERIAL_PROXY_INTERFACE_VERSION );
+EXPOSE_MATERIAL_PROXY( CDivideProxy, Divide );
 
 //-----------------------------------------------------------------------------
 // clamps a var...
@@ -347,15 +325,10 @@ void CClampProxy::OnBind( void *pC_BaseEntity )
 		}
 		break;
 	}
-
-	if ( ToolsEnabled() )
-	{
-		ToolFramework_RecordMaterialParams( GetMaterial() );
-	}
 }
 
 
-EXPOSE_INTERFACE( CClampProxy, IMaterialProxy, "Clamp" IMATERIAL_PROXY_INTERFACE_VERSION );
+EXPOSE_MATERIAL_PROXY( CClampProxy, Clamp );
 
 //-----------------------------------------------------------------------------
 // Creates a sinusoid
@@ -413,14 +386,9 @@ void CSineProxy::OnBind( void *pC_BaseEntity )
 	flValue = ( flSineMax - flSineMin ) * flValue + flSineMin;
 	
 	SetFloatResult( flValue );
-
-	if ( ToolsEnabled() )
-	{
-		ToolFramework_RecordMaterialParams( GetMaterial() );
-	}
 }
 
-EXPOSE_INTERFACE( CSineProxy, IMaterialProxy, "Sine" IMATERIAL_PROXY_INTERFACE_VERSION );
+EXPOSE_MATERIAL_PROXY( CSineProxy, Sine );
 
 //-----------------------------------------------------------------------------
 // copies a var...
@@ -459,15 +427,10 @@ void CEqualsProxy::OnBind( void *pC_BaseEntity )
 		m_pResult->SetIntValue( m_pSrc1->GetIntValue() );
 		break;
 	}
-
-	if ( ToolsEnabled() )
-	{
-		ToolFramework_RecordMaterialParams( GetMaterial() );
-	}
 }
 
 
-EXPOSE_INTERFACE( CEqualsProxy, IMaterialProxy, "Equals" IMATERIAL_PROXY_INTERFACE_VERSION );
+EXPOSE_MATERIAL_PROXY( CEqualsProxy, Equals );
 
 
 //-----------------------------------------------------------------------------
@@ -515,15 +478,10 @@ void CFracProxy::OnBind( void *pC_BaseEntity )
 		m_pResult->SetIntValue( m_pSrc1->GetIntValue() );
 		break;
 	}
-
-	if ( ToolsEnabled() )
-	{
-		ToolFramework_RecordMaterialParams( GetMaterial() );
-	}
 }
 
 
-EXPOSE_INTERFACE( CFracProxy, IMaterialProxy, "Frac" IMATERIAL_PROXY_INTERFACE_VERSION );
+EXPOSE_MATERIAL_PROXY( CFracProxy, Frac );
 
 //-----------------------------------------------------------------------------
 // Get the Integer part of a var
@@ -569,14 +527,9 @@ void CIntProxy::OnBind( void *pC_BaseEntity )
 		m_pResult->SetIntValue( m_pSrc1->GetIntValue() );
 		break;
 	}
-
-	if ( ToolsEnabled() )
-	{
-		ToolFramework_RecordMaterialParams( GetMaterial() );
-	}
 }
 
-EXPOSE_INTERFACE( CIntProxy, IMaterialProxy, "Int" IMATERIAL_PROXY_INTERFACE_VERSION );
+EXPOSE_MATERIAL_PROXY( CIntProxy, Int );
 
 //-----------------------------------------------------------------------------
 // Linear ramp proxy
@@ -616,16 +569,11 @@ void CLinearRampProxy::OnBind( void *pC_BaseEntity )
 	// get a value in [0,1]
 	flValue = m_Rate.GetFloat() * gpGlobals->curtime + m_InitialValue.GetFloat();	
 	SetFloatResult( flValue );
-
-	if ( ToolsEnabled() )
-	{
-		ToolFramework_RecordMaterialParams( GetMaterial() );
-	}
 }
 
 
 
-EXPOSE_INTERFACE( CLinearRampProxy, IMaterialProxy, "LinearRamp" IMATERIAL_PROXY_INTERFACE_VERSION );
+EXPOSE_MATERIAL_PROXY( CLinearRampProxy, LinearRamp );
 
 
 //-----------------------------------------------------------------------------
@@ -660,15 +608,10 @@ bool CUniformNoiseProxy::Init( IMaterial *pMaterial, KeyValues *pKeyValues )
 void CUniformNoiseProxy::OnBind( void *pC_BaseEntity )
 {
 	SetFloatResult( random->RandomFloat( m_flMinVal.GetFloat(), m_flMaxVal.GetFloat() ) );
-
-	if ( ToolsEnabled() )
-	{
-		ToolFramework_RecordMaterialParams( GetMaterial() );
-	}
 }
 
 
-EXPOSE_INTERFACE( CUniformNoiseProxy, IMaterialProxy, "UniformNoise" IMATERIAL_PROXY_INTERFACE_VERSION );
+EXPOSE_MATERIAL_PROXY( CUniformNoiseProxy, UniformNoise );
 
 
 //-----------------------------------------------------------------------------
@@ -730,15 +673,10 @@ void CGaussianNoiseProxy::OnBind( void *pC_BaseEntity )
 		flVal = flMaxVal;
 
 	SetFloatResult( flVal );
-
-	if ( ToolsEnabled() )
-	{
-		ToolFramework_RecordMaterialParams( GetMaterial() );
-	}
 }
 
 
-EXPOSE_INTERFACE( CGaussianNoiseProxy, IMaterialProxy, "GaussianNoise" IMATERIAL_PROXY_INTERFACE_VERSION );
+EXPOSE_MATERIAL_PROXY( CGaussianNoiseProxy, GaussianNoise );
 
 
 //-----------------------------------------------------------------------------
@@ -799,15 +737,10 @@ void CExponentialProxy::OnBind( void *pC_BaseEntity )
 		flVal = flMaxVal;
 
 	SetFloatResult( flVal );
-
-	if ( ToolsEnabled() )
-	{
-		ToolFramework_RecordMaterialParams( GetMaterial() );
-	}
 }
 
 
-EXPOSE_INTERFACE( CExponentialProxy, IMaterialProxy, "Exponential" IMATERIAL_PROXY_INTERFACE_VERSION );
+EXPOSE_MATERIAL_PROXY( CExponentialProxy, Exponential );
 
 
 //-----------------------------------------------------------------------------
@@ -823,15 +756,10 @@ public:
 void CAbsProxy::OnBind( void *pC_BaseEntity )
 {	
 	SetFloatResult( fabs(m_pSrc1->GetFloatValue( )) );
-
-	if ( ToolsEnabled() )
-	{
-		ToolFramework_RecordMaterialParams( GetMaterial() );
-	}
 }
 
 
-EXPOSE_INTERFACE( CAbsProxy, IMaterialProxy, "Abs" IMATERIAL_PROXY_INTERFACE_VERSION );
+EXPOSE_MATERIAL_PROXY( CAbsProxy, Abs );
 
 
 //-----------------------------------------------------------------------------
@@ -849,7 +777,7 @@ public:
 };
 
 
-EXPOSE_INTERFACE( CEmptyProxy, IMaterialProxy, "Empty" IMATERIAL_PROXY_INTERFACE_VERSION );
+EXPOSE_MATERIAL_PROXY( CEmptyProxy, Empty );
 
 
 //-----------------------------------------------------------------------------
@@ -941,14 +869,9 @@ void CLessOrEqualProxy::OnBind( void *pC_BaseEntity )
 		m_pResult->SetFloatValue( pSourceVar->GetIntValue() );
 		break;
 	}
-
-	if ( ToolsEnabled() )
-	{
-		ToolFramework_RecordMaterialParams( GetMaterial() );
-	}
 }
 
-EXPOSE_INTERFACE( CLessOrEqualProxy, IMaterialProxy, "LessOrEqual" IMATERIAL_PROXY_INTERFACE_VERSION );
+EXPOSE_MATERIAL_PROXY( CLessOrEqualProxy, LessOrEqual );
 
 //-----------------------------------------------------------------------------
 // WrapMinMax proxy
@@ -1004,11 +927,6 @@ void CWrapMinMaxProxy::OnBind( void *pC_BaseEntity )
 
 		SetFloatResult( flResult );
 	}
-
-	if ( ToolsEnabled() )
-	{
-		ToolFramework_RecordMaterialParams( GetMaterial() );
-	}
 }
 
-EXPOSE_INTERFACE( CWrapMinMaxProxy, IMaterialProxy, "WrapMinMax" IMATERIAL_PROXY_INTERFACE_VERSION );
+EXPOSE_MATERIAL_PROXY( CWrapMinMaxProxy, WrapMinMax );

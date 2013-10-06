@@ -70,7 +70,7 @@ DECLARE_HUD_MESSAGE( CHudHintDisplay, HintText );
 //-----------------------------------------------------------------------------
 CHudHintDisplay::CHudHintDisplay( const char *pElementName ) : BaseClass(NULL, "HudHintDisplay"), CHudElement( pElementName )
 {
-	vgui::Panel *pParent = g_pClientMode->GetViewport();
+	vgui::Panel *pParent = GetClientMode()->GetViewport();
 	SetParent( pParent );
 	SetVisible( false );
 	m_pLabel = new vgui::Label( this, "HudHintDisplayLabel", "" );
@@ -93,7 +93,7 @@ void CHudHintDisplay::Init()
 void CHudHintDisplay::Reset()
 {
 	SetHintText( NULL );
-	g_pClientMode->GetViewportAnimationController()->StartAnimationSequence( "HintMessageHide" ); 
+	GetClientMode()->GetViewportAnimationController()->StartAnimationSequence( "HintMessageHide" ); 
 	m_bLastLabelUpdateHack = true;
 }
 
@@ -176,7 +176,7 @@ void CHudHintDisplay::PerformLayout()
 	int iDesiredLabelWide = 0;
 	for ( i=0; i < m_Labels.Count(); ++i )
 	{
-		iDesiredLabelWide = max( iDesiredLabelWide, m_Labels[i]->GetWide() );
+		iDesiredLabelWide = MAX( iDesiredLabelWide, m_Labels[i]->GetWide() );
 	}
 
 	// find the total height
@@ -216,10 +216,10 @@ void CHudHintDisplay::PerformLayout()
 		y = (tall - labelTall) / 2;
 	}
 
-	x = max(x,0);
-	y = max(y,0);
+	x = MAX(x,0);
+	y = MAX(y,0);
 
-	iDesiredLabelWide = min(iDesiredLabelWide,wide);
+	iDesiredLabelWide = MIN(iDesiredLabelWide,wide);
 	m_pLabel->SetBounds( x, y, iDesiredLabelWide, labelTall );
 
 	// now lay out the sub-labels
@@ -307,7 +307,7 @@ void CHudHintDisplay::LocalizeAndDisplay( const char *pszHudTxtMsg, const char *
 	if ( SetHintText( pszBuf ) )
 	{
 		SetVisible( true );
-		g_pClientMode->GetViewportAnimationController()->StartAnimationSequence( "HintMessageShow" ); 
+		GetClientMode()->GetViewportAnimationController()->StartAnimationSequence( "HintMessageShow" ); 
 
 		C_BasePlayer *pLocalPlayer = C_BasePlayer::GetLocalPlayer();
 		if ( pLocalPlayer )
@@ -322,7 +322,7 @@ void CHudHintDisplay::LocalizeAndDisplay( const char *pszHudTxtMsg, const char *
 	}
 	else
 	{
-		g_pClientMode->GetViewportAnimationController()->StartAnimationSequence( "HintMessageHide" ); 
+		GetClientMode()->GetViewportAnimationController()->StartAnimationSequence( "HintMessageHide" ); 
 	}
 }
 
@@ -370,7 +370,7 @@ DECLARE_HUD_MESSAGE( CHudHintKeyDisplay, KeyHintText );
 //-----------------------------------------------------------------------------
 CHudHintKeyDisplay::CHudHintKeyDisplay( const char *pElementName ) : BaseClass(NULL, "HudHintKeyDisplay"), CHudElement( pElementName )
 {
-	vgui::Panel *pParent = g_pClientMode->GetViewport();
+	vgui::Panel *pParent = GetClientMode()->GetViewport();
 	SetParent( pParent );
 	SetVisible( false );
 	m_szHintText[0] = 0;
@@ -670,7 +670,7 @@ bool CHudHintKeyDisplay::SetHintText( const char *text )
 			}
 		}
 	}
-	int tallest = max( tallest1, tallest2 );
+	int tallest = MAX( tallest1, tallest2 );
 
 	// position the labels
 	int col1_x = m_iTextX;
@@ -756,11 +756,11 @@ void CHudHintKeyDisplay::MsgFunc_KeyHintText( bf_read &msg )
 	if ( SetHintText( szString ) )
 	{
 		SetVisible( true );
-		g_pClientMode->GetViewportAnimationController()->StartAnimationSequence( "KeyHintMessageShow" ); 
+		GetClientMode()->GetViewportAnimationController()->StartAnimationSequence( "KeyHintMessageShow" ); 
 	}
 	else
 	{
 		// it's being cleared, hide the panel
-		g_pClientMode->GetViewportAnimationController()->StartAnimationSequence( "KeyHintMessageHide" ); 
+		GetClientMode()->GetViewportAnimationController()->StartAnimationSequence( "KeyHintMessageHide" ); 
 	}
 }

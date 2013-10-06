@@ -198,7 +198,7 @@ float GetFloorDistance(const Vector &origin)
 // Input  :
 // Output :
 //-----------------------------------------------------------------------------
-Vector CAI_Node::GetPosition(int hull)
+Vector CAI_Node::GetPosition(int hull) const
 {
 	if (m_eNodeType == NODE_CLIMB) 
 	{
@@ -272,4 +272,3 @@ CAI_Node::CAI_Node( int id, const Vector &origin, float yaw  )
 
 	m_zone = AI_NODE_ZONE_UNKNOWN;
 };
-

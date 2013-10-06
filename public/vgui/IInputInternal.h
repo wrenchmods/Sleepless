@@ -77,6 +77,10 @@ public:
 	virtual void SetKeyCodeState( KeyCode code, bool bPressed ) = 0;
 	virtual void SetMouseCodeState( MouseCode code, MouseCodeState_t state ) = 0;
 	virtual void UpdateButtonState( const InputEvent_t &event ) = 0;
+
+	// Resets a particular input context, use DEFAULT_INPUT_CONTEXT
+	// to get the one normally used by VGUI
+	virtual void ResetInputContext( HInputContext context ) = 0;
 };
 
 } // namespace vgui

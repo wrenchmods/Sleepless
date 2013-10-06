@@ -9,7 +9,7 @@
 #include "iviewrender.h"
 #include "c_sun.h"
 #include "particles_simple.h"
-#include "clienteffectprecachesystem.h"
+#include "precache_register.h"
 #include "c_pixel_visibility.h"
 #include "glow_overlay.h"
 #include "utllinkedlist.h"
@@ -20,10 +20,10 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-CLIENTEFFECT_REGISTER_BEGIN( PrecacheEffectGlow )
-CLIENTEFFECT_MATERIAL( "sun/overlay" )
-CLIENTEFFECT_MATERIAL( "sprites/light_glow02_add_noz" )
-CLIENTEFFECT_REGISTER_END()
+PRECACHE_REGISTER_BEGIN( GLOBAL, PrecacheEffectGlow )
+PRECACHE( MATERIAL, "sun/overlay" )
+PRECACHE( MATERIAL, "sprites/light_glow02_add_noz" )
+PRECACHE_REGISTER_END()
 
 class CGlowOverlaySystem : public CAutoGameSystem
 {
@@ -104,12 +104,7 @@ CGlowOverlay::CGlowOverlay()
 		m_Sprites[i].m_pMaterial	= NULL;
 	}
 
-#ifdef PORTAL
-	for( int i = 0; i != MAX_PORTAL_RECURSIVE_VIEWS; ++i )
-	{
-		m_skyObstructionScaleBackups[i] = 1.0f;
-	}
-#endif
+
 }
 
 
@@ -260,7 +255,7 @@ void CGlowOverlay::UpdateGlowObstruction( const Vector &vToGlow, bool bCacheFull
 		else
 		{
 			m_flGlowObstructionScale -= gpGlobals->frametime / cl_sun_decay_rate.GetFloat();
-			m_flGlowObstructionScale = max( m_flGlowObstructionScale, 0.0f );
+			m_flGlowObstructionScale = MAX( m_flGlowObstructionScale, 0.0f );
 		}
 	}
 	else
@@ -272,7 +267,7 @@ void CGlowOverlay::UpdateGlowObstruction( const Vector &vToGlow, bool bCacheFull
 		else
 		{
 			m_flGlowObstructionScale += gpGlobals->frametime / cl_sun_decay_rate.GetFloat();
-			m_flGlowObstructionScale = min( m_flGlowObstructionScale, 1.0f );
+			m_flGlowObstructionScale = MIN( m_flGlowObstructionScale, 1.0f );
 		}
 	}
 }
@@ -543,37 +538,5 @@ void CGlowOverlay::UpdateSkyOverlays( float zFar, bool bCacheFullSceneState )
 
 
 
-#ifdef PORTAL
 
-void CGlowOverlay::BackupSkyOverlayData( int iBackupToSlot )
-{
-	unsigned short iNext;
-	for( unsigned short i=g_GlowOverlaySystem.m_GlowOverlays.Head(); i != g_GlowOverlaySystem.m_GlowOverlays.InvalidIndex(); i = iNext )
-	{
-		iNext = g_GlowOverlaySystem.m_GlowOverlays.Next( i );
-		CGlowOverlay *pOverlay = g_GlowOverlaySystem.m_GlowOverlays[i];
-
-		if( !pOverlay->m_bActivated || !pOverlay->m_bDirectional || !pOverlay->m_bInSky )
-			continue;
-
-		pOverlay->m_skyObstructionScaleBackups[iBackupToSlot] = pOverlay->m_skyObstructionScale;
-	}
-}
-
-void CGlowOverlay::RestoreSkyOverlayData( int iRestoreFromSlot )
-{
-	unsigned short iNext;
-	for( unsigned short i=g_GlowOverlaySystem.m_GlowOverlays.Head(); i != g_GlowOverlaySystem.m_GlowOverlays.InvalidIndex(); i = iNext )
-	{
-		iNext = g_GlowOverlaySystem.m_GlowOverlays.Next( i );
-		CGlowOverlay *pOverlay = g_GlowOverlaySystem.m_GlowOverlays[i];
-
-		if( !pOverlay->m_bActivated || !pOverlay->m_bDirectional || !pOverlay->m_bInSky )
-			continue;
-
-		pOverlay->m_skyObstructionScale = pOverlay->m_skyObstructionScaleBackups[iRestoreFromSlot];
-	}
-}
-
-#endif //#ifdef PORTAL
 

@@ -4,6 +4,7 @@
 //
 //=====================================================================================//
 
+#include "platform.h"
 #include "filesystem.h"
 #include "filesystem_helpers.h"
 #include "characterset.h"

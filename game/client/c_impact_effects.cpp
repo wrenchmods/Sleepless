@@ -7,7 +7,7 @@
 #include "cbase.h"
 #include "fx.h"
 #include "fx_sparks.h"
-#include "ClientEffectPrecacheSystem.h"
+#include "precache_register.h"
 #include "particle_simple3D.h"
 #include "decals.h"
 #include "engine/IEngineSound.h"
@@ -23,18 +23,18 @@
 #include "tier0/memdbgon.h"
 
 //Precahce the effects
-CLIENTEFFECT_REGISTER_BEGIN( PrecacheEffectImpacts )
-CLIENTEFFECT_MATERIAL( "effects/fleck_cement1" )
-CLIENTEFFECT_MATERIAL( "effects/fleck_cement2" )
-CLIENTEFFECT_MATERIAL( "effects/fleck_antlion1" )
-CLIENTEFFECT_MATERIAL( "effects/fleck_antlion2" )
-CLIENTEFFECT_MATERIAL( "effects/fleck_wood1" )
-CLIENTEFFECT_MATERIAL( "effects/fleck_wood2" )
-CLIENTEFFECT_MATERIAL( "effects/blood" )
-CLIENTEFFECT_MATERIAL( "effects/blood2" )
-CLIENTEFFECT_MATERIAL( "sprites/bloodspray" )
-CLIENTEFFECT_MATERIAL( "particle/particle_noisesphere" )
-CLIENTEFFECT_REGISTER_END()
+PRECACHE_REGISTER_BEGIN( GLOBAL, PrecacheEffectImpacts )
+PRECACHE( MATERIAL, "effects/fleck_cement1" )
+PRECACHE( MATERIAL, "effects/fleck_cement2" )
+PRECACHE( MATERIAL, "effects/fleck_antlion1" )
+PRECACHE( MATERIAL, "effects/fleck_antlion2" )
+PRECACHE( MATERIAL, "effects/fleck_wood1" )
+PRECACHE( MATERIAL, "effects/fleck_wood2" )
+PRECACHE( MATERIAL, "effects/blood" )
+PRECACHE( MATERIAL, "effects/blood2" )
+PRECACHE( MATERIAL, "sprites/bloodspray" )
+PRECACHE( MATERIAL, "particle/particle_noisesphere" )
+PRECACHE_REGISTER_END()
 
 // Cached handles to commonly used materials
 PMaterialHandle g_Mat_Fleck_Wood[2] = { NULL, NULL };
@@ -50,40 +50,39 @@ PMaterialHandle g_Mat_Combine_Muzzleflash[3] = { NULL, NULL, NULL };
 static ConVar fx_drawimpactdebris( "fx_drawimpactdebris", "1", FCVAR_DEVELOPMENTONLY, "Draw impact debris effects." );
 static ConVar fx_drawimpactdust( "fx_drawimpactdust", "1", FCVAR_DEVELOPMENTONLY, "Draw impact dust effects." );
 
-void FX_CacheMaterialHandles( void )
-{
-	g_Mat_Fleck_Wood[0] = ParticleMgr()->GetPMaterial( "effects/fleck_wood1" );
-	g_Mat_Fleck_Wood[1] = ParticleMgr()->GetPMaterial( "effects/fleck_wood2" );
+PRECACHE_REGISTER_BEGIN( GLOBAL, FX_CacheMaterialHandles )
 
-	g_Mat_Fleck_Cement[0] = ParticleMgr()->GetPMaterial( "effects/fleck_cement1");
-	g_Mat_Fleck_Cement[1] = ParticleMgr()->GetPMaterial( "effects/fleck_cement2" );
+	PRECACHE_INDEX( PARTICLE_MATERIAL, "effects/fleck_wood1", g_Mat_Fleck_Wood[0] )
+	PRECACHE_INDEX( PARTICLE_MATERIAL, "effects/fleck_wood2", g_Mat_Fleck_Wood[1] )
 
-	g_Mat_Fleck_Antlion[0] = ParticleMgr()->GetPMaterial( "effects/fleck_antlion1" );
-	g_Mat_Fleck_Antlion[1] = ParticleMgr()->GetPMaterial( "effects/fleck_antlion2" );
+	PRECACHE_INDEX( PARTICLE_MATERIAL, "effects/fleck_cement1", g_Mat_Fleck_Cement[0])
+	PRECACHE_INDEX( PARTICLE_MATERIAL, "effects/fleck_cement2", g_Mat_Fleck_Cement[1] )
 
-	g_Mat_Fleck_Glass[0] = ParticleMgr()->GetPMaterial( "effects/fleck_glass1" );
-	g_Mat_Fleck_Glass[1] = ParticleMgr()->GetPMaterial( "effects/fleck_glass2" );
+	PRECACHE_INDEX( PARTICLE_MATERIAL, "effects/fleck_antlion1", g_Mat_Fleck_Antlion[0] )
+	PRECACHE_INDEX( PARTICLE_MATERIAL, "effects/fleck_antlion2", g_Mat_Fleck_Antlion[1] )
 
-	g_Mat_Fleck_Tile[0] = ParticleMgr()->GetPMaterial( "effects/fleck_tile1" );
-	g_Mat_Fleck_Tile[1] = ParticleMgr()->GetPMaterial( "effects/fleck_tile2" );
+	PRECACHE_INDEX( PARTICLE_MATERIAL, "effects/fleck_glass1", g_Mat_Fleck_Glass[0] )
+	PRECACHE_INDEX( PARTICLE_MATERIAL, "effects/fleck_glass2", g_Mat_Fleck_Glass[1] )
 
-	g_Mat_DustPuff[0] = ParticleMgr()->GetPMaterial( "particle/particle_smokegrenade" );
-	g_Mat_DustPuff[1] = ParticleMgr()->GetPMaterial( "particle/particle_noisesphere" );
+	PRECACHE_INDEX( PARTICLE_MATERIAL, "effects/fleck_tile1", g_Mat_Fleck_Tile[0] )
+	PRECACHE_INDEX( PARTICLE_MATERIAL, "effects/fleck_tile2", g_Mat_Fleck_Tile[1] )
 
-	g_Mat_BloodPuff[0] = ParticleMgr()->GetPMaterial( "effects/blood" );
-	g_Mat_BloodPuff[1] = ParticleMgr()->GetPMaterial( "effects/blood2" );
-	
-#ifndef TF_CLIENT_DLL
-	g_Mat_SMG_Muzzleflash[0] = ParticleMgr()->GetPMaterial( "effects/muzzleflash1" );
-	g_Mat_SMG_Muzzleflash[1] = ParticleMgr()->GetPMaterial( "effects/muzzleflash2" );
-	g_Mat_SMG_Muzzleflash[2] = ParticleMgr()->GetPMaterial( "effects/muzzleflash3" );
-	g_Mat_SMG_Muzzleflash[3] = ParticleMgr()->GetPMaterial( "effects/muzzleflash4" );
+	PRECACHE_INDEX( PARTICLE_MATERIAL, "particle/particle_smokegrenade", g_Mat_DustPuff[0] )
+	PRECACHE_INDEX( PARTICLE_MATERIAL, "particle/particle_noisesphere", g_Mat_DustPuff[1] )
 
-	g_Mat_Combine_Muzzleflash[0] = ParticleMgr()->GetPMaterial( "effects/combinemuzzle1" );
-	g_Mat_Combine_Muzzleflash[1] = ParticleMgr()->GetPMaterial( "effects/combinemuzzle2" );
-	g_Mat_Combine_Muzzleflash[2] = ParticleMgr()->GetPMaterial( "effects/strider_muzzle" );
-#endif
-}
+	PRECACHE_INDEX( PARTICLE_MATERIAL, "effects/blood", g_Mat_BloodPuff[0] )
+	PRECACHE_INDEX( PARTICLE_MATERIAL, "effects/blood2", g_Mat_BloodPuff[1] )
+
+	PRECACHE_INDEX( PARTICLE_MATERIAL, "effects/muzzleflash1", g_Mat_SMG_Muzzleflash[0] )
+	PRECACHE_INDEX( PARTICLE_MATERIAL, "effects/muzzleflash2", g_Mat_SMG_Muzzleflash[1] )
+	PRECACHE_INDEX( PARTICLE_MATERIAL, "effects/muzzleflash3", g_Mat_SMG_Muzzleflash[2] )
+	PRECACHE_INDEX( PARTICLE_MATERIAL, "effects/muzzleflash4", g_Mat_SMG_Muzzleflash[3] )
+
+	PRECACHE_INDEX( PARTICLE_MATERIAL, "effects/combinemuzzle1", g_Mat_Combine_Muzzleflash[0] )
+	PRECACHE_INDEX( PARTICLE_MATERIAL, "effects/combinemuzzle2", g_Mat_Combine_Muzzleflash[1] )
+	PRECACHE_INDEX( PARTICLE_MATERIAL, "effects/strider_muzzle", g_Mat_Combine_Muzzleflash[2] )
+
+PRECACHE_REGISTER_END()
 
 extern PMaterialHandle g_Material_Spark;
 
@@ -165,7 +164,7 @@ static void CreateFleckParticles( const Vector& origin, const Vector &color, tra
 
 	// Handle increased scale
 	float flMaxSpeed = FLECK_MAX_SPEED * iScale;
-	float flAngularSpray = max( 0.2, FLECK_ANGULAR_SPRAY - ( (float)iScale * 0.2f) ); // More power makes the spray more controlled
+	float flAngularSpray = MAX( 0.2, FLECK_ANGULAR_SPRAY - ( (float)iScale * 0.2f) ); // More power makes the spray more controlled
 	// Setup our collision information
 	fleckEmitter->m_ParticleCollision.Setup( spawnOffset, &trace->plane.normal, flAngularSpray, FLECK_MIN_SPEED, flMaxSpeed, FLECK_GRAVITY, FLECK_DAMPEN );
 
@@ -216,9 +215,9 @@ static void CreateFleckParticles( const Vector& origin, const Vector &color, tra
 
 		colorRamp = random->RandomFloat( 0.75f, 1.25f );
 
-		pFleckParticle->m_uchColor[0] = min( 1.0f, color[0]*colorRamp )*255.0f;
-		pFleckParticle->m_uchColor[1] = min( 1.0f, color[1]*colorRamp )*255.0f;
-		pFleckParticle->m_uchColor[2] = min( 1.0f, color[2]*colorRamp )*255.0f;
+		pFleckParticle->m_uchColor[0] = MIN( 1.0f, color[0]*colorRamp )*255.0f;
+		pFleckParticle->m_uchColor[1] = MIN( 1.0f, color[1]*colorRamp )*255.0f;
+		pFleckParticle->m_uchColor[2] = MIN( 1.0f, color[2]*colorRamp )*255.0f;
 	}
 }
 
@@ -288,9 +287,9 @@ void FX_DebrisFlecks( const Vector& origin, trace_t *tr, char materialType, int 
 
 			// Ramp the color
 			colorRamp = random->RandomFloat( 0.5f, 1.25f );
-			pParticle->m_uchColor[0]	= min( 1.0f, color[0] * colorRamp ) * 255.0f;
-			pParticle->m_uchColor[1]	= min( 1.0f, color[1] * colorRamp ) * 255.0f;
-			pParticle->m_uchColor[2]	= min( 1.0f, color[2] * colorRamp ) * 255.0f;
+			pParticle->m_uchColor[0]	= MIN( 1.0f, color[0] * colorRamp ) * 255.0f;
+			pParticle->m_uchColor[1]	= MIN( 1.0f, color[1] * colorRamp ) * 255.0f;
+			pParticle->m_uchColor[2]	= MIN( 1.0f, color[2] * colorRamp ) * 255.0f;
 
 			// scaled
 			pParticle->m_uchStartSize	= (iScale*0.5f) * random->RandomInt( 3, 4 ) * (i+1);
@@ -324,9 +323,9 @@ void FX_DebrisFlecks( const Vector& origin, trace_t *tr, char materialType, int 
 
 		colorRamp = random->RandomFloat( 0.5f, 1.25f );
 
-		pParticle->m_uchColor[0]	= min( 1.0f, color[0] * colorRamp ) * 255.0f;
-		pParticle->m_uchColor[1]	= min( 1.0f, color[1] * colorRamp ) * 255.0f;
-		pParticle->m_uchColor[2]	= min( 1.0f, color[2] * colorRamp ) * 255.0f;
+		pParticle->m_uchColor[0]	= MIN( 1.0f, color[0] * colorRamp ) * 255.0f;
+		pParticle->m_uchColor[1]	= MIN( 1.0f, color[1] * colorRamp ) * 255.0f;
+		pParticle->m_uchColor[2]	= MIN( 1.0f, color[2] * colorRamp ) * 255.0f;
 
 		pParticle->m_uchStartSize	= random->RandomInt( 4, 8 );
 		pParticle->m_uchEndSize		= pParticle->m_uchStartSize * 4;
@@ -386,9 +385,9 @@ void FX_DebrisFlecks( const Vector& origin, trace_t *tr, char materialType, int 
 
 		float colorRamp = random->RandomFloat( 0.5f, 1.25f );
 
-		newParticle.m_uchColor[0] = min( 1.0f, color[0]*colorRamp )*255.0f;
-		newParticle.m_uchColor[1] = min( 1.0f, color[1]*colorRamp )*255.0f;
-		newParticle.m_uchColor[2] = min( 1.0f, color[2]*colorRamp )*255.0f;
+		newParticle.m_uchColor[0] = MIN( 1.0f, color[0]*colorRamp )*255.0f;
+		newParticle.m_uchColor[1] = MIN( 1.0f, color[1]*colorRamp )*255.0f;
+		newParticle.m_uchColor[2] = MIN( 1.0f, color[2]*colorRamp )*255.0f;
 
 		AddSimpleParticle( &newParticle, g_Mat_DustPuff[0] );
 	}
@@ -420,9 +419,9 @@ void FX_DebrisFlecks( const Vector& origin, trace_t *tr, char materialType, int 
 
 		float colorRamp = random->RandomFloat( 0.5f, 1.25f );
 
-		newParticle.m_uchColor[0] = min( 1.0f, color[0]*colorRamp )*255.0f;
-		newParticle.m_uchColor[1] = min( 1.0f, color[1]*colorRamp )*255.0f;
-		newParticle.m_uchColor[2] = min( 1.0f, color[2]*colorRamp )*255.0f;
+		newParticle.m_uchColor[0] = MIN( 1.0f, color[0]*colorRamp )*255.0f;
+		newParticle.m_uchColor[1] = MIN( 1.0f, color[1]*colorRamp )*255.0f;
+		newParticle.m_uchColor[2] = MIN( 1.0f, color[2]*colorRamp )*255.0f;
 
 		AddSimpleParticle( &newParticle, g_Mat_BloodPuff[0] );
 	}
@@ -454,9 +453,9 @@ void FX_DebrisFlecks( const Vector& origin, trace_t *tr, char materialType, int 
 
 	float colorRamp = random->RandomFloat( 0.5f, 1.25f );
 
-	newParticle.m_uchColor[0] = min( 1.0f, color[0]*colorRamp )*255.0f;
-	newParticle.m_uchColor[1] = min( 1.0f, color[1]*colorRamp )*255.0f;
-	newParticle.m_uchColor[2] = min( 1.0f, color[2]*colorRamp )*255.0f;
+	newParticle.m_uchColor[0] = MIN( 1.0f, color[0]*colorRamp )*255.0f;
+	newParticle.m_uchColor[1] = MIN( 1.0f, color[1]*colorRamp )*255.0f;
+	newParticle.m_uchColor[2] = MIN( 1.0f, color[2]*colorRamp )*255.0f;
 
 	AddSimpleParticle( &newParticle, g_Mat_DustPuff[0] );
 
@@ -474,9 +473,13 @@ void FX_DebrisFlecks( const Vector& origin, trace_t *tr, char materialType, int 
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-void FX_GlassImpact( const Vector &pos, const Vector &normal )
+void GlassImpactCallback( const CEffectData &data )
 {
-	VPROF_BUDGET( "FX_GlassImpact", VPROF_BUDGETGROUP_PARTICLE_RENDERING );
+	VPROF_BUDGET( "GlassImpactCallback", VPROF_BUDGETGROUP_PARTICLE_RENDERING );
+
+	Vector pos = data.m_vOrigin;
+	Vector normal = data.m_vNormal;
+
 	CSmartPtr<CSimple3DEmitter> pGlassEmitter = CSimple3DEmitter::Create( "FX_GlassImpact" );
 	pGlassEmitter->SetSortOrigin( pos );
 
@@ -499,7 +502,7 @@ void FX_GlassImpact( const Vector &pos, const Vector &normal )
 	for ( int i = 0; i < numShards; i++ )
 	{
 		Particle3D *pParticle;
-		
+
 		pParticle = (Particle3D *) pGlassEmitter->AddParticle( sizeof(Particle3D), g_Mat_Fleck_Glass[random->RandomInt(0,1)], pos );
 
 		if ( pParticle )
@@ -545,7 +548,7 @@ void FX_GlassImpact( const Vector &pos, const Vector &normal )
 
 		newParticle.m_flLifetime= 0.0f;
 		newParticle.m_flDieTime	= random->RandomFloat( 0.1f, 0.25f );
-		
+
 		dir[0] = normal[0] + random->RandomFloat( -0.8f, 0.8f );
 		dir[1] = normal[1] + random->RandomFloat( -0.8f, 0.8f );
 		dir[2] = normal[2] + random->RandomFloat( -0.8f, 0.8f );
@@ -558,15 +561,15 @@ void FX_GlassImpact( const Vector &pos, const Vector &normal )
 
 		newParticle.m_uchStartAlpha	= random->RandomInt( 128, 255 );
 		newParticle.m_uchEndAlpha	= 0;
-		
+
 		newParticle.m_flRoll		= random->RandomFloat( 0, 360 );
 		newParticle.m_flRollDelta	= random->RandomFloat( -1, 1 );
 
 		colorRamp = random->RandomFloat( 0.5f, 1.25f );
 
-		newParticle.m_uchColor[0] = min( 1.0f, color[0]*colorRamp )*255.0f;
-		newParticle.m_uchColor[1] = min( 1.0f, color[1]*colorRamp )*255.0f;
-		newParticle.m_uchColor[2] = min( 1.0f, color[2]*colorRamp )*255.0f;
+		newParticle.m_uchColor[0] = MIN( 1.0f, color[0]*colorRamp )*255.0f;
+		newParticle.m_uchColor[1] = MIN( 1.0f, color[1]*colorRamp )*255.0f;
+		newParticle.m_uchColor[2] = MIN( 1.0f, color[2]*colorRamp )*255.0f;
 
 		AddSimpleParticle( &newParticle, g_Mat_BloodPuff[0] );
 	}
@@ -591,25 +594,21 @@ void FX_GlassImpact( const Vector &pos, const Vector &normal )
 
 	newParticle.m_uchStartAlpha	= random->RandomInt( 32, 64 );
 	newParticle.m_uchEndAlpha	= 0;
-	
+
 	newParticle.m_flRoll			= random->RandomFloat( 0, 360 );
 	newParticle.m_flRollDelta	= random->RandomFloat( -2, 2 );
 
 	colorRamp = random->RandomFloat( 0.5f, 1.25f );
 
-	newParticle.m_uchColor[0] = min( 1.0f, color[0]*colorRamp )*255.0f;
-	newParticle.m_uchColor[1] = min( 1.0f, color[1]*colorRamp )*255.0f;
-	newParticle.m_uchColor[2] = min( 1.0f, color[2]*colorRamp )*255.0f;
+	newParticle.m_uchColor[0] = MIN( 1.0f, color[0]*colorRamp )*255.0f;
+	newParticle.m_uchColor[1] = MIN( 1.0f, color[1]*colorRamp )*255.0f;
+	newParticle.m_uchColor[2] = MIN( 1.0f, color[2]*colorRamp )*255.0f;
 
 	AddSimpleParticle( &newParticle, g_Mat_DustPuff[0] );
 }
 
-void GlassImpactCallback( const CEffectData &data )
-{
-	FX_GlassImpact( data.m_vOrigin, data.m_vNormal );
-}
+DECLARE_CLIENT_EFFECT( GlassImpact, GlassImpactCallback )
 
-DECLARE_CLIENT_EFFECT( "GlassImpact", GlassImpactCallback );
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -738,9 +737,9 @@ void FX_AntlionImpact( const Vector &pos, trace_t *trace )
 
 		colorRamp = random->RandomFloat( 0.5f, 1.0f );
 
-		pParticle->m_uchColor[0] = min( 1.0f, color[0]*colorRamp )*255.0f;
-		pParticle->m_uchColor[1] = min( 1.0f, color[1]*colorRamp )*255.0f;
-		pParticle->m_uchColor[2] = min( 1.0f, color[2]*colorRamp )*255.0f;
+		pParticle->m_uchColor[0] = MIN( 1.0f, color[0]*colorRamp )*255.0f;
+		pParticle->m_uchColor[1] = MIN( 1.0f, color[1]*colorRamp )*255.0f;
+		pParticle->m_uchColor[2] = MIN( 1.0f, color[2]*colorRamp )*255.0f;
 	}
 
 
@@ -1008,9 +1007,9 @@ void FX_DustImpact( const Vector &origin, trace_t *tr, int iScale )
 
 			colorRamp = random->RandomFloat( 0.75f, 1.25f );
 
-			pParticle->m_uchColor[0]	= min( 1.0f, color[0] * colorRamp ) * 255.0f;
-			pParticle->m_uchColor[1]	= min( 1.0f, color[1] * colorRamp ) * 255.0f;
-			pParticle->m_uchColor[2]	= min( 1.0f, color[2] * colorRamp ) * 255.0f;
+			pParticle->m_uchColor[0]	= MIN( 1.0f, color[0] * colorRamp ) * 255.0f;
+			pParticle->m_uchColor[1]	= MIN( 1.0f, color[1] * colorRamp ) * 255.0f;
+			pParticle->m_uchColor[2]	= MIN( 1.0f, color[2] * colorRamp ) * 255.0f;
 
 			// scaled
 			pParticle->m_uchStartSize	= iScale * random->RandomInt( 3, 4 ) * (i+1);
@@ -1051,9 +1050,9 @@ void FX_DustImpact( const Vector &origin, trace_t *tr, int iScale )
 		pParticle->m_vecVelocity.Init();
 
 		colorRamp = random->RandomFloat( 0.75f, 1.25f );
-		pParticle->m_uchColor[0]	= min( 1.0f, color[0] * colorRamp ) * 255.0f;
-		pParticle->m_uchColor[1]	= min( 1.0f, color[1] * colorRamp ) * 255.0f;
-		pParticle->m_uchColor[2]	= min( 1.0f, color[2] * colorRamp ) * 255.0f;
+		pParticle->m_uchColor[0]	= MIN( 1.0f, color[0] * colorRamp ) * 255.0f;
+		pParticle->m_uchColor[1]	= MIN( 1.0f, color[1] * colorRamp ) * 255.0f;
+		pParticle->m_uchColor[2]	= MIN( 1.0f, color[2] * colorRamp ) * 255.0f;
 
 		pParticle->m_uchStartSize	= random->RandomInt( 4, 8 );
 		pParticle->m_uchEndSize		= pParticle->m_uchStartSize * 4;
@@ -1112,9 +1111,9 @@ void FX_DustImpact( const Vector &origin, trace_t *tr, float flScale )
 			
 			colorRamp = random->RandomFloat( 0.75f, 1.25f );
 
-			pParticle->m_uchColor[0]	= min( 1.0f, color[0] * colorRamp ) * 255.0f;
-			pParticle->m_uchColor[1]	= min( 1.0f, color[1] * colorRamp ) * 255.0f;
-			pParticle->m_uchColor[2]	= min( 1.0f, color[2] * colorRamp ) * 255.0f;
+			pParticle->m_uchColor[0]	= MIN( 1.0f, color[0] * colorRamp ) * 255.0f;
+			pParticle->m_uchColor[1]	= MIN( 1.0f, color[1] * colorRamp ) * 255.0f;
+			pParticle->m_uchColor[2]	= MIN( 1.0f, color[2] * colorRamp ) * 255.0f;
 			
 			// scaled
 			pParticle->m_uchStartSize	= ( unsigned char )( flScale * random->RandomInt( 3, 4 ) * (i+1) );
@@ -1151,9 +1150,9 @@ void FX_DustImpact( const Vector &origin, trace_t *tr, float flScale )
 			
 			colorRamp = random->RandomFloat( 0.75f, 1.25f );
 
-			pParticle->m_uchColor[0]	= min( 1.0f, color[0] * colorRamp ) * 255.0f;
-			pParticle->m_uchColor[1]	= min( 1.0f, color[1] * colorRamp ) * 255.0f;
-			pParticle->m_uchColor[2]	= min( 1.0f, color[2] * colorRamp ) * 255.0f;
+			pParticle->m_uchColor[0]	= MIN( 1.0f, color[0] * colorRamp ) * 255.0f;
+			pParticle->m_uchColor[1]	= MIN( 1.0f, color[1] * colorRamp ) * 255.0f;
+			pParticle->m_uchColor[2]	= MIN( 1.0f, color[2] * colorRamp ) * 255.0f;
 			
 			pParticle->m_uchStartSize	= random->RandomInt( 2, 4 ) * (i+1);
 			pParticle->m_uchEndSize		= pParticle->m_uchStartSize * 2;
@@ -1193,9 +1192,9 @@ void FX_DustImpact( const Vector &origin, trace_t *tr, float flScale )
 			
 			colorRamp = random->RandomFloat( 0.75f, 1.25f );
 
-			pParticle->m_uchColor[0]	= min( 1.0f, color[0] * colorRamp ) * 255.0f;
-			pParticle->m_uchColor[1]	= min( 1.0f, color[1] * colorRamp ) * 255.0f;
-			pParticle->m_uchColor[2]	= min( 1.0f, color[2] * colorRamp ) * 255.0f;
+			pParticle->m_uchColor[0]	= MIN( 1.0f, color[0] * colorRamp ) * 255.0f;
+			pParticle->m_uchColor[1]	= MIN( 1.0f, color[1] * colorRamp ) * 255.0f;
+			pParticle->m_uchColor[2]	= MIN( 1.0f, color[2] * colorRamp ) * 255.0f;
 			
 			pParticle->m_uchStartSize	= random->RandomInt( 1, 4 );
 			pParticle->m_uchEndSize		= pParticle->m_uchStartSize * 4;

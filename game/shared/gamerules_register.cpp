@@ -81,11 +81,11 @@ CGameRulesRegister* CGameRulesRegister::FindByName( const char *pName )
 	}
 
 	// On the client, we respond to string table changes on the server.
-	void InstallStringTableCallback_GameRules()
+	void InstallStringTableCallback_GameRules( const char *tableName )
 	{
-		if ( !g_StringTableGameRules )
+		if ( 0 == Q_strcasecmp( tableName, GAMERULES_STRINGTABLE_NAME ) )
 		{
-			g_StringTableGameRules = networkstringtable->FindTable( GAMERULES_STRINGTABLE_NAME );
+			g_StringTableGameRules = networkstringtable->FindTable( tableName );
 			if ( g_StringTableGameRules )
 				g_StringTableGameRules->SetStringChangedCallback( NULL, OnGameRulesCreationStringChanged );
 		}
@@ -102,10 +102,7 @@ CGameRulesRegister* CGameRulesRegister::FindByName( const char *pName )
 		// Create the string table used by 
 		g_StringTableGameRules = networkstringtable->CreateStringTable( GAMERULES_STRINGTABLE_NAME, 1 );
 
-#ifdef CSTRIKE_DLL
-		void CreateBlackMarketString( void );
-		CreateBlackMarketString();
-#endif
+
 	}
 
 	void CreateGameRulesObject( const char *pClassName )

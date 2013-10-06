@@ -2,7 +2,7 @@
 #define CDEF_LIGHT_H
 
 #include "cbase.h"
-#include "deferred/deferred_shared_common.h"
+#include "deferred_shared_common.h"
 
 #ifdef CLIENT_DLL
 struct def_light_t;

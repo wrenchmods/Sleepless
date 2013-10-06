@@ -7,6 +7,10 @@
 #include "cbase.h"
 #include "baseprojectile.h"
 
+// NOTE: This has to be the last file included!
+#include "tier0/memdbgon.h"
+
+
 BEGIN_DATADESC( CBaseProjectile )
 	DEFINE_FIELD( m_flDamage, FIELD_FLOAT ),
 	DEFINE_FIELD( m_iDamageType, FIELD_INTEGER ),

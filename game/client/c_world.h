@@ -56,9 +56,9 @@ public:
 	float	m_flMinPropScreenSpaceWidth;
 	float	m_flMaxPropScreenSpaceWidth;
 	bool	m_bColdWorld;
+	int		m_iTimeOfDay;
 
 private:
-	void	RegisterSharedActivities( void );
 	char	m_iszDetailSpriteMaterial[MAX_DETAIL_SPRITE_MATERIAL_NAME_LENGTH];
 };
 

@@ -219,7 +219,7 @@ namespace SurfaceV30
 
 	// restricts what gets drawn to one panel and it's children
 	// currently only works in the game
-	virtual void RestrictPaintToSinglePanel(vgui::VPANEL panel) = 0;
+	virtual void RestrictPaintToSinglePanel(vgui::VPANEL panel, bool bForceAllowNonModalSurface = false) = 0;
 
 	// these two functions obselete, use IInput::SetAppModalSurface() instead
 	virtual void SetModalPanel(vgui::VPANEL ) = 0;

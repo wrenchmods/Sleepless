@@ -261,6 +261,8 @@ public:
 	
 	void			SetGlobalMode( int global ) { m_global = global; }
 	void			PrecacheMode( bool mode ) { m_precache = mode; }
+	virtual int		ScanAheadForHammerID();
+	virtual void	SkipEntityData();
 	bool			GetPrecacheMode( void ) { return m_precache; }
 
 	CGameSaveRestoreInfo *GetGameSaveRestoreInfo()	{ return m_pGameInfo; }
@@ -293,7 +295,7 @@ private:
 		else
 		{
 			Assert( nBytesAvailable % sizeof(T) == 0 );
-			actual = min( desired, nBytesAvailable );
+			actual = MIN( desired, nBytesAvailable );
 		}
 
 		BufferReadBytes( (char *)pValue, actual );

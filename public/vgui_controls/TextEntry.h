@@ -85,7 +85,6 @@ namespace vgui
 class TextEntry : public Panel
 {
 	DECLARE_CLASS_SIMPLE( TextEntry, Panel );
-
 public:
 	TextEntry(Panel *parent, const char *panelName);
 	virtual ~TextEntry();
@@ -108,6 +107,7 @@ public:
 	virtual void GotoEndOfLine();	// go to end of the current line 
 	virtual void GotoTextStart();	// go to Start of text buffer
 	virtual void GotoTextEnd();		// go to end of text buffer
+	virtual int	 GetTextCursorPos() { return _cursorPos; }
 
 	virtual void InsertChar(wchar_t ch);
 	virtual void InsertString(const char *text);
@@ -157,6 +157,12 @@ public:
 	// sets whether or not to send "TextNewLine" msgs when ENTER key is pressed
 	virtual void SendNewLine(bool send);
 
+	// sets whether or not the edit catches and stores TAB key presses
+	virtual void SetCatchTabKey(bool state);
+
+	// set the number of spaces inserted for a tab key press when catch tab is enabled
+	virtual void SetTabSpaces(int count);
+
 	// sets limit of number of characters insertable into field; set to -1 to remove maximum
 	// only works with if rich-edit is NOT enabled
 	virtual void SetMaximumCharCount(int maxChars);
@@ -180,6 +186,9 @@ public:
 	void SetToFullWidth();
 
 	int GetNumLines();
+
+	// gets the current starting line, the first line to be displayed 
+	int GetCurrentStartLine() const;
 
 	/* INFO HANDLING
 		"GetText"
@@ -229,6 +238,9 @@ public:
 	void SetSelectionUnfocusedBgColor( const Color& clr );
 
 	void SetUseFallbackFont( bool bState, HFont hFallback );
+	virtual void SetAutoLocalize( bool bState ) { m_bAutoLocalize = bState; }
+
+	virtual void GetSizerMinimumSize(int &wide, int &tall);
 
 protected:
 	virtual void ResetCursorBlink();
@@ -354,9 +366,11 @@ private:
 	bool			   _horizScrollingAllowed;	// use to disable horizontal text scrolling period.
 	Color			   _focusEdgeColor;
 	bool		       _catchEnterKey;
+	bool			   _catchTabKey;
 	bool			   _wrap;
 	bool			   _sendNewLines;
 	int				   _drawWidth;
+	int				   _tabSpaces; // number of spaces inserted for a tab
 
 	// selection data
 	Menu				*m_pEditMenu; ///cut/copy/paste popup
@@ -382,6 +396,8 @@ private:
 
 	bool				m_bUseFallbackFont : 1;
 	HFont				m_hFallbackFont;
+
+	bool				m_bAutoLocalize;
 };
 
 }

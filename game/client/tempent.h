@@ -1,10 +1,10 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
 //
 // Purpose: 
 //
 // $NoKeywords: $
 //
-//=============================================================================//
+//===========================================================================//
 #if !defined( TEMPENT_H )
 #define TEMPENT_H
 #ifdef _WIN32
@@ -71,7 +71,7 @@ public:
 	virtual bool					Frame( float frametime, int framenumber );
 
 	// C_BaseAnimating , etc. override
-	virtual int						DrawModel( int flags );
+	virtual int						DrawModel( int flags, const RenderableInstance_t &instance );
 
 	// Sets the velocity
 	void SetVelocity( const Vector &vecVelocity );
@@ -121,8 +121,6 @@ public:
 	// 
 	float							m_flFrameRate;
 	float							m_flFrame;
-
-	RenderGroup_t					m_RenderGroup;
 
 	const char						*m_pszImpactEffect;
 	const char						*m_pszParticleEffect;

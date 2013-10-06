@@ -110,7 +110,7 @@ private:
 };
 
 
-abstract_class CGameRules : public CAutoGameSystemPerFrame
+abstract_class CGameRules : public CMemZeroOnNew, public CAutoGameSystemPerFrame
 {
 public:
 	DECLARE_CLASS_GAMEROOT( CGameRules, CAutoGameSystemPerFrame );
@@ -120,7 +120,10 @@ public:
 	// Stuff shared between client and server.
 
 	CGameRules(void);
+
 	virtual ~CGameRules( void );
+
+	virtual	bool	Init();
 
 	// Damage Queries - these need to be implemented by the various subclasses (single-player, multi-player, etc).
 	// The queries represent queries against damage types and properties.
@@ -143,7 +146,7 @@ public:
 	virtual CBaseCombatWeapon *GetNextBestWeapon( CBaseCombatCharacter *pPlayer, CBaseCombatWeapon *pCurrentWeapon ); // I can't use this weapon anymore, get me the next best one.
 	virtual bool ShouldCollide( int collisionGroup0, int collisionGroup1 );
 
-	virtual int DefaultFOV( void ) { return 75; }
+	virtual int DefaultFOV( void ) { return 90; }
 
 	// This function is here for our CNetworkVars.
 	inline void NetworkStateChanged()
@@ -172,6 +175,10 @@ public:
 
 	virtual bool InRoundRestart( void ) { return false; }
 
+	virtual void RegisterScriptFunctions( void ){ };
+
+	virtual void ClientCommandKeyValues( edict_t *pEntity, KeyValues *pKeyValues ) {} 
+
 #ifdef CLIENT_DLL
 
 	virtual bool IsBonusChallengeTimeBased( void );
@@ -185,11 +192,12 @@ public:
 public:
 
 // Setup
+	virtual void OnBeginChangeLevel( const char *nextMapName, KeyValues *saveData ) {}	///< called just before a trigger_changelevel starts a changelevel
 	
 	// Called when game rules are destroyed by CWorld
 	virtual void LevelShutdown( void ) { return; };
 
-	virtual void Precache( void ) { return; };
+	virtual void Precache( void );
 
 	virtual void RefreshSkillData( bool forceUpdate );// fill skill data struct with proper values
 	
@@ -239,6 +247,7 @@ public:
 	virtual bool ClientConnected( edict_t *pEntity, const char *pszName, const char *pszAddress, char *reject, int maxrejectlen ) = 0;// a client just connected to the server (player hasn't spawned yet)
 	virtual void InitHUD( CBasePlayer *pl ) = 0;		// the client dll is ready for updating
 	virtual void ClientDisconnected( edict_t *pClient ) = 0;// a client just disconnected from the server
+	virtual bool ShouldTimeoutClient( int nUserID, float flTimeSinceLastReceived ) { return false; } // return true to disconnect client due to timeout (used to do stricter timeouts when the game is sure the client isn't loading a map)
 	
 // Client damage rules
 	virtual float FlPlayerFallDamage( CBasePlayer *pPlayer ) = 0;// this client just hit the ground after a fall. How much damage?
@@ -306,6 +315,8 @@ public:
 // AI Definitions
 	virtual void			InitDefaultAIRelationships( void ) { return; }
 	virtual const char*		AIClassText(int classType) { return NULL; }
+	virtual int				NumEntityClasses() const	{ return LAST_SHARED_ENTITY_CLASS; }
+	virtual int				NumFactions() const	{ return LAST_SHARED_FACTION; }
 
 // Healthcharger respawn control
 	virtual float FlHealthChargerRechargeTime( void ) = 0;// how long until a depleted HealthCharger recharges itself?
@@ -333,6 +344,7 @@ public:
 // Sounds
 	virtual bool PlayTextureSounds( void ) { return TRUE; }
 	virtual bool PlayFootstepSounds( CBasePlayer *pl ) { return TRUE; }
+	virtual bool AllowSoundscapes( void ) { return TRUE; }
 
 // NPCs
 	virtual bool FAllowNPCs( void ) = 0;//are NPCs allowed
@@ -366,12 +378,24 @@ public:
 	virtual void MarkAchievement ( IRecipientFilter& filter, char const *pchAchievementName );
 
 	virtual void ResetMapCycleTimeStamp( void ){ return; }
-	
+
+	virtual void OnNavMeshLoad( void ) { return; }
+
+	virtual void UpdateGameplayStatsFromSteam( void ) { return; }
+
+	virtual edict_t *DoFindClientInPVS( edict_t *pEdict, unsigned char *pvs, unsigned pvssize );
 #endif
 
 	virtual const char *GetGameTypeName( void ){ return NULL; }
 	virtual int GetGameType( void ){ return 0; }
 
+	virtual bool ForceSplitScreenPlayersOnToSameTeam() { return true; }
+
+	virtual bool IsTopDown() { return false; }
+	virtual const QAngle& GetTopDownMovementAxis() { return vec3_angle; }
+
+	// Assume the game doesn't care
+	virtual int GetMaxHumanPlayers() const { return -1; }
 };
 
 

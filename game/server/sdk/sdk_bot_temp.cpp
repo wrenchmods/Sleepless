@@ -40,7 +40,7 @@ static int g_CurBotNumber = 1;
 
 
 // This is our bot class.
-class CSDKBot : public CSDKPlayer
+class CSDKBot : public CSDK_Player
 {
 public:
 	bool			m_bBackwards;
@@ -147,10 +147,10 @@ void Bot_RunAll( void )
 {
 	for ( int i = 1; i <= gpGlobals->maxClients; i++ )
 	{
-		CSDKPlayer *pPlayer = ToSDKPlayer( UTIL_PlayerByIndex( i ) );
+		CSDK_Player *pPlayer = ToSDK_Player( UTIL_PlayerByIndex( i ) );
 
 		// Ignore plugin bots
-		if ( pPlayer && (pPlayer->GetFlags() & FL_FAKECLIENT) && !pPlayer->IsEFlagSet( EFL_PLUGIN_BASED_BOT ) )
+		if ( pPlayer && (pPlayer->GetFlags() & FL_FAKECLIENT) /*&& !pPlayer->IsEFlagSet( EFL_PLUGIN_BASED_BOT )*/ )
 		{
 			CSDKBot *pBot = dynamic_cast< CSDKBot* >( pPlayer );
 			if ( pBot )
@@ -196,7 +196,7 @@ bool Bot_RunMimicCommand( CUserCmd& cmd )
 //			msec - 
 // Output : 	virtual void
 //-----------------------------------------------------------------------------
-static void RunPlayerMove( CSDKPlayer *fakeclient, CUserCmd &cmd, float frametime )
+static void RunPlayerMove( CSDK_Player *fakeclient, CUserCmd &cmd, float frametime )
 {
 	if ( !fakeclient )
 		return;

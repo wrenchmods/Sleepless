@@ -116,6 +116,7 @@ BEGIN_DATADESC( CBaseHelicopter )
 	DEFINE_INPUTFUNC( FIELD_VOID, "DisableRotorWash", InputDisableRotorWash ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "MoveTopSpeed", InputMoveTopSpeed ),
 	DEFINE_INPUTFUNC( FIELD_FLOAT, "MoveSpecifiedSpeed", InputMoveSpecifiedSpeed ),
+	DEFINE_INPUTFUNC( FIELD_FLOAT, "SetMaxSpeed", InputSetMaxSpeed ),
 	DEFINE_INPUTFUNC( FIELD_STRING, "SetAngles", InputSetAngles ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "EnableRotorSound", InputEnableRotorSound ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "DisableRotorSound", InputDisableRotorSound ),
@@ -147,7 +148,10 @@ CBaseHelicopter::CBaseHelicopter( void )
 //------------------------------------------------------------------------------
 void CBaseHelicopter::Precache( void )
 {
+	BaseClass::Precache();
+	CRopeKeyframe::PrecacheShakeRopes();
 }
+
 
 //------------------------------------------------------------------------------
 // Purpose :
@@ -491,7 +495,7 @@ bool CBaseHelicopter::DoWashPush( washentity_t *pWash, const Vector &vecWashOrig
 	// This used to be mass independent, which is a bad idea because it blows 200kg engine blocks
 	// as much as it blows cardboard and soda cans. Make this force mass-independent, but clamp at
 	// 30kg. 
-	flMass = min( flMass, 30.0f );
+	flMass = MIN( flMass, 30.0f );
 
 	Vector vecForce = (0.015f / 0.1f) * flWashAmount * flMass * vecToSpot * phys_pushscale.GetFloat();
 	pEntity->VPhysicsTakeDamage( CTakeDamageInfo( this, this, vecForce, vecWashOrigin, flWashAmount, DMG_BLAST ) );
@@ -660,7 +664,7 @@ void CBaseHelicopter::DoRotorPhysicsPush( const Vector &vecRotorOrigin, float fl
 
 
 //------------------------------------------------------------------------------
-// Updates the enemy
+// Returns the max distance to search
 //------------------------------------------------------------------------------
 float CBaseHelicopter::EnemySearchDistance( ) 
 {
@@ -1426,6 +1430,11 @@ void CBaseHelicopter::InputDisableRotorWash( inputdata_t &inputdata )
 //-----------------------------------------------------------------------------
 void CBaseHelicopter::InputMoveTopSpeed( inputdata_t &inputdata )
 {
+	MoveTopSpeed( GetMaxSpeed() );
+}
+
+void CBaseHelicopter::MoveTopSpeed( float flInstantSpeed )
+{
 	Vector vecVelocity;
 	ComputeActualTargetPosition( GetMaxSpeed(), 1.0f, 0.0f, &vecVelocity, false );
 	vecVelocity -= GetAbsOrigin();
@@ -1436,7 +1445,7 @@ void CBaseHelicopter::InputMoveTopSpeed( inputdata_t &inputdata )
 		GetVectors( &vecVelocity, NULL, NULL );
 	}
 
-	vecVelocity *= GetMaxSpeed();
+	vecVelocity *= flInstantSpeed;
 	SetAbsVelocity( vecVelocity );
 }
 
@@ -1459,6 +1468,11 @@ void CBaseHelicopter::InputMoveSpecifiedSpeed( inputdata_t &inputdata )
 
 	vecVelocity *= flSpeed;
 	SetAbsVelocity( vecVelocity );
+}
+
+void CBaseHelicopter::InputSetMaxSpeed( inputdata_t &inputdata )
+{
+	m_flMaxSpeed = inputdata.value.Float();
 }
 
 //------------------------------------------------------------------------------

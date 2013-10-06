@@ -10,7 +10,6 @@
 #include "RagdollExplosionEnumerator.h"
 #include "glow_overlay.h"
 #include "fx_explosion.h"
-#include "ClientEffectPrecacheSystem.h"
 #include "engine/ivdebugoverlay.h"
 #include "tier1/keyvalues.h"
 #include "toolframework_client.h"
@@ -254,7 +253,7 @@ void C_TEExplosion::PostDataUpdate( DataUpdateType_t updateType )
 	AffectRagdolls();
 
 	// Filter out a water explosion
-	if ( UTIL_PointContents( m_vecOrigin ) & CONTENTS_WATER )
+	if ( UTIL_PointContents( m_vecOrigin, MASK_WATER ) & CONTENTS_WATER )
 	{
 		WaterExplosionEffect().Create( m_vecOrigin, m_nMagnitude, m_fScale, m_nFlags );
 		return;

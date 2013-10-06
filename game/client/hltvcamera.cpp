@@ -18,10 +18,6 @@
 #include "game/client/iviewport.h"
 #include <KeyValues.h>
 
-#ifdef CSTRIKE_DLL
-	#include "c_cs_player.h"
-#endif
-
 ConVar spec_autodirector( "spec_autodirector", "1", FCVAR_CLIENTDLL | FCVAR_CLIENTCMD_CAN_EXECUTE, "Auto-director chooses best view modes while spectating" );
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -650,7 +646,7 @@ void C_HLTVCamera::SpecNamedPlayer( const char *szPlayerName )
 
 void C_HLTVCamera::FireGameEvent( IGameEvent * event)
 {
-	if ( !engine->IsHLTV() )
+	if ( !g_bEngineIsHLTV )
 		return;	// not in HLTV mode
 
 	const char *type = event->GetName();
@@ -660,20 +656,20 @@ void C_HLTVCamera::FireGameEvent( IGameEvent * event)
 		Reset();	// reset all camera settings
 
 		// show spectator UI
-		if ( !gViewPortInterface )
+		if ( !GetViewPortInterface() )
 			return;
 
 		if ( engine->IsPlayingDemo() )
         {
 			// for demo playback show full menu
-			gViewPortInterface->ShowPanel( PANEL_SPECMENU, true );
+			GetViewPortInterface()->ShowPanel( PANEL_SPECMENU, true );
 
 			SetMode( OBS_MODE_ROAMING );
 		}
 		else
 		{
 			// during live broadcast only show black bars
-			gViewPortInterface->ShowPanel( PANEL_SPECGUI, true );
+			GetViewPortInterface()->ShowPanel( PANEL_SPECGUI, true );
 		}
 
 		return;
@@ -698,7 +694,7 @@ void C_HLTVCamera::FireGameEvent( IGameEvent * event)
 			g_pVGuiLocalize->ConvertANSIToUnicode( tmpStr, outputBuf, sizeof(outputBuf) );
 		}
 
-		internalCenterPrint->Print( ConvertCRtoNL( outputBuf ) );
+		GetCenterPrint()->Print( ConvertCRtoNL( outputBuf ) );
 		return ;
 	}
 
@@ -762,7 +758,7 @@ void C_HLTVCamera::FireGameEvent( IGameEvent * event)
 
 	if ( Q_strcmp( "hltv_chase", type ) == 0 )
 	{
-		bool bInEye	= event->GetInt( "ineye" );
+		bool bInEye	= event->GetBool( "ineye" );
 
 		// check if we are already in a player chase mode
 		bool bIsInChaseMode = (m_nCameraMode==OBS_MODE_IN_EYE)|| (m_nCameraMode==OBS_MODE_CHASE);

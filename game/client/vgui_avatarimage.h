@@ -1,4 +1,4 @@
-//====== Copyright © 1996-2005, Valve Corporation, All rights reserved. =======
+//====== Copyright 1996-2005, Valve Corporation, All rights reserved. =======
 //
 // Purpose: 
 //
@@ -12,7 +12,7 @@
 
 #include <vgui_controls/Image.h>
 #include <vgui_controls/ImagePanel.h>
-#include "steam\steam_api.h"
+#include "steam/steam_api.h"
 #include "c_baseplayer.h"
 
 // Avatar images, and avatar images with friends, don't scale with resolution.
@@ -78,14 +78,25 @@ public:
 		m_Color = col; 
 	}
 
-	bool	IsValid( void ) { return m_bValid; }
+	void SetAvatarSize( EAvatarSize size )
+	{
+		m_SourceArtSize = size;
+	}
 
+	bool IsValid( void ) { return m_bValid; }
+
+	virtual bool Evict() { return false; }
+	virtual int GetNumFrames() { return 0; }
+	virtual void SetFrame( int nFrame ) {}
+	virtual vgui::HTexture GetID() { return m_iTextureID; }
+	virtual void SetRotation( int iRotation ) { return; }
 	int		GetWide( void ) { return m_nWide; }
 
 protected:
 	void InitFromRGBA( const byte *rgba, int width, int height );
 
 private:
+	CSteamID m_steamIDUser;
 	Color m_Color;
 	int m_iTextureID;
 	int m_nX, m_nY, m_nWide, m_nTall;
@@ -95,6 +106,7 @@ private:
 	int	 m_iAvatarWidth;
 	int	 m_iAvatarHeight;
 	CSteamID	m_SteamID;
+	EAvatarSize m_SourceArtSize;
 };
 
 //-----------------------------------------------------------------------------
@@ -109,6 +121,8 @@ public:
 
 	// Set the player that this Avatar should display for
 	void SetPlayer( C_BasePlayer *pPlayer );
+	void SetPlayerByIndex( int iIndex );
+	void SetAvatarBySteamID( CSteamID *friendsID );
 
 	virtual void PaintBackground( void );
 	bool	IsValid( void ) { return (GetImage() && ((CAvatarImage*)GetImage())->IsValid()); }

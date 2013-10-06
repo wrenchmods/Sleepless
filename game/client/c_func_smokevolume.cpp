@@ -8,6 +8,7 @@
 #include "c_smoke_trail.h"
 #include "smoke_fog_overlay.h"
 #include "engine/IEngineTrace.h"
+#include "view.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -139,6 +140,7 @@ private:
 	float m_RotationSpeed;
 	float m_MovementSpeed;
 	float m_Density;
+	float m_maxDrawDistance;
 	int	  m_spawnflags;
 
 private:
@@ -163,8 +165,8 @@ private:
 };
 
 IMPLEMENT_CLIENTCLASS_DT( C_FuncSmokeVolume, DT_FuncSmokeVolume, CFuncSmokeVolume )
-	RecvPropInt( RECVINFO( m_Color1 ), 0, RecvProxy_IntToColor32 ),
-	RecvPropInt( RECVINFO( m_Color2 ), 0, RecvProxy_IntToColor32 ),
+	RecvPropInt( RECVINFO( m_Color1 ), 0, RecvProxy_Int32ToColor32 ),
+	RecvPropInt( RECVINFO( m_Color2 ), 0, RecvProxy_Int32ToColor32 ),
 	RecvPropString( RECVINFO( m_MaterialName ) ),
 	RecvPropFloat( RECVINFO( m_ParticleDrawWidth ) ),
 	RecvPropFloat( RECVINFO( m_ParticleSpacingDistance ) ),
@@ -172,6 +174,7 @@ IMPLEMENT_CLIENTCLASS_DT( C_FuncSmokeVolume, DT_FuncSmokeVolume, CFuncSmokeVolum
 	RecvPropFloat( RECVINFO( m_RotationSpeed ) ),
 	RecvPropFloat( RECVINFO( m_MovementSpeed ) ),
 	RecvPropFloat( RECVINFO( m_Density ) ),
+	RecvPropFloat( RECVINFO( m_maxDrawDistance ) ),
 	RecvPropInt( RECVINFO( m_spawnflags ) ),
 	RecvPropDataTable( RECVINFO_DT( m_Collision ), 0, &REFERENCE_RECV_TABLE(DT_CollisionProperty) ),
 END_RECV_TABLE()
@@ -220,8 +223,8 @@ static inline Vector& EngineGetVecRenderOrigin()
 	static Vector dummy(0,0,0);
 	return dummy;
 #else
-	extern Vector g_vecRenderOrigin;
-	return g_vecRenderOrigin;
+	extern Vector g_vecRenderOrigin[ MAX_SPLITSCREEN_PLAYERS ];
+	return g_vecRenderOrigin[ GET_ACTIVE_SPLITSCREEN_SLOT() ];
 #endif
 }
 
@@ -335,21 +338,36 @@ void C_FuncSmokeVolume::Update( float fTimeDelta )
 		m_ParticleEffect.SetBBox( vWorldMins, vWorldMaxs );
 	}
 		
+	float minViewOrigingDistance = FLT_MAX;
+	FOR_EACH_VALID_SPLITSCREEN_PLAYER( hh )
+	{
+		float d = CollisionProp()->CalcDistanceFromPoint( MainViewOrigin(hh) );
+		if ( d < minViewOrigingDistance )
+			minViewOrigingDistance = d;
+	}
+
+
+	float targetDensity = m_Density;
+	if ( m_maxDrawDistance > 0 && minViewOrigingDistance > m_maxDrawDistance )
+	{
+		targetDensity = 0.0f;
+	}
+
 	// lerp m_CurrentDensity towards m_Density at a rate of m_DensityRampSpeed
-	if( m_CurrentDensity < m_Density )
+	if( m_CurrentDensity < targetDensity )
 	{
 		m_CurrentDensity += m_DensityRampSpeed * fTimeDelta;
-		if( m_CurrentDensity > m_Density )
+		if( m_CurrentDensity > targetDensity )
 		{
-			m_CurrentDensity = m_Density;
+			m_CurrentDensity = targetDensity;
 		}
 	}
-	else if( m_CurrentDensity > m_Density )
+	else if( m_CurrentDensity > targetDensity )
 	{
 		m_CurrentDensity -= m_DensityRampSpeed * fTimeDelta;
-		if( m_CurrentDensity < m_Density )
+		if( m_CurrentDensity < targetDensity )
 		{
-			m_CurrentDensity = m_Density;
+			m_CurrentDensity = targetDensity;
 		}
 	}
 

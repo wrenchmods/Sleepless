@@ -9,22 +9,33 @@
 #include "c_team.h"
 #include "gamestringpool.h"
 
-#ifdef HL2MP
-#include "hl2mp_gamerules.h"
-#endif
-
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
 const float PLAYER_RESOURCE_THINK_INTERVAL = 0.2f;
 #define PLAYER_UNCONNECTED_NAME	"unconnected"
+#define PLAYER_DEBUG_NAME "WWWWWWWWWWWWWWW"
+
+ConVar cl_names_debug( "cl_names_debug", "0", FCVAR_DEVELOPMENTONLY );
+
+
+void RecvProxy_ChangedTeam( const CRecvProxyData *pData, void *pStruct, void *pOut )
+{
+	// Have the regular proxy store the data.
+	RecvProxy_Int32ToInt32( pData, pStruct, pOut );
+
+	if ( g_PR )
+	{
+		g_PR->TeamChanged();
+	}
+}
 
 IMPLEMENT_CLIENTCLASS_DT_NOBASE(C_PlayerResource, DT_PlayerResource, CPlayerResource)
 	RecvPropArray3( RECVINFO_ARRAY(m_iPing), RecvPropInt( RECVINFO(m_iPing[0]))),
 	RecvPropArray3( RECVINFO_ARRAY(m_iScore), RecvPropInt( RECVINFO(m_iScore[0]))),
 	RecvPropArray3( RECVINFO_ARRAY(m_iDeaths), RecvPropInt( RECVINFO(m_iDeaths[0]))),
 	RecvPropArray3( RECVINFO_ARRAY(m_bConnected), RecvPropInt( RECVINFO(m_bConnected[0]))),
-	RecvPropArray3( RECVINFO_ARRAY(m_iTeam), RecvPropInt( RECVINFO(m_iTeam[0]))),
+	RecvPropArray3( RECVINFO_ARRAY(m_iTeam), RecvPropInt( RECVINFO(m_iTeam[0]), 0, RecvProxy_ChangedTeam )),
 	RecvPropArray3( RECVINFO_ARRAY(m_bAlive), RecvPropInt( RECVINFO(m_bAlive[0]))),
 	RecvPropArray3( RECVINFO_ARRAY(m_iHealth), RecvPropInt( RECVINFO(m_iHealth[0]))),
 END_RECV_TABLE()
@@ -51,6 +62,10 @@ IGameResources * GameResources( void ) { return g_PR; }
 //-----------------------------------------------------------------------------
 C_PlayerResource::C_PlayerResource()
 {
+	for ( int i=0; i<ARRAYSIZE(m_szName); ++i )
+	{
+		m_szName[i] = AllocPooledString( "unconnected" );
+	}
 	memset( m_iPing, 0, sizeof( m_iPing ) );
 //	memset( m_iPacketloss, 0, sizeof( m_iPacketloss ) );
 	memset( m_iScore, 0, sizeof( m_iScore ) );
@@ -64,12 +79,6 @@ C_PlayerResource::C_PlayerResource()
 	{
 		m_Colors[i] = COLOR_GREY;
 	}
-
-#ifdef HL2MP
-	m_Colors[TEAM_COMBINE] = COLOR_BLUE;
-	m_Colors[TEAM_REBELS] = COLOR_RED;
-	m_Colors[TEAM_UNASSIGNED] = COLOR_YELLOW;
-#endif
 
 	g_PR = this;
 }
@@ -99,13 +108,16 @@ void C_PlayerResource::UpdatePlayerName( int slot )
 		return;
 	}
 	player_info_t sPlayerInfo;
-	if ( IsConnected( slot ) && engine->GetPlayerInfo( slot, &sPlayerInfo ) )
+	char const *pchPlayerName = PLAYER_UNCONNECTED_NAME;
+	if ( IsConnected( slot ) && 
+		engine->GetPlayerInfo( slot, &sPlayerInfo ) )
 	{
-		m_szName[slot] = AllocPooledString( sPlayerInfo.name );
+		pchPlayerName = sPlayerInfo.name;
 	}
-	else
+
+	if ( !m_szName[slot] || Q_stricmp( m_szName[slot], pchPlayerName ) )
 	{
-		m_szName[slot] = AllocPooledString( PLAYER_UNCONNECTED_NAME );
+		m_szName[slot] = AllocPooledString( pchPlayerName );
 	}
 }
 
@@ -126,6 +138,9 @@ void C_PlayerResource::ClientThink()
 //-----------------------------------------------------------------------------
 const char *C_PlayerResource::GetPlayerName( int iIndex )
 {
+	if ( cl_names_debug.GetInt() )
+		return PLAYER_DEBUG_NAME;
+
 	if ( iIndex < 1 || iIndex > MAX_PLAYERS )
 	{
 		Assert( false );
@@ -212,6 +227,21 @@ bool C_PlayerResource::IsHLTV(int index)
 		return sPlayerInfo.ishltv;
 	}
 	
+	return false;
+}
+
+bool C_PlayerResource::IsReplay(int index)
+{
+	if ( !IsConnected( index ) )
+		return false;
+
+	player_info_t sPlayerInfo;
+
+	if ( engine->GetPlayerInfo( index, &sPlayerInfo ) )
+	{
+		return sPlayerInfo.isreplay;
+	}
+
 	return false;
 }
 

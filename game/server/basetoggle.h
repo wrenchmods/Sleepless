@@ -15,6 +15,8 @@
 class CBaseToggle : public CBaseEntity
 {
 	DECLARE_CLASS( CBaseToggle, CBaseEntity );
+	DECLARE_SERVERCLASS();
+
 public:
 	CBaseToggle();
 
@@ -52,6 +54,8 @@ public:
 	void AngularMoveDone( void );
 	bool IsLockedByMaster( void );
 	virtual void MoveDone( void );
+
+	virtual void GetGroundVelocityToApply( Vector &vecGroundVel );
 
 	static float AxisValue( int flags, const QAngle &angles );
 	void AxisDir( void );

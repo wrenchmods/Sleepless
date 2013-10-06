@@ -101,6 +101,15 @@ enum AI_NavGoalFlags_t
 	// If navigating on a designer placed path, don't use pathfinder between waypoints, just do it
 	AIN_NO_PATHCORNER_PATHFINDING = 0x04,
 
+	// Succeed if we can arrive within tolerance
+	AIN_LOCAL_SUCCEEED_ON_WITHIN_TOLERANCE = 0x08,
+
+	// Skip local navigation
+	AIN_NO_LOCAL_NAVIGATION	= 0x10,
+
+	// Path can be an unlimited distance away
+	AIN_UNLIMITED_DISTANCE = 0x20,
+
 	AIN_DEF_FLAGS			= 0,
 };
 
@@ -286,7 +295,6 @@ public:
 	void SetPathcornerPathfinding( bool fNewVal)					{ m_bNoPathcornerPathfinds = !fNewVal; }
 	void SetRememberStaleNodes( bool fNewVal)						{ m_fRememberStaleNodes = fNewVal; }
 	void SetValidateActivitySpeed( bool bValidateActivitySpeed )	{ m_bValidateActivitySpeed = bValidateActivitySpeed; }
-	void SetLocalSucceedOnWithinTolerance( bool fNewVal )			{ m_bLocalSucceedOnWithinTolerance = fNewVal; }
 
 	// --------------------------------
 
@@ -358,6 +366,7 @@ public:
 	int 				GetCurWaypointFlags() const;
 
 	bool				CurWaypointIsGoal() const;
+	bool				CurWaypointRequiresPreciseMovement() const;
 
 	bool				GetPointAlongPath( Vector *pResult, float distance, bool fReducibleOnly = false );
 
@@ -444,6 +453,7 @@ public:
 	
 	// See comments at CAI_BaseNPC::Move()
 	virtual bool		Move( float flInterval = 0.1 );
+	virtual bool		ShouldMove( bool bHasAGoal );
 
 	// --------------------------------
 
@@ -488,6 +498,7 @@ protected:
  	virtual AIMoveResult_t MoveNormal();
 
 	// Navigation execution
+	virtual AIMoveResult_t MoveCrawl();
 	virtual AIMoveResult_t MoveClimb();
 	virtual AIMoveResult_t MoveJump();
 
@@ -540,7 +551,7 @@ private:
 	bool				DoFindPathToPathcorner( CBaseEntity *pPathCorner );
 
 protected:
-	virtual bool		DoFindPathToPos(void);
+	virtual bool		DoFindPathToPos( );
 	virtual	bool		ShouldOptimizeInitialPathSegment( AI_Waypoint_t * ) { return true; }
 
 private:
@@ -549,11 +560,11 @@ private:
 
 protected:
 	virtual bool 		GetStoppingPath( CAI_WaypointList *pClippedWaypoints );
+	virtual bool		MarkCurWaypointFailedLink( void );			// Call when route fails
 
 private:
 	bool				FindPath( const AI_NavGoal_t &goal, unsigned flags );
 	bool				FindPath( bool fSignalTaskStatus = true, bool bDontIgnoreBadLinks = false );
-	bool				MarkCurWaypointFailedLink( void );			// Call when route fails
 
 	struct SimplifyForwardScanParams
 	{
@@ -620,7 +631,6 @@ private:
 	
 	bool				m_fRememberStaleNodes;
 	bool				m_bNoPathcornerPathfinds;
-	bool				m_bLocalSucceedOnWithinTolerance;
 
 	// --------------
 	

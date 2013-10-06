@@ -9,6 +9,10 @@
 #include "choreoscene.h"
 #include "choreoevent.h"
 
+// NOTE: This has to be the last file included!
+#include "tier0/memdbgon.h"
+
+
 extern ISoundEmitterSystemBase *soundemitterbase;
 CChoreoScene *BlockingLoadScene( const char *filename );
 

@@ -65,3 +65,4 @@ extern IPrediction *g_pClientSidePrediction;
 #define VCLIENT_PREDICTION_INTERFACE_VERSION	"VClientPrediction001"
 
 #endif // IPREDICTION_H
+

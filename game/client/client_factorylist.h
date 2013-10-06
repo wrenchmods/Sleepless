@@ -15,7 +15,6 @@
 struct factorylist_t
 {
 	CreateInterfaceFn appSystemFactory;
-	CreateInterfaceFn physicsFactory;
 };
 
 // Store off the factories

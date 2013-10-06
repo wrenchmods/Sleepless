@@ -58,8 +58,8 @@ inline Vector32& Vector32::operator=(const Vector &vOther)
 
 	static float expScale[4] = { 4.0f, 16.0f, 32.f, 64.f };
 
-	float fmax = max( fabs( vOther.x ), fabs( vOther.y ) );
-	fmax = max( fmax, fabs( vOther.z ) );
+	float fmax = MAX( fabs( vOther.x ), fabs( vOther.y ) );
+	fmax = fpmax( fmax, fabs( vOther.z ) );
 
 	for (exp = 0; exp < 3; exp++)
 	{
@@ -204,7 +204,7 @@ public:
 	// Quaternion& operator=(const Quaternion48 &vOther);
 	Quaternion48& operator=(const Quaternion &vOther);
 	operator Quaternion ();
-private:
+//private:
 	unsigned short x:16;
 	unsigned short y:16;
 	unsigned short z:15;
@@ -216,9 +216,9 @@ inline Quaternion48::operator Quaternion ()
 {
 	Quaternion tmp;
 
-	tmp.x = ((int)x - 32768) * (1 / 32768.0);
-	tmp.y = ((int)y - 32768) * (1 / 32768.0);
-	tmp.z = ((int)z - 16384) * (1 / 16384.0);
+	tmp.x = ((int)x - 32768) * (1 / 32768.5);
+	tmp.y = ((int)y - 32768) * (1 / 32768.5);
+	tmp.z = ((int)z - 16384) * (1 / 16384.5);
 	tmp.w = sqrt( 1 - tmp.x * tmp.x - tmp.y * tmp.y - tmp.z * tmp.z );
 	if (wneg)
 		tmp.w = -tmp.w;

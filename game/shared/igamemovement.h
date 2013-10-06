@@ -40,6 +40,7 @@ class CMoveData
 public:
 	bool			m_bFirstRunOfFunctions : 1;
 	bool			m_bGameCodeMovedPlayer : 1;
+	bool			m_bNoAirControl : 1;
 
 	EntityHandle_t	m_nPlayerHandle;	// edict index on server, client entity handle on client
 
@@ -71,6 +72,7 @@ public:
 	float			m_flConstraintRadius;
 	float			m_flConstraintWidth;
 	float			m_flConstraintSpeedFactor;
+	bool			m_bConstraintPastRadius;		///< If no, do no constraining past Radius.  If yes, cap them to SpeedFactor past radius
 
 	void			SetAbsOrigin( const Vector &vec );
 	const Vector	&GetAbsOrigin() const;
@@ -113,7 +115,8 @@ public:
 	virtual			~IGameMovement( void ) {}
 	
 	// Process the current movement command
-	virtual void	ProcessMovement( CBasePlayer *pPlayer, CMoveData *pMove ) = 0;		
+	virtual void	ProcessMovement( CBasePlayer *pPlayer, CMoveData *pMove ) = 0;
+	virtual void	Reset( void ) = 0;
 	virtual void	StartTrackPredictionErrors( CBasePlayer *pPlayer ) = 0;
 	virtual void	FinishTrackPredictionErrors( CBasePlayer *pPlayer ) = 0;
 	virtual void	DiffPrint( char const *fmt, ... ) = 0;
@@ -123,6 +126,11 @@ public:
 	virtual Vector const&	GetPlayerMaxs( bool ducked ) const = 0;
 	virtual Vector const&   GetPlayerViewOffset( bool ducked ) const = 0;
 
+	virtual bool		IsMovingPlayerStuck( void ) const = 0;
+	virtual CBasePlayer *GetMovingPlayer( void ) const = 0;
+	virtual void		UnblockPusher( CBasePlayer *pPlayer, CBaseEntity *pPusher ) = 0;
+
+	virtual void SetupMovementBounds( CMoveData *pMove ) = 0;
 };
 
 

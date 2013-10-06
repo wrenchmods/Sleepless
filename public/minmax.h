@@ -5,12 +5,9 @@
 // $NoKeywords: $
 //=============================================================================//
 
+#error use basetypes.h
 #ifndef MINMAX_H
 #define MINMAX_H
-
-#if defined( _WIN32 )
-#pragma once
-#endif
 
 #ifndef min
 #define min(a,b)  (((a) < (b)) ? (a) : (b))

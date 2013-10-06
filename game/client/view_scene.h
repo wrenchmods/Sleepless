@@ -39,7 +39,7 @@ inline void UpdateRefractTexture( int x, int y, int w, int h, bool bForceUpdate 
 {
 	Assert( !DrawingShadowDepthView() );
 
-	if ( !IsRetail() && !r_updaterefracttexture.GetBool() )
+	if ( !r_updaterefracttexture.GetBool() )
 		return;
 
 	CMatRenderContextPtr pRenderContext( materials );

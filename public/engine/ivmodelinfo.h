@@ -36,6 +36,17 @@ class IClientRenderable;
 
 
 //-----------------------------------------------------------------------------
+// Indicates the type of translucency of an unmodulated renderable
+//-----------------------------------------------------------------------------
+enum RenderableTranslucencyType_t
+{
+	RENDERABLE_IS_OPAQUE = 0,
+	RENDERABLE_IS_TRANSLUCENT,
+	RENDERABLE_IS_TWO_PASS,	// has both translucent and opaque sub-partsa
+};
+
+
+//-----------------------------------------------------------------------------
 // Model info interface
 //-----------------------------------------------------------------------------
 
@@ -64,7 +75,8 @@ public:
 	virtual bool					ModelHasMaterialProxy( const model_t *model ) const = 0;
 	virtual bool					IsTranslucent( model_t const* model ) const = 0;
 	virtual bool					IsTranslucentTwoPass( const model_t *model ) const = 0;
-	virtual void					RecomputeTranslucency( const model_t *model, int nSkin, int nBody, void /*IClientRenderable*/ *pClientRenderable ) = 0;
+	virtual void					Unused0() {};
+	virtual RenderableTranslucencyType_t ComputeTranslucencyType( const model_t *model, int nSkin, int nBody ) = 0;
 	virtual int						GetModelMaterialCount( const model_t* model ) const = 0;
 	virtual void					GetModelMaterials( const model_t *model, int count, IMaterial** ppMaterial ) = 0;
 	virtual bool					IsModelVertexLit( const model_t *model ) const = 0;
@@ -117,6 +129,8 @@ public:
 	virtual int						GetBrushModelPlaneCount( const model_t *model ) const = 0;
 	virtual void					GetBrushModelPlane( const model_t *model, int nIndex, cplane_t &plane, Vector *pOrigin ) const = 0;
 	virtual int						GetSurfacepropsForVirtualTerrain( int index ) = 0;
+	virtual bool					UsesEnvCubemap( const model_t *model ) const = 0;
+	virtual bool					UsesStaticLighting( const model_t *model ) const = 0;
 };
 
 

@@ -53,7 +53,6 @@
 // Default flags for release builds
 //-----------------------------------------------------------------------------
 #else // _DEBUG
-
 #ifdef STEAM
 #define DBGFLAG_ASSERT
 #endif

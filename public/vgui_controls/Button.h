@@ -17,6 +17,7 @@
 #include <Color.h>
 #include <vgui_controls/Label.h>
 #include "vgui/MouseCode.h"
+#include "dmxloader/dmxelement.h"
 
 namespace vgui
 {
@@ -27,6 +28,7 @@ namespace vgui
 class Button : public Label
 {
 	DECLARE_CLASS_SIMPLE( Button, Label );
+	DECLARE_DMXELEMENT_UNPACK_NAMESPACE(vgui);
 
 public:
 	// You can optionally pass in the panel to send the click message to and the name of the command to send to that panel.
@@ -152,7 +154,12 @@ public:
 	bool ShouldPaint(){ return _paint; }
 	void SetShouldPaint( bool paint ){ _paint = paint; }
 
+	virtual void NavigateTo();
+	virtual void NavigateFrom();
+
 	virtual void ApplySettings( KeyValues *inResourceData );
+
+	virtual void GetSizerMinimumSize(int &wide, int &tall);
 
 protected:
 	virtual void DrawFocusBorder(int tx0, int ty0, int tx1, int ty1);
@@ -193,6 +200,8 @@ private:
 		BLINK					= 0x0200,
 		ALL_FLAGS				= 0xFFFF,
 	};
+
+	static inline int MouseCodeToMask( MouseCode code );
 
 	CUtlFlags< unsigned short > _buttonFlags;	// see ButtonFlags_t
 	int                _mouseClickMask;

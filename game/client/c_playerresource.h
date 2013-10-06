@@ -39,6 +39,7 @@ public : // IGameResources intreface
 	virtual bool	IsFakePlayer( int index );
 	virtual bool	IsLocalPlayer( int index  );
 	virtual bool	IsHLTV(int index);
+	virtual bool	IsReplay(int index);
 
 	virtual const char *GetPlayerName( int index );
 	virtual int		GetPing( int index );
@@ -51,6 +52,7 @@ public : // IGameResources intreface
 
 	virtual void ClientThink();
 	virtual	void	OnDataChanged(DataUpdateType_t updateType);
+	virtual void	TeamChanged( void ){ }
 
 protected:
 	void	UpdatePlayerName( int slot );

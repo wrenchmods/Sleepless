@@ -13,6 +13,11 @@
 #endif
 
 #include <stddef.h>
+#ifdef LINUX
+#undef offsetof
+#define offsetof(s,m)	(size_t)&(((s *)0)->m)
+#endif
+
 #include "tier0/platform.h"
 
 #if !defined(STATIC_TIER0) && !defined(_STATIC_LINKED)
@@ -37,9 +42,12 @@
 MEM_INTERFACE void *MemAllocScratch( int nMemSize );
 MEM_INTERFACE void MemFreeScratch();
 
-#ifdef _LINUX
+#ifdef POSIX
 MEM_INTERFACE void ZeroMemory( void *mem, size_t length );
 #endif
+
+//Only works with USE_MEM_DEBUG and memory allocation call stack tracking enabled.
+MEM_INTERFACE int GetAllocationCallStack( void *mem, void **pCallStackOut, int iMaxEntriesOut );
 
 
 #endif /* TIER0_MEM_H */

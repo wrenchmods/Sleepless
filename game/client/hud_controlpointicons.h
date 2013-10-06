@@ -125,6 +125,9 @@ public:
 
 	void	FireGameEvent( IGameEvent * event )
 	{
+		if ( vgui::ipanel()->GetMessageContextId( GetVPanel() ) != event->GetInt( "splitscreenplayer" ) )
+			return;
+
 		if ( FStrEq( "localplayer_changeteam", event->GetName() ) )
 		{
 			SetVisible( false );
@@ -175,7 +178,7 @@ public:
 	{
 		if ( m_flFinishCapAnimStart && gpGlobals->curtime > m_flFinishCapAnimStart )
 		{
-			float flElapsedTime = max( 0, (gpGlobals->curtime - m_flFinishCapAnimStart) );
+			float flElapsedTime = MAX( 0, (gpGlobals->curtime - m_flFinishCapAnimStart) );
 			if (GetImage())
 			{
 				surface()->DrawSetColor(255, 255, 255, 255);
@@ -344,7 +347,13 @@ public:
 private:
 	int m_iCPTextures[8];
 	int m_iCPCappingTextures[8];
-	int m_iTeamBaseTextures[MAX_TEAMS];
+	struct TeamBaseTexture_t 
+	{
+		TeamBaseTexture_t() : m_nMaterialIndex( INT_MAX ), m_nTextureId( -1 ) {}
+		int m_nMaterialIndex;
+		int	m_nTextureId;
+	};
+	TeamBaseTexture_t m_iTeamBaseTextures[MAX_TEAMS];
 
 	int m_iBackgroundTexture;
 	Color m_clrBackground;

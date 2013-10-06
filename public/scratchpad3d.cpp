@@ -3,20 +3,21 @@
 // Purpose: 
 //
 // $NoKeywords: $
-//=============================================================================//
+//===========================================================================//
 
 #include <stdio.h>
 #include "scratchpad3d.h"
+#include "tier2/tier2.h"
 #include "tier0/dbg.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-#ifdef _LINUX
+#ifdef POSIX
 #define __stdcall
 #endif
 
-#ifndef _LINUX
+#ifndef POSIX
 // NOTE - linux doesn't need any of this code!
 
 extern "C"
@@ -97,7 +98,7 @@ void CScratchPad3D::CCommand_Polygon::Read( CFileRead *pFile )
 
 void CScratchPad3D::CCommand_Polygon::Write( IFileSystem* pFileSystem, FileHandle_t fp )
 {
-	int count = m_Verts.Size();
+	int count = m_Verts.Count();
 	pFileSystem->Write( &count, sizeof(count), fp );
 	
 	if( count )
@@ -205,7 +206,7 @@ void CScratchPad3D::DrawRectGeneric( int iPlane, int otherDim1, int otherDim2, f
 
 void CScratchPad3D::DeleteCommands()
 {
-	for( int i=0; i < m_Commands.Size(); i++ )
+	for( int i=0; i < m_Commands.Count(); i++ )
 		delete m_Commands[i];
 
 	m_Commands.RemoveAll();
@@ -436,7 +437,7 @@ void CScratchPad3D::Clear()
 	{
 #ifdef _WIN32
 		Sleep( 5 );
-#elif _LINUX
+#elif POSIX
 		usleep( 5 );
 #endif
 	}
@@ -455,13 +456,13 @@ void CScratchPad3D::Flush()
 	{
 #ifdef _WIN32
 		Sleep( 5 );
-#elif _LINUX
+#elif POSIX
 		usleep( 5 );
 #endif
 	}
 	
 	// Append the new commands to the file.
-	for( int i=0; i < m_Commands.Size(); i++ )
+	for( int i=0; i < m_Commands.Count(); i++ )
 	{
 		m_pFileSystem->Write( &m_Commands[i]->m_iCommand, sizeof(m_Commands[i]->m_iCommand), fp );
 		m_Commands[i]->Write( m_pFileSystem, fp );
@@ -635,5 +636,5 @@ IScratchPad3D* ScratchPad3D_Create( char const *pFilename )
 	CScratchPad3D *pRet = new CScratchPad3D( pFilename, pFileSystem, true );
 	return pRet;
 }
-#endif // _LINUX
+#endif // POSIX
 

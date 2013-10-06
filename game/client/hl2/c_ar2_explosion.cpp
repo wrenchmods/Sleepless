@@ -239,12 +239,6 @@ void C_AR2Explosion::Start(CParticleMgr *pParticleMgr, IPrototypeArgAccess *pArg
 
 	int iParticlesToSpawn = NUM_AR2_EXPLOSION_PARTICLES;
 
-	// In DX7, much fewer particles
-	if ( g_pMaterialSystemHardwareConfig->GetDXSupportLevel() < 80 )
-	{
-		iParticlesToSpawn *= 0.25;
-	}
-
 	if(nSurfInfos > 0)
 	{
 		// For nParticles*N, generate a ray and cast it out. If it hits anything, spawn a particle there.

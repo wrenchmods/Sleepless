@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -6,8 +6,8 @@
 // $Date:         $
 // $NoKeywords: $
 //=============================================================================//
-#if !defined( UTIL_H )
-#define UTIL_H
+#if !defined( CDLL_UTIL_H )
+#define CDLL_UTIL_H
 
 #ifdef _WIN32
 #pragma once
@@ -16,7 +16,10 @@
 #include <soundflags.h>
 #include "mathlib/vector.h"
 #include <shareddefs.h>
+#include "color.h"
 
+#include "shake.h"
+#include "bitmap/imageformat.h"
 #include "ispatialpartition.h"
 #include "materialsystem/materialsystemutil.h"
 
@@ -28,6 +31,7 @@ class IClientEntity;
 class CHudTexture;
 class CGameTrace;
 class C_BaseEntity;
+class C_BasePlayer;
 
 struct Ray_t;
 struct client_textmessage_t;
@@ -36,11 +40,10 @@ typedef CGameTrace trace_t;
 namespace vgui
 {
 	typedef unsigned long HFont;
+	class EditablePanel;
 };
 
-
-enum ImageFormat;
-enum ShakeCommand_t;
+#define UTIL_VarArgs VarArgs
 
 extern bool g_MakingDevShots;
 
@@ -67,13 +70,16 @@ void	UTIL_FreeFile( byte *buffer );
 void	UTIL_MakeSafeName( const char *oldName, char *newName, int newNameBufSize );	///< Cleans up player names for putting in vgui controls (cleaned names can be up to original*2+1 in length)
 const char *UTIL_SafeName( const char *oldName );	///< Wraps UTIL_MakeSafeName, and returns a static buffer
 void	UTIL_ReplaceKeyBindings( const wchar_t *inbuf, int inbufsizebytes, wchar_t *outbuf, int outbufsizebytes );
+void	UTIL_SetControlStringWithKeybindings( vgui::EditablePanel *panel, const char *controlName, const char *str );
+
+void	UTIL_MessageText( C_BasePlayer *player, const char *text, Color color = Color( 0, 0, 0, 0 ) );
 
 // Fade out an entity based on distance fades
 unsigned char UTIL_ComputeEntityFade( C_BaseEntity *pEntity, float flMinDist, float flMaxDist, float flFadeScale );
 
 client_textmessage_t	*TextMessageGet( const char *pName );
 
-char	*VarArgs( char *format, ... );
+char	*VarArgs( const char *format, ... );
 	
 
 // Get the entity the local player is spectating (can be a player or a ragdoll entity).
@@ -89,17 +95,6 @@ void	InterpolateVector( float frac, const Vector& src, const Vector& dest, Vecto
 
 const char *nexttoken(char *token, const char *str, char sep);
 
-//-----------------------------------------------------------------------------
-// Base light indices to avoid index collision
-//-----------------------------------------------------------------------------
-
-enum
-{
-	LIGHT_INDEX_TE_DYNAMIC = 0x10000000,
-	LIGHT_INDEX_PLAYER_BRIGHT = 0x20000000,
-	LIGHT_INDEX_MUZZLEFLASH = 0x40000000,
-};
-
 void UTIL_PrecacheOther( const char *szClassname );
 
 void UTIL_SetTrace(trace_t& tr, const Ray_t& ray, C_BaseEntity *edict, float fraction, int hitgroup, unsigned int contents, const Vector& normal, float intercept );
@@ -110,6 +105,10 @@ bool GetTargetInScreenSpace( C_BaseEntity *pTargetEntity, int& iX, int& iY, Vect
 // prints messages through the HUD (stub in client .dll right now )
 class C_BasePlayer;
 void ClientPrint( C_BasePlayer *player, int msg_dest, const char *msg_name, const char *param1 = NULL, const char *param2 = NULL, const char *param3 = NULL, const char *param4 = NULL );
+
+C_BasePlayer* UTIL_PlayerByUserId( int userID );
+
+C_BaseEntity* UTIL_EntityFromUserMessageEHandle( long nEncodedEHandle );
 
 // Pass in an array of pointers and an array size, it fills the array and returns the number inserted
 int			UTIL_EntitiesInBox( C_BaseEntity **pList, int listMax, const Vector &mins, const Vector &maxs, int flagMask, int partitionMask = PARTITION_CLIENT_NON_STATIC_EDICTS );
@@ -133,6 +132,7 @@ private:
 	C_BaseEntity *m_pList[MAX_SPHERE_QUERY];
 };
 
+C_BaseEntity *CreateEntityByName( const char *className );
 // creates an entity by name, and ensure it's correctness
 // does not spawn the entity
 // use the CREATE_ENTITY() macro which wraps this, instead of using it directly
@@ -161,6 +161,10 @@ inline bool FStrEq(const char *sz1, const char *sz2)
 // Given a vector, clamps the scalar axes to MAX_COORD_FLOAT ranges from worldsize.h
 void UTIL_BoundToWorldSize( Vector *pVecPos );
 
+void UTIL_ApproachTarget( float target, float increaseSpeed, float decreaseSpeed, float *val );
+void UTIL_ApproachTarget( const Vector &target, float increaseSpeed, float decreaseSpeed, Vector *val );
+
+
 // Increments the passed key for the current map, eg "viewed" if TF holds the number of times the player has
 // viewed the intro movie for this map
 void UTIL_IncrementMapKey( const char *pszCustomKey );
@@ -169,4 +173,10 @@ void UTIL_IncrementMapKey( const char *pszCustomKey );
 // the intro movie for this map
 int UTIL_GetMapKeyCount( const char *pszCustomKey );
 
-#endif // !UTIL_H
+wchar_t *UTIL_GetLocalizedKeyString( const char *command, const char *fmt, const wchar_t *arg1 = NULL, const wchar_t *arg2 = NULL, const wchar_t *arg3 = NULL );
+
+class CGameTrace;
+typedef CGameTrace trace_t;
+void		UTIL_ClearTrace			( trace_t &trace );
+
+#endif // !CDLL_UTIL_H

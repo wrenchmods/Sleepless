@@ -10,17 +10,6 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-void RecvProxy_IntToColor32( const CRecvProxyData *pData, void *pStruct, void *pOut )
-{
-	color32 *pOutColor = (color32*)pOut;
-	unsigned int inColor = *((unsigned int*)&pData->m_Value.m_Int);
-
-	pOutColor->r = (unsigned char)(inColor >> 24);
-	pOutColor->g = (unsigned char)((inColor >> 16) & 0xFF);
-	pOutColor->b = (unsigned char)((inColor >> 8) & 0xFF);
-	pOutColor->a = (unsigned char)(inColor & 0xFF);
-}
-
 void RecvProxy_IntSubOne( const CRecvProxyData *pData, void *pStruct, void *pOut )
 {
 	int *pInt = (int *)pOut;
@@ -167,7 +156,7 @@ RecvProp RecvPropTime(
 //			*pStruct - 
 //			*pOut - 
 //-----------------------------------------------------------------------------
-#if !defined( NO_ENTITY_PREDICTION )
+#if !defined( NO_ENTITY_PREDICTION ) && defined( USE_PREDICTABLEID )
 static void RecvProxy_IntToPredictableId( const CRecvProxyData *pData, void *pStruct, void *pOut )
 {
 	CPredictableId *pId = (CPredictableId*)pOut;

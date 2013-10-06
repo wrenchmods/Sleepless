@@ -16,7 +16,7 @@
 #include "tier1/keyvalues.h"
 #include "toolframework_client.h"
 #include "view.h"
-#include "ClientEffectPrecacheSystem.h"
+#include "precache_register.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -323,7 +323,7 @@ void C_SmokeTrail::Update( float fTimeDelta )
 		VectorMA( pParticle->m_vecVelocity, flDirectedVel, vecForward, pParticle->m_vecVelocity );
 
 		offsetColor = m_StartColor;
-		float flMaxVal = max( m_StartColor[0], m_StartColor[1] );
+		float flMaxVal = MAX( m_StartColor[0], m_StartColor[1] );
 		if ( flMaxVal < m_StartColor[2] )
 		{
 			flMaxVal = m_StartColor[2];
@@ -1049,9 +1049,10 @@ void C_SporeExplosion::Update( float fTimeDelta )
 {
 	if( m_bEmit )
 	{
+		int nSlot = GET_ACTIVE_SPLITSCREEN_SLOT();
 		float tempDelta = fTimeDelta;
 
-		float flDist = (MainViewOrigin() - GetAbsOrigin()).Length();
+		float flDist = (MainViewOrigin(nSlot) - GetAbsOrigin()).Length();
 
 		//Lower the spawnrate by half if we're far away from it.
 		if ( cl_sporeclipdistance.GetFloat() <= flDist )
@@ -1123,7 +1124,9 @@ void RPGShotDownCallback( const CEffectData &data )
 	}
 }
 
-DECLARE_CLIENT_EFFECT( "RPGShotDown", RPGShotDownCallback );
+DECLARE_CLIENT_EFFECT_BEGIN( RPGShotDown, RPGShotDownCallback )
+	PRECACHE( GAMESOUND, "Missile.ShotDown" )
+DECLARE_CLIENT_EFFECT_END()
 
 
 
@@ -1581,47 +1584,7 @@ void C_FireTrail::Update( float fTimeDelta )
 	m_vecLastPosition = GetAbsOrigin();
 }
 
-//-----------------------------------------------------------------------------
-// Purpose:  High drag, non color changing particle
-//-----------------------------------------------------------------------------
 
-
-class CDustFollower : public CSimpleEmitter
-{
-public:
-	
-	CDustFollower( const char *pDebugName ) : CSimpleEmitter( pDebugName ) {}
-	
-	//Create
-	static CDustFollower *Create( const char *pDebugName )
-	{
-		return new CDustFollower( pDebugName );
-	}
-
-	//Alpha
-	virtual float UpdateAlpha( const SimpleParticle *pParticle )
-	{
-		return ( ((float)pParticle->m_uchStartAlpha/255.0f) * sin( M_PI * (pParticle->m_flLifetime / pParticle->m_flDieTime) ) );
-	}
-
-	virtual	void	UpdateVelocity( SimpleParticle *pParticle, float timeDelta )
-	{
-		pParticle->m_vecVelocity = pParticle->m_vecVelocity * ExponentialDecay( 0.3, timeDelta );
-	}
-
-	//Roll
-	virtual	float UpdateRoll( SimpleParticle *pParticle, float timeDelta )
-	{
-		pParticle->m_flRoll += pParticle->m_flRollDelta * timeDelta;
-		
-		pParticle->m_flRollDelta *= ExponentialDecay( 0.5, timeDelta );
-
-		return pParticle->m_flRoll;
-	}
-
-private:
-	CDustFollower( const CDustFollower & );
-};
 
 
 // Datatable.. this can have all the smoketrail parameters when we need it to.
@@ -1727,26 +1690,26 @@ void C_DustTrail::OnDataChanged(DataUpdateType_t updateType)
 
 
 // FIXME: These all have to be moved out of this old system and into the new to leverage art assets!
-CLIENTEFFECT_REGISTER_BEGIN( PrecacheEffectDusttrail )
-CLIENTEFFECT_MATERIAL( "particle/smokesprites_0001" )
+PRECACHE_REGISTER_BEGIN( GLOBAL, PrecacheEffectDusttrail )
+PRECACHE( MATERIAL, "particle/smokesprites_0001" )
 /*
-CLIENTEFFECT_MATERIAL( "particle/smokesprites_0002" )
-CLIENTEFFECT_MATERIAL( "particle/smokesprites_0003" )
-CLIENTEFFECT_MATERIAL( "particle/smokesprites_0004" )
-CLIENTEFFECT_MATERIAL( "particle/smokesprites_0005" )
-CLIENTEFFECT_MATERIAL( "particle/smokesprites_0006" )
-CLIENTEFFECT_MATERIAL( "particle/smokesprites_0007" )
-CLIENTEFFECT_MATERIAL( "particle/smokesprites_0008" )
-CLIENTEFFECT_MATERIAL( "particle/smokesprites_0009" )
-CLIENTEFFECT_MATERIAL( "particle/smokesprites_0010" )
-CLIENTEFFECT_MATERIAL( "particle/smokesprites_0011" )
-CLIENTEFFECT_MATERIAL( "particle/smokesprites_0012" )
-CLIENTEFFECT_MATERIAL( "particle/smokesprites_0013" )
-CLIENTEFFECT_MATERIAL( "particle/smokesprites_0014" )
-CLIENTEFFECT_MATERIAL( "particle/smokesprites_0015" )
-CLIENTEFFECT_MATERIAL( "particle/smokesprites_0016" )
+PRECACHE( MATERIAL, "particle/smokesprites_0002" )
+PRECACHE( MATERIAL, "particle/smokesprites_0003" )
+PRECACHE( MATERIAL, "particle/smokesprites_0004" )
+PRECACHE( MATERIAL, "particle/smokesprites_0005" )
+PRECACHE( MATERIAL, "particle/smokesprites_0006" )
+PRECACHE( MATERIAL, "particle/smokesprites_0007" )
+PRECACHE( MATERIAL, "particle/smokesprites_0008" )
+PRECACHE( MATERIAL, "particle/smokesprites_0009" )
+PRECACHE( MATERIAL, "particle/smokesprites_0010" )
+PRECACHE( MATERIAL, "particle/smokesprites_0011" )
+PRECACHE( MATERIAL, "particle/smokesprites_0012" )
+PRECACHE( MATERIAL, "particle/smokesprites_0013" )
+PRECACHE( MATERIAL, "particle/smokesprites_0014" )
+PRECACHE( MATERIAL, "particle/smokesprites_0015" )
+PRECACHE( MATERIAL, "particle/smokesprites_0016" )
 */
-CLIENTEFFECT_REGISTER_END()
+PRECACHE_REGISTER_END()
 
 
 //-----------------------------------------------------------------------------
@@ -1839,7 +1802,7 @@ void C_DustTrail::Update( float fTimeDelta )
 		VectorMA( pParticle->m_vecVelocity, flDirectedVel, vecForward, pParticle->m_vecVelocity );
 
 		offsetColor = m_Color;
-		float flMaxVal = max( m_Color[0], m_Color[1] );
+		float flMaxVal = MAX( m_Color[0], m_Color[1] );
 		if ( flMaxVal < m_Color[2] )
 		{
 			flMaxVal = m_Color[2];

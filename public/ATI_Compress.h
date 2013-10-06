@@ -114,7 +114,7 @@ extern "C" {
 **	Return non-NULL(true) value to abort conversion
 */
 
-typedef bool (ATI_TC_API * ATI_TC_Feedback_Proc)(float fProgress, DWORD_PTR pUser1, DWORD_PTR pUser2);
+typedef bool (ATI_TC_API * ATI_TC_Feedback_Proc)(float fProgress, uint32* pUser1, uint32* pUser2);
 
 /*
 **	ATI_TC_CalculateBufferSize
@@ -133,8 +133,8 @@ ATI_TC_ERROR ATI_TC_API ATI_TC_ConvertTexture(const ATI_TC_Texture* pSourceTextu
 											ATI_TC_Texture* pDestTexture,			/* [out] - Pointer to the destination texture */
 											const ATI_TC_CompressOptions* pOptions, /* [in]  - Pointer to the compression options - can be NULL */
 											ATI_TC_Feedback_Proc pFeedbackProc,		/* [in]  - Pointer to the feedback proc - can be NULL */
-											DWORD_PTR pUser1,						/* [in]  - User data to pass to the feedback proc */
-											DWORD_PTR pUser2);						/* [in]  - User data to pass to the feedback proc */
+											uint32* pUser1,							/* [in]  - User data to pass to the feedback proc */
+											uint32* pUser2);						/* [in]  - User data to pass to the feedback proc */
 
 
 #ifdef __cplusplus

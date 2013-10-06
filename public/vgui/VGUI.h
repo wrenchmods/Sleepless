@@ -22,7 +22,6 @@
 #endif
 #endif
 
-#pragma warning( disable: 4800 )	// disables 'performance warning converting int to bool'
 #pragma warning( disable: 4786 )	// disables 'identifier truncated in browser information' warning
 #pragma warning( disable: 4355 )	// disables 'this' : used in base member initializer list
 #pragma warning( disable: 4097 )	// warning C4097: typedef-name 'BaseClass' used as synonym for class-name

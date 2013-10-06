@@ -32,6 +32,14 @@ public: // CBaseGameSystem overrides
 	virtual bool Init();
 	//virtual void Shutdown() {}
 
+	virtual void FormatPlayer( CBaseEntity *ent, char *str, int len ) const;
+	const char *FormatPlayer( CBaseEntity *ent ) const;
+
+	enum
+	{
+		PLAYER_LOGINFO_SIZE = 256,
+	};
+
 protected:
 
 	virtual bool PrintEvent( IGameEvent * event );
@@ -41,6 +49,6 @@ protected:
 	virtual bool PrintOtherEvent( IGameEvent * event );
 };
 
-extern IGameSystem* GameLogSystem();
+extern CEventLog *GameLogSystem();
 
 #endif // EVENTLOG_H

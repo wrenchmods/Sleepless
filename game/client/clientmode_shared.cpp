@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright (c) 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: Normal HUD mode
 //
@@ -24,6 +24,9 @@
 #include "vgui_int.h"
 #include "hud_macros.h"
 #include "hltvcamera.h"
+#if defined( REPLAY_ENABLED )
+#include "replaycamera.h"
+#endif
 #include "particlemgr.h"
 #include "c_vguiscreen.h"
 #include "c_team.h"
@@ -31,12 +34,13 @@
 #include "fmtstr.h"
 #include "achievementmgr.h"
 #include "c_playerresource.h"
-#include "ge_screeneffects.h"
 #include <vgui/ILocalize.h>
-#include "tier1.h"
 #if defined( _X360 )
 #include "xbox/xbox_console.h"
 #endif
+#include "matchmaking/imatchframework.h"
+
+
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -55,39 +59,51 @@ extern bool IsInCommentaryMode( void );
 
 CON_COMMAND( hud_reloadscheme, "Reloads hud layout and animation scripts." )
 {
-	ClientModeShared *mode = ( ClientModeShared * )GetClientModeNormal();
-	if ( !mode )
-		return;
-
-	mode->ReloadScheme();
+	for ( int hh = 0; hh < MAX_SPLITSCREEN_PLAYERS; ++hh )
+	{
+		ACTIVE_SPLITSCREEN_PLAYER_GUARD_VGUI( hh );
+		ClientModeShared *mode = ( ClientModeShared * )GetClientModeNormal();
+		if ( mode )
+		{
+			mode->ReloadScheme();
+		}
+	}
+	ClientModeShared *mode = ( ClientModeShared * )GetFullscreenClientMode();
+	if ( mode )
+	{
+		mode->ReloadSchemeWithRoot( VGui_GetFullscreenRootVPANEL() );
+	}
 }
 
-#ifdef _DEBUG
+#if 0
 CON_COMMAND_F( crash, "Crash the client. Optional parameter -- type of crash:\n 0: read from NULL\n 1: write to NULL\n 2: DmCrashDump() (xbox360 only)", FCVAR_CHEAT )
 {
 	int crashtype = 0;
 	int dummy;
 	if ( args.ArgC() > 1 )
 	{
-		 crashtype = Q_atoi( args[1] );
+		crashtype = Q_atoi( args[1] );
 	}
 	switch (crashtype)
 	{
-		case 0:
-			dummy = *((int *) NULL);
-			Msg("Crashed! %d\n", dummy); // keeps dummy from optimizing out
-			break;
-		case 1:
-			*((int *)NULL) = 42;
-			break;
+	case 0:
+		dummy = *((int *) NULL);
+		Msg("Crashed! %d\n", dummy); // keeps dummy from optimizing out
+		break;
+	case 1:
+		*((int *)NULL) = 42;
+		break;
 #if defined( _X360 )
-		case 2:
-			XBX_CrashDump(false);
-			break;
+	case 2:
+		XBX_CrashDump( false );
+		break;
+	case 3:
+		XBX_CrashDumpFullHeap( true );
+		break;
 #endif
-		default:
-			Msg("Unknown variety of crash. You have now failed to crash. I hope you're happy.\n");
-			break;
+	default:
+		Msg("Unknown variety of crash. You have now failed to crash. I hope you're happy.\n");
+		break;
 	}
 }
 #endif // _DEBUG
@@ -102,30 +118,28 @@ static void __MsgFunc_Rumble( bf_read &msg )
 	rumbleData = msg.ReadByte();
 	rumbleFlags = msg.ReadByte();
 
-	RumbleEffect( waveformIndex, rumbleData, rumbleFlags );
+	int userID = XBX_GetActiveUserId();
+
+	RumbleEffect( userID, waveformIndex, rumbleData, rumbleFlags );
 }
 
 static void __MsgFunc_VGUIMenu( bf_read &msg )
 {
 	char panelname[2048]; 
-	
+
 	msg.ReadString( panelname, sizeof(panelname) );
 
-	bool  bShow = msg.ReadByte()!=0;
-	
-	IViewPortPanel *viewport = gViewPortInterface->FindPanelByName( panelname );
+	bool bShow = msg.ReadByte()!= 0;
 
-	if ( !viewport )
-	{
-		// DevMsg("VGUIMenu: couldn't find panel '%s'.\n", panelname );
-		return;
-	}
+	ASSERT_LOCAL_PLAYER_RESOLVABLE();
 
 	int count = msg.ReadByte();
 
+	KeyValues *keys = NULL;
+
 	if ( count > 0 )
 	{
-		KeyValues *keys = new KeyValues("data");
+		keys = new KeyValues("data");
 
 		for ( int i=0; i<count; i++)
 		{
@@ -137,23 +151,23 @@ static void __MsgFunc_VGUIMenu( bf_read &msg )
 
 			keys->SetString( name, data );
 		}
-
-		viewport->SetData( keys );
-
-		keys->deleteThis();
 	}
+
+	GetViewPortInterface()->ShowPanel( panelname, bShow, keys, true );
+
+	// Don't do this since ShowPanel auto-deletes the keys
+	// keys->deleteThis();
 
 	// is the server telling us to show the scoreboard (at the end of a map)?
 	if ( Q_stricmp( panelname, "scores" ) == 0 )
 	{
 		if ( hud_takesshots.GetBool() == true )
 		{
-			gHUD.SetScreenShotTime( gpGlobals->curtime + 1.0 ); // take a screenshot in 1 second
+			GetHud().SetScreenShotTime( gpGlobals->curtime + 1.0 ); // take a screenshot in 1 second
 		}
 	}
-
-	gViewPortInterface->ShowPanel( viewport, bShow );
 }
+
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -171,13 +185,31 @@ ClientModeShared::ClientModeShared()
 //-----------------------------------------------------------------------------
 ClientModeShared::~ClientModeShared()
 {
-	delete m_pViewport; 
+	// VGui_Shutdown() should have deleted/NULL'd
+	Assert( !m_pViewport );
 }
 
 void ClientModeShared::ReloadScheme( void )
 {
+	ReloadSchemeWithRoot( VGui_GetClientDLLRootPanel() );
+}
+
+void ClientModeShared::ReloadSchemeWithRoot( vgui::VPANEL pRoot )
+{
+	if ( pRoot )
+	{
+		int wide, tall;
+		vgui::ipanel()->GetSize(pRoot, wide, tall);
+		m_nRootSize[ 0 ] = wide;
+		m_nRootSize[ 1 ] = tall;
+	}
+
 	m_pViewport->ReloadScheme( "resource/ClientScheme.res" );
-	ClearKeyValuesCache();
+	if ( GET_ACTIVE_SPLITSCREEN_SLOT() == 0 )
+	{
+		ClearKeyValuesCache();
+	}
+	// Msg( "Reload scheme [%d]\n", GET_ACTIVE_SPLITSCREEN_SLOT() );
 }
 
 //-----------------------------------------------------------------------------
@@ -185,33 +217,47 @@ void ClientModeShared::ReloadScheme( void )
 //-----------------------------------------------------------------------------
 void ClientModeShared::Init()
 {
-	m_pChatElement = ( CBaseHudChat * )GET_HUDELEMENT( CHudChat );
-	Assert( m_pChatElement );
+	InitChatHudElement();
 
-	m_pWeaponSelection = ( CBaseHudWeaponSelection * )GET_HUDELEMENT( CHudWeaponSelection );
-	Assert( m_pWeaponSelection );
+	InitWeaponSelectionHudElement();
 
 	// Derived ClientMode class must make sure m_Viewport is instantiated
 	Assert( m_pViewport );
-	m_pViewport->LoadControlSettings( "scripts/HudLayout.res" );
+	m_pViewport->LoadHudLayout();
 
 	ListenForGameEvent( "player_connect" );
 	ListenForGameEvent( "player_disconnect" );
 	ListenForGameEvent( "player_team" );
 	ListenForGameEvent( "server_cvar" );
 	ListenForGameEvent( "player_changename" );
+	ListenForGameEvent( "player_fullyjoined" );	
 	ListenForGameEvent( "teamplay_broadcast_audio" );
 	ListenForGameEvent( "achievement_earned" );
 
 #ifndef _XBOX
 	HLTVCamera()->Init();
+#if defined( REPLAY_ENABLED )
+	ReplayCamera()->Init();
 #endif
+#endif
+
 	m_CursorNone = vgui::dc_none;
 
 	HOOK_MESSAGE( VGUIMenu );
 	HOOK_MESSAGE( Rumble );
 }
 
+void ClientModeShared::InitChatHudElement()
+{
+	m_pChatElement = CBaseHudChat::GetHudChat();
+	Assert( m_pChatElement );
+}
+
+void ClientModeShared::InitWeaponSelectionHudElement()
+{
+	m_pWeaponSelection = ( CBaseHudWeaponSelection * )GET_HUDELEMENT( CHudWeaponSelection );
+	Assert( m_pWeaponSelection );
+}
 
 void ClientModeShared::InitViewport()
 {
@@ -278,6 +324,26 @@ void ClientModeShared::OverrideView( CViewSetup *pSetup )
 
 		VectorMA( pSetup->origin, -cam_ofs[ ROLL ], camForward, pSetup->origin );
 
+		static ConVarRef c_thirdpersonshoulder( "c_thirdpersonshoulder" );
+		if ( c_thirdpersonshoulder.GetBool() )
+		{
+			static ConVarRef c_thirdpersonshoulderoffset( "c_thirdpersonshoulderoffset" );
+			static ConVarRef c_thirdpersonshoulderheight( "c_thirdpersonshoulderheight" );
+			static ConVarRef c_thirdpersonshoulderaimdist( "c_thirdpersonshoulderaimdist" );
+
+			// add the shoulder offset to the origin in the cameras right vector
+			VectorMA( pSetup->origin, c_thirdpersonshoulderoffset.GetFloat(), camRight, pSetup->origin );
+
+			// add the shoulder height to the origin in the cameras up vector
+			VectorMA( pSetup->origin, c_thirdpersonshoulderheight.GetFloat(), camUp, pSetup->origin );
+
+			// adjust the yaw to the aim-point
+			camAngles[ YAW ] += RAD2DEG( atan(c_thirdpersonshoulderoffset.GetFloat() / (c_thirdpersonshoulderaimdist.GetFloat() + cam_ofs[ ROLL ])) );
+
+			// adjust the pitch to the aim-point
+			camAngles[ PITCH ] += RAD2DEG( atan(c_thirdpersonshoulderheight.GetFloat() / (c_thirdpersonshoulderaimdist.GetFloat() + cam_ofs[ ROLL ])) );
+		}
+
 		// Override angles from third person camera
 		VectorCopy( camAngles, pSetup->angles );
 	}
@@ -313,7 +379,8 @@ bool ClientModeShared::ShouldDrawParticles( )
 //-----------------------------------------------------------------------------
 void ClientModeShared::OverrideMouseInput( float *x, float *y )
 {
-	C_BaseCombatWeapon *pWeapon = GetActiveWeapon();
+	C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
+	C_BaseCombatWeapon *pWeapon = pPlayer ? pPlayer->GetActiveWeapon() : NULL;;
 	if ( pWeapon )
 	{
 		pWeapon->OverrideMouseInput( x, y );
@@ -347,7 +414,7 @@ bool ClientModeShared::ShouldDrawCrosshair( void )
 //-----------------------------------------------------------------------------
 bool ClientModeShared::ShouldDrawLocalPlayer( C_BasePlayer *pPlayer )
 {
-	if ( ( pPlayer->index == render->GetViewEntity() ) && !C_BasePlayer::ShouldDrawLocalPlayer() )
+	if ( pPlayer->IsViewEntity() && !pPlayer->ShouldDrawLocalPlayer() )
 		return false;
 
 	return true;
@@ -399,7 +466,22 @@ void ClientModeShared::Update()
 		m_pViewport->SetVisible( cl_drawhud.GetBool() );
 	}
 
-	UpdateRumbleEffects();
+	UpdateRumbleEffects( XBX_GetActiveUserId() );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void ClientModeShared::OnColorCorrectionWeightsReset( void )
+{
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+float ClientModeShared::GetColorCorrectionScale( void ) const
+{
+	return 0.0f;
 }
 
 //-----------------------------------------------------------------------------
@@ -408,7 +490,7 @@ void ClientModeShared::Update()
 
 void ClientModeShared::ProcessInput(bool bActive)
 {
-	gHUD.ProcessInput( bActive );
+	GetHud().ProcessInput( bActive );
 }
 
 //-----------------------------------------------------------------------------
@@ -418,11 +500,11 @@ int	ClientModeShared::KeyInput( int down, ButtonCode_t keynum, const char *pszCu
 {
 	if ( engine->Con_IsVisible() )
 		return 1;
-	
+
 	// Should we start typing a message?
 	if ( pszCurrentBinding &&
 		( Q_strcmp( pszCurrentBinding, "messagemode" ) == 0 ||
-		  Q_strcmp( pszCurrentBinding, "say" ) == 0 ) )
+		Q_strcmp( pszCurrentBinding, "say" ) == 0 ) )
 	{
 		if ( down )
 		{
@@ -431,8 +513,8 @@ int	ClientModeShared::KeyInput( int down, ButtonCode_t keynum, const char *pszCu
 		return 0;
 	}
 	else if ( pszCurrentBinding &&
-				( Q_strcmp( pszCurrentBinding, "messagemode2" ) == 0 ||
-				  Q_strcmp( pszCurrentBinding, "say_team" ) == 0 ) )
+		( Q_strcmp( pszCurrentBinding, "messagemode2" ) == 0 ||
+		Q_strcmp( pszCurrentBinding, "say_team" ) == 0 ) )
 	{
 		if ( down )
 		{
@@ -440,8 +522,13 @@ int	ClientModeShared::KeyInput( int down, ButtonCode_t keynum, const char *pszCu
 		}
 		return 0;
 	}
-	
+
 	C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
+
+	if ( IsJoystickCode( keynum ) )
+	{
+		keynum = GetBaseButtonCode( keynum );
+	}
 
 	// if ingame spectator mode, let spectator input intercept key event here
 	if( pPlayer &&
@@ -457,7 +544,7 @@ int	ClientModeShared::KeyInput( int down, ButtonCode_t keynum, const char *pszCu
 		return 0;
 	}
 
-	C_BaseCombatWeapon *pWeapon = GetActiveWeapon();
+	C_BaseCombatWeapon *pWeapon = pPlayer ? pPlayer->GetActiveWeapon() : NULL;
 	if ( pWeapon )
 	{
 		return pWeapon->KeyInput( down, keynum, pszCurrentBinding );
@@ -467,34 +554,67 @@ int	ClientModeShared::KeyInput( int down, ButtonCode_t keynum, const char *pszCu
 }
 
 //-----------------------------------------------------------------------------
+// Purpose: Helper to find if a binding exists in a possible chain of bindings
+//-----------------------------------------------------------------------------
+static bool ContainsBinding( const char *pszBindingString, const char *pszBinding )
+{
+	if ( !strchr( pszBindingString, ';' ) )
+	{
+		return !Q_stricmp( pszBindingString, pszBinding );
+	}
+	else
+	{
+		// Tokenize the binding name
+		char szBinding[ 256 ];
+		Q_strncpy( szBinding, pszBindingString, sizeof( szBinding ) );
+
+		const char *pToken = strtok( szBinding, ";" );
+
+		while ( pToken )
+		{
+			if ( !Q_stricmp( pszBinding, pToken ) )
+			{
+				return true;
+			}
+
+			pToken = strtok( NULL, ";" );
+		}
+		return false;
+	}
+}
+
+//-----------------------------------------------------------------------------
 // Purpose: See if spectator input occurred. Return 0 if the key is swallowed.
 //-----------------------------------------------------------------------------
 int ClientModeShared::HandleSpectatorKeyInput( int down, ButtonCode_t keynum, const char *pszCurrentBinding )
 {
 	// we are in spectator mode, open spectator menu
-	if ( down && pszCurrentBinding && Q_strcmp( pszCurrentBinding, "+duck" ) == 0 )
+	if ( down && pszCurrentBinding && ContainsBinding( pszCurrentBinding, "+duck" ) )
 	{
 		m_pViewport->ShowPanel( PANEL_SPECMENU, true );
 		return 0; // we handled it, don't handle twice or send to server
 	}
-	else if ( down && pszCurrentBinding && Q_strcmp( pszCurrentBinding, "+attack" ) == 0 )
+	else if ( down && pszCurrentBinding && ContainsBinding( pszCurrentBinding, "+attack" ) )
 	{
 		engine->ClientCmd( "spec_next" );
 		return 0;
 	}
-	else if ( down && pszCurrentBinding && Q_strcmp( pszCurrentBinding, "+attack2" ) == 0 )
+	else if ( down && pszCurrentBinding && ContainsBinding( pszCurrentBinding, "+attack2" ) )
 	{
 		engine->ClientCmd( "spec_prev" );
 		return 0;
 	}
-	else if ( down && pszCurrentBinding && Q_strcmp( pszCurrentBinding, "+jump" ) == 0 )
+	else if ( down && pszCurrentBinding && ContainsBinding( pszCurrentBinding, "+jump" ) )
 	{
 		engine->ClientCmd( "spec_mode" );
 		return 0;
 	}
-	else if ( down && pszCurrentBinding && Q_strcmp( pszCurrentBinding, "+strafe" ) == 0 )
+	else if ( down && pszCurrentBinding && ContainsBinding( pszCurrentBinding, "+strafe" ) )
 	{
 		HLTVCamera()->SetAutoDirector( true );
+#if defined( REPLAY_ENABLED )
+		ReplayCamera()->SetAutoDirector( true );
+#endif
 		return 0;
 	}
 
@@ -506,6 +626,10 @@ int ClientModeShared::HandleSpectatorKeyInput( int down, ButtonCode_t keynum, co
 //-----------------------------------------------------------------------------
 int ClientModeShared::HudElementKeyInput( int down, ButtonCode_t keynum, const char *pszCurrentBinding )
 {
+	if ( GetFullscreenClientMode() && GetFullscreenClientMode() != this &&
+		!GetFullscreenClientMode()->HudElementKeyInput( down, keynum, pszCurrentBinding ) )
+		return 0;
+
 	if ( m_pWeaponSelection )
 	{
 		if ( !m_pWeaponSelection->KeyInput( down, keynum, pszCurrentBinding ) )
@@ -552,7 +676,6 @@ void ClientModeShared::StartMessageMode( int iMessageModeType )
 void ClientModeShared::LevelInit( const char *newmap )
 {
 	m_pViewport->GetAnimationController()->StartAnimationSequence("LevelInit");
-	g_pScreenSpaceEffects->EnableScreenSpaceEffect( "ge_entglow" );
 
 	// Tell the Chat Interface
 	if ( m_pChatElement )
@@ -582,19 +705,16 @@ void ClientModeShared::LevelInit( const char *newmap )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-
 void ClientModeShared::LevelShutdown( void )
 {
-	g_pScreenSpaceEffects->DisableScreenSpaceEffect( "ge_entglow" );
-
 	if ( m_pChatElement )
 	{
-		m_pChatElement->LevelShutdown();
+	m_pChatElement->LevelShutdown();
 	}
 	if ( s_hVGuiContext != DEFAULT_VGUI_CONTEXT )
 	{
 		vgui::ivgui()->DestroyContext( s_hVGuiContext );
- 		s_hVGuiContext = DEFAULT_VGUI_CONTEXT;
+		s_hVGuiContext = DEFAULT_VGUI_CONTEXT;
 	}
 
 	// Reset any player explosion/shock effects
@@ -602,13 +722,16 @@ void ClientModeShared::LevelShutdown( void )
 	enginesound->SetPlayerDSP( filter, 0, true );
 }
 
-
 void ClientModeShared::Enable()
 {
-	vgui::VPANEL pRoot;
+	vgui::VPANEL pRoot = VGui_GetClientDLLRootPanel();
+	EnableWithRootPanel( pRoot );
+}
 
+void ClientModeShared::EnableWithRootPanel( vgui::VPANEL pRoot )
+{
 	// Add our viewport to the root panel.
-	if( (pRoot = VGui_GetClientDLLRootPanel() ) != NULL )
+	if( pRoot != NULL )
 	{
 		m_pViewport->SetParent( pRoot );
 	}
@@ -644,24 +767,20 @@ void ClientModeShared::Disable()
 }
 
 
-void ClientModeShared::Layout()
+void ClientModeShared::Layout( bool bForce /*= false*/)
 {
 	vgui::VPANEL pRoot;
 	int wide, tall;
 
 	// Make the viewport fill the root panel.
-	if( ( pRoot = VGui_GetClientDLLRootPanel() ) != NULL )
+	if( ( pRoot = m_pViewport->GetVParent() ) != NULL )
 	{
 		vgui::ipanel()->GetSize(pRoot, wide, tall);
-
 		bool changed = wide != m_nRootSize[ 0 ] || tall != m_nRootSize[ 1 ];
-		m_nRootSize[ 0 ] = wide;
-		m_nRootSize[ 1 ] = tall;
-
 		m_pViewport->SetBounds(0, 0, wide, tall);
-		if ( changed )
+		if ( changed || bForce )
 		{
-			ReloadScheme();
+			ReloadSchemeWithRoot( pRoot );
 		}
 	}
 }
@@ -669,6 +788,117 @@ void ClientModeShared::Layout()
 float ClientModeShared::GetViewModelFOV( void )
 {
 	return v_viewmodel_fov.GetFloat();
+}
+
+vgui::Panel *ClientModeShared::GetPanelFromViewport( const char *pchNamePath )
+{
+	char szTagetName[ 256 ];
+	Q_strncpy( szTagetName, pchNamePath, sizeof(szTagetName) );
+
+	char *pchName = szTagetName;
+
+	char *pchEndToken = strchr( pchName, ';' );
+	if ( pchEndToken )
+	{
+		*pchEndToken = '\0';
+	}
+
+	char *pchNextName = strchr( pchName, '/' );
+	if ( pchNextName )
+	{
+		*pchNextName = '\0';
+		pchNextName++;
+	}
+
+	// Comma means we want to count to a specific instance by name
+	int nInstance = 0;
+
+	char *pchInstancePos = strchr( pchName, ',' );
+	if ( pchInstancePos )
+	{
+		*pchInstancePos = '\0';
+		pchInstancePos++;
+
+		nInstance = atoi( pchInstancePos );
+	}
+
+	// Find the child
+	int nCurrentInstance = 0;
+	vgui::Panel *pPanel = NULL;
+
+	for ( int i = 0; i < GetViewport()->GetChildCount(); i++ )
+	{
+		Panel *pChild = GetViewport()->GetChild( i );
+		if ( !pChild )
+			continue;
+
+		if ( stricmp( pChild->GetName(), pchName ) == 0 )
+		{
+			nCurrentInstance++;
+
+			if ( nCurrentInstance > nInstance )
+			{
+				pPanel = pChild;
+				break;
+			}
+		}
+	}
+
+	pchName = pchNextName;
+
+	while ( pPanel )
+	{
+		if ( !pchName || pchName[ 0 ] == '\0' )
+		{
+			break;
+		}
+
+		pchNextName = strchr( pchName, '/' );
+		if ( pchNextName )
+		{
+			*pchNextName = '\0';
+			pchNextName++;
+		}
+
+		// Comma means we want to count to a specific instance by name
+		nInstance = 0;
+
+		pchInstancePos = strchr( pchName, ',' );
+		if ( pchInstancePos )
+		{
+			*pchInstancePos = '\0';
+			pchInstancePos++;
+
+			nInstance = atoi( pchInstancePos );
+		}
+
+		// Find the child
+		nCurrentInstance = 0;
+		vgui::Panel *pNextPanel = NULL;
+
+		for ( int i = 0; i < pPanel->GetChildCount(); i++ )
+		{
+			Panel *pChild = pPanel->GetChild( i );
+			if ( !pChild )
+				continue;
+
+			if ( stricmp( pChild->GetName(), pchName ) == 0 )
+			{
+				nCurrentInstance++;
+
+				if ( nCurrentInstance > nInstance )
+				{
+					pNextPanel = pChild;
+					break;
+				}
+			}
+		}
+
+		pPanel = pNextPanel;
+		pchName = pchNextName;
+	}
+
+	return pPanel;
 }
 
 class CHudChat;
@@ -689,12 +919,16 @@ bool PlayerNameNotSetYet( const char *pszName )
 
 void ClientModeShared::FireGameEvent( IGameEvent *event )
 {
-	CBaseHudChat *hudChat = (CBaseHudChat *)GET_HUDELEMENT( CHudChat );
+	ACTIVE_SPLITSCREEN_PLAYER_GUARD( GetSplitScreenPlayerSlot() );
+
+	CBaseHudChat *hudChat = CBaseHudChat::GetHudChat();
 
 	const char *eventname = event->GetName();
 
 	if ( Q_strcmp( "player_connect", eventname ) == 0 )
 	{
+		if ( this == GetFullscreenClientMode() )
+			return;
 		if ( !hudChat )
 			return;
 		if ( PlayerNameNotSetYet(event->GetString("name")) )
@@ -705,7 +939,7 @@ void ClientModeShared::FireGameEvent( IGameEvent *event )
 			wchar_t wszLocalized[100];
 			wchar_t wszPlayerName[MAX_PLAYER_NAME_LENGTH];
 			g_pVGuiLocalize->ConvertANSIToUnicode( event->GetString("name"), wszPlayerName, sizeof(wszPlayerName) );
-			g_pVGuiLocalize->ConstructString( wszLocalized, sizeof( wszLocalized ), g_pVGuiLocalize->Find( "#game_player_joined_game" ), 1, wszPlayerName );
+			g_pVGuiLocalize->ConstructString( wszLocalized, sizeof( wszLocalized ), g_pVGuiLocalize->Find( "#game_player_connecting" ), 1, wszPlayerName );
 
 			char szLocalized[100];
 			g_pVGuiLocalize->ConvertUnicodeToANSI( wszLocalized, szLocalized, sizeof(szLocalized) );
@@ -715,6 +949,8 @@ void ClientModeShared::FireGameEvent( IGameEvent *event )
 	}
 	else if ( Q_strcmp( "player_disconnect", eventname ) == 0 )
 	{
+		if ( this == GetFullscreenClientMode() )
+			return;
 		C_BasePlayer *pPlayer = USERID2PLAYER( event->GetInt("userid") );
 
 		if ( !hudChat || !pPlayer )
@@ -746,10 +982,34 @@ void ClientModeShared::FireGameEvent( IGameEvent *event )
 			hudChat->Printf( CHAT_FILTER_JOINLEAVE, "%s", szLocalized );
 		}
 	}
+	else if ( Q_strcmp( "player_fullyjoined", eventname ) == 0 )
+	{
+		if ( this == GetFullscreenClientMode() )
+			return;
+		if ( !hudChat )
+			return;
+		if ( PlayerNameNotSetYet(event->GetString("name")) )
+			return;
+
+		wchar_t wszLocalized[100];
+		wchar_t wszPlayerName[MAX_PLAYER_NAME_LENGTH];
+		g_pVGuiLocalize->ConvertANSIToUnicode( event->GetString("name"), wszPlayerName, sizeof(wszPlayerName) );
+		g_pVGuiLocalize->ConstructString( wszLocalized, sizeof( wszLocalized ), g_pVGuiLocalize->Find( "#game_player_joined_game" ), 1, wszPlayerName );
+
+		char szLocalized[100];
+		g_pVGuiLocalize->ConvertUnicodeToANSI( wszLocalized, szLocalized, sizeof(szLocalized) );
+
+		hudChat->Printf( CHAT_FILTER_JOINLEAVE, "%s", szLocalized );
+	}
 	else if ( Q_strcmp( "player_team", eventname ) == 0 )
 	{
+		if ( this == GetFullscreenClientMode() )
+			return;
+
 		C_BasePlayer *pPlayer = USERID2PLAYER( event->GetInt("userid") );
 		if ( !hudChat )
+			return;
+		if ( !pPlayer )
 			return;
 
 		bool bDisconnected = event->GetBool("disconnect");
@@ -758,11 +1018,11 @@ void ClientModeShared::FireGameEvent( IGameEvent *event )
 			return;
 
 		int team = event->GetInt( "team" );
-		bool bAutoTeamed = event->GetInt( "autoteam", false );
-		bool bSilent = event->GetInt( "silent", false );
+		bool bAutoTeamed = event->GetBool( "autoteam", false );
+		bool bSilent = event->GetBool( "silent", false );
 
-		const char *pszName = event->GetString( "name" );
-		if ( PlayerNameNotSetYet( pszName ) )
+		const char *pszName = pPlayer->GetPlayerName();
+		if ( PlayerNameNotSetYet(pszName) )
 			return;
 
 		if ( !bSilent )
@@ -800,14 +1060,19 @@ void ClientModeShared::FireGameEvent( IGameEvent *event )
 			}
 		}
 
-		if ( pPlayer && pPlayer->IsLocalPlayer() )
+		if ( C_BasePlayer::IsLocalPlayer( pPlayer ) )
 		{
+			ACTIVE_SPLITSCREEN_PLAYER_GUARD_ENT( pPlayer );
+
 			// that's me
 			pPlayer->TeamChange( team );
 		}
 	}
 	else if ( Q_strcmp( "player_changename", eventname ) == 0 )
 	{
+		if ( this == GetFullscreenClientMode() )
+			return;
+
 		if ( !hudChat )
 			return;
 
@@ -831,6 +1096,9 @@ void ClientModeShared::FireGameEvent( IGameEvent *event )
 	}
 	else if ( Q_strcmp( "teamplay_broadcast_audio", eventname ) == 0 )
 	{
+		if ( this == GetFullscreenClientMode() )
+			return;
+
 		int team = event->GetInt( "team" );
 
 		bool bValidTeam = false;
@@ -868,6 +1136,9 @@ void ClientModeShared::FireGameEvent( IGameEvent *event )
 	}
 	else if ( Q_strcmp( "teamplay_broadcast_audio", eventname ) == 0 )
 	{
+		if ( this == GetFullscreenClientMode() )
+			return;
+
 		int team = event->GetInt( "team" );
 		if ( !team || (GetLocalTeam() && GetLocalTeam()->GetTeamNumber() == team) )
 		{
@@ -878,6 +1149,12 @@ void ClientModeShared::FireGameEvent( IGameEvent *event )
 	}
 	else if ( Q_strcmp( "server_cvar", eventname ) == 0 )
 	{
+		if ( IsX360() && !developer.GetBool() )
+			return;
+
+		if ( this == GetFullscreenClientMode() )
+			return;
+
 		if ( !IsInCommentaryMode() )
 		{
 			wchar_t wszCvarName[64];
@@ -897,6 +1174,9 @@ void ClientModeShared::FireGameEvent( IGameEvent *event )
 	}
 	else if ( Q_strcmp( "achievement_earned", eventname ) == 0 )
 	{
+		if ( this == GetFullscreenClientMode() )
+			return;
+
 		int iPlayerIndex = event->GetInt( "player" );
 		C_BasePlayer *pPlayer = UTIL_PlayerByIndex( iPlayerIndex );
 		int iAchievement = event->GetInt( "achievement" );
@@ -910,13 +1190,13 @@ void ClientModeShared::FireGameEvent( IGameEvent *event )
 			if ( !pAchievementMgr )
 				return;
 
-			IAchievement *pAchievement = pAchievementMgr->GetAchievementByID( iAchievement );
+			IAchievement *pAchievement = pAchievementMgr->GetAchievementByID( iAchievement, GetSplitScreenPlayerSlot() );
 			if ( pAchievement )
 			{
 				if ( !pPlayer->IsDormant() )
 				{
 					// no particle effect if the local player is the one with the achievement or the player is dead
-					if ( !pPlayer->IsLocalPlayer() && pPlayer->IsAlive() ) 
+					if ( !C_BasePlayer::IsLocalPlayer( pPlayer ) && pPlayer->IsAlive() ) 
 					{
 						//tagES using the "head" attachment won't work for CS and DoD
 						pPlayer->ParticleProp()->Create( "achieved", PATTACH_POINT_FOLLOW, "head" );
@@ -952,7 +1232,7 @@ void ClientModeShared::FireGameEvent( IGameEvent *event )
 }
 
 
-	
+
 
 
 //-----------------------------------------------------------------------------
@@ -969,3 +1249,9 @@ void ClientModeShared::DeactivateInGameVGuiContext()
 	vgui::ivgui()->ActivateContext( DEFAULT_VGUI_CONTEXT );
 }
 
+int ClientModeShared::GetSplitScreenPlayerSlot() const
+{
+	int nSplitScreenUserSlot = vgui::ipanel()->GetMessageContextId( m_pViewport->GetVPanel() );
+	Assert( nSplitScreenUserSlot != -1 );
+	return nSplitScreenUserSlot;
+}

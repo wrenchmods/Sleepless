@@ -43,3 +43,4 @@ private:
 };
 
 #endif //CRAGDOLLMAGNET_H
+

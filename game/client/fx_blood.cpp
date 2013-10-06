@@ -6,7 +6,7 @@
 //=============================================================================//
 
 #include "cbase.h"
-#include "ClientEffectPrecacheSystem.h"
+#include "precache_register.h"
 #include "FX_Sparks.h"
 #include "iefx.h"
 #include "c_te_effect_dispatch.h"
@@ -25,12 +25,12 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-CLIENTEFFECT_REGISTER_BEGIN( PrecacheEffectBloodSpray )
-CLIENTEFFECT_MATERIAL( "effects/blood_core" )
-CLIENTEFFECT_MATERIAL( "effects/blood_gore" )
-CLIENTEFFECT_MATERIAL( "effects/blood_drop" )
-CLIENTEFFECT_MATERIAL( "effects/blood_puff" )
-CLIENTEFFECT_REGISTER_END()
+PRECACHE_REGISTER_BEGIN( GLOBAL, PrecacheEffectBloodSpray )
+PRECACHE( MATERIAL, "effects/blood_core" )
+PRECACHE( MATERIAL, "effects/blood_gore" )
+PRECACHE( MATERIAL, "effects/blood_drop" )
+PRECACHE( MATERIAL, "effects/blood_puff" )
+PRECACHE_REGISTER_END()
 
 // Cached material handles
 PMaterialHandle g_Blood_Core = NULL;
@@ -229,9 +229,9 @@ void FX_BloodSpray( const Vector &origin, const Vector &normal, float scale, uns
 
 					colorRamp = random->RandomFloat( 0.75f, 1.25f );
 
-					pParticle->m_uchColor[0]	= min( 1.0f, color[0] * colorRamp ) * 255.0f;
-					pParticle->m_uchColor[1]	= min( 1.0f, color[1] * colorRamp ) * 255.0f;
-					pParticle->m_uchColor[2]	= min( 1.0f, color[2] * colorRamp ) * 255.0f;
+					pParticle->m_uchColor[0]	= MIN( 1.0f, color[0] * colorRamp ) * 255.0f;
+					pParticle->m_uchColor[1]	= MIN( 1.0f, color[1] * colorRamp ) * 255.0f;
+					pParticle->m_uchColor[2]	= MIN( 1.0f, color[2] * colorRamp ) * 255.0f;
 					
 					pParticle->m_uchStartSize	= random->RandomFloat( scale * 0.25, scale );
 					pParticle->m_uchEndSize		= pParticle->m_uchStartSize * 2;
@@ -274,9 +274,9 @@ void FX_BloodSpray( const Vector &origin, const Vector &normal, float scale, uns
 
 					colorRamp = random->RandomFloat( 0.75f, 1.25f );
 
-					pParticle->m_uchColor[0]	= min( 1.0f, color[0] * colorRamp ) * 255.0f;
-					pParticle->m_uchColor[1]	= min( 1.0f, color[1] * colorRamp ) * 255.0f;
-					pParticle->m_uchColor[2]	= min( 1.0f, color[2] * colorRamp ) * 255.0f;
+					pParticle->m_uchColor[0]	= MIN( 1.0f, color[0] * colorRamp ) * 255.0f;
+					pParticle->m_uchColor[1]	= MIN( 1.0f, color[1] * colorRamp ) * 255.0f;
+					pParticle->m_uchColor[2]	= MIN( 1.0f, color[2] * colorRamp ) * 255.0f;
 					
 					pParticle->m_uchStartSize	= random->RandomFloat( scale * 1.5f, scale * 2.0f );
 					pParticle->m_uchEndSize		= pParticle->m_uchStartSize * 4;
@@ -359,9 +359,9 @@ void FX_BloodBulletImpact( const Vector &origin, const Vector &normal, float sca
 
 		colorRamp = random->RandomFloat( 0.75f, 2.0f );
 
-		pParticle->m_uchColor[0]	= min( 1.0f, color[0] * colorRamp ) * 255.0f;
-		pParticle->m_uchColor[1]	= min( 1.0f, color[1] * colorRamp ) * 255.0f;
-		pParticle->m_uchColor[2]	= min( 1.0f, color[2] * colorRamp ) * 255.0f;
+		pParticle->m_uchColor[0]	= MIN( 1.0f, color[0] * colorRamp ) * 255.0f;
+		pParticle->m_uchColor[1]	= MIN( 1.0f, color[1] * colorRamp ) * 255.0f;
+		pParticle->m_uchColor[2]	= MIN( 1.0f, color[2] * colorRamp ) * 255.0f;
 		
 		pParticle->m_uchStartSize	= random->RandomInt( 2, 4 );
 		pParticle->m_uchEndSize		= pParticle->m_uchStartSize * 8;
@@ -395,9 +395,9 @@ void FX_BloodBulletImpact( const Vector &origin, const Vector &normal, float sca
 
 			colorRamp = random->RandomFloat( 0.75f, 2.0f );
 
-			pParticle->m_uchColor[0]	= min( 1.0f, color[0] * colorRamp ) * 255.0f;
-			pParticle->m_uchColor[1]	= min( 1.0f, color[1] * colorRamp ) * 255.0f;
-			pParticle->m_uchColor[2]	= min( 1.0f, color[2] * colorRamp ) * 255.0f;
+			pParticle->m_uchColor[0]	= MIN( 1.0f, color[0] * colorRamp ) * 255.0f;
+			pParticle->m_uchColor[1]	= MIN( 1.0f, color[1] * colorRamp ) * 255.0f;
+			pParticle->m_uchColor[2]	= MIN( 1.0f, color[2] * colorRamp ) * 255.0f;
 			
 			pParticle->m_uchStartSize	= random->RandomInt( 2, 4 );
 			pParticle->m_uchEndSize		= pParticle->m_uchStartSize * 4;
@@ -477,11 +477,15 @@ ParticleForBlood_t	bloodCallbacks[] =
 	{ BLOOD_COLOR_RED,		"blood_impact_red_01" },
 	{ BLOOD_COLOR_GREEN,	"blood_impact_green_01" },
 	{ BLOOD_COLOR_YELLOW,	"blood_impact_yellow_01" },
+
 #if defined( HL2_EPISODIC )
 	{ BLOOD_COLOR_ANTLION,			"blood_impact_antlion_01" },		// FIXME: Move to Base HL2
 	{ BLOOD_COLOR_ZOMBIE,			"blood_impact_zombie_01" },			// FIXME: Move to Base HL2
 	{ BLOOD_COLOR_ANTLION_WORKER,	"blood_impact_antlion_worker_01" },
+	{ BLOOD_COLOR_BLOB,				"blob_impact" },
+	{ BLOOD_COLOR_BLOB_FROZEN,		"blob_impact_frozen" },
 #endif // HL2_EPISODIC
+
 };
 
 //-----------------------------------------------------------------------------
@@ -495,7 +499,7 @@ void BloodSprayCallback( const CEffectData &data )
 	FX_BloodSpray( data.m_vOrigin, data.m_vNormal, data.m_flScale, color.r, color.g, color.b, data.m_fFlags );
 }
 
-DECLARE_CLIENT_EFFECT( "bloodspray", BloodSprayCallback );
+DECLARE_CLIENT_EFFECT( bloodspray, BloodSprayCallback );
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
@@ -529,7 +533,16 @@ void BloodImpactCallback( const CEffectData & data )
 	}
 }
 
-DECLARE_CLIENT_EFFECT( "BloodImpact", BloodImpactCallback );
+DECLARE_CLIENT_EFFECT_BEGIN( BloodImpact, BloodImpactCallback )
+	PRECACHE( PARTICLE_SYSTEM, "blood_impact_red_01" )
+	PRECACHE( PARTICLE_SYSTEM, "blood_impact_green_01" )
+	PRECACHE( PARTICLE_SYSTEM, "blood_impact_yellow_01" )
+#if defined( HL2_EPISODIC )
+	PRECACHE( PARTICLE_SYSTEM, "blood_impact_antlion_01" )			// FIXME: Move to Base HL2
+	PRECACHE( PARTICLE_SYSTEM, "blood_impact_zombie_01" )			// FIXME: Move to Base HL2
+	PRECACHE( PARTICLE_SYSTEM, "blood_impact_antlion_worker_01" )
+#endif
+DECLARE_CLIENT_EFFECT_END()
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
@@ -588,4 +601,4 @@ void HunterDamageCallback( const CEffectData &data )
 	}
 }
 
-DECLARE_CLIENT_EFFECT( "HunterDamage", HunterDamageCallback );
+DECLARE_CLIENT_EFFECT( HunterDamage, HunterDamageCallback );

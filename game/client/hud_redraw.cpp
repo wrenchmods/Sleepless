@@ -44,36 +44,43 @@ static ConVar fov_watcher( "_fov", "0", 0, "Automates fov command to server.", F
 void CHud::Think(void)
 {
 	// Determine the visibility of all hud elements
-	for ( int i = 0; i < m_HudList.Size(); i++ )
+	CUtlVector< CHudElement * > & list = GetHudList();
+	CUtlVector< vgui::Panel * > & hudPanelList = GetHudPanelList();
+
+	int c = list.Count();
+	Assert( c == hudPanelList.Count() );
+
+	m_bEngineIsInGame = engine->IsInGame() && ( engine->IsLevelMainMenuBackground() == false );
+
+	for ( int i = 0; i < c; ++i )
 	{
+		CHudElement *element = list[i];
+		vgui::Panel *pPanel = hudPanelList[ i ];
+
 		// Visible?
-		bool visible = m_HudList[i]->ShouldDraw();
-
-		m_HudList[i]->SetActive( visible );
-
-		// If it's a vgui panel, hide/show as appropriate
-		vgui::Panel *pPanel = dynamic_cast<vgui::Panel*>(m_HudList[i]);
-		if ( pPanel && pPanel->IsVisible() != visible )
+		bool visible = element->ShouldDraw();
+		element->SetActive( visible );
+		
+		if (pPanel->IsVisible() != visible )
 		{
 			pPanel->SetVisible( visible );
 		}
-		else if ( !pPanel )
-		{
-			// All HUD elements should now derive from vgui!!!
-			Assert( 0 );
-		}
-
+		
 		if ( visible )
 		{
-			m_HudList[i]->ProcessInput();
+			element->ProcessInput();
 		}
 	}
 
 	// Let the active weapon at the keybits
-	C_BaseCombatWeapon *pWeapon = GetActiveWeapon();
-	if ( pWeapon )
+	C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
+	if ( pPlayer )
 	{
-		pWeapon->HandleInput();
+		C_BaseCombatWeapon *pWeapon = pPlayer->GetActiveWeapon();
+		if ( pWeapon )
+		{
+			pWeapon->HandleInput();
+		}
 	}
 
 	if ( ( m_flScreenShotTime > 0 ) && ( m_flScreenShotTime < gpGlobals->curtime ) )
@@ -100,8 +107,8 @@ void CHud::Think(void)
 void CHud::DrawProgressBar( int x, int y, int width, int height, float percentage, Color& clr, unsigned char type )
 {
 	//Clamp our percentage
-	percentage = min( 1.0f, percentage );
-	percentage = max( 0.0f, percentage );
+	percentage = MIN( 1.0f, percentage );
+	percentage = MAX( 0.0f, percentage );
 
 	Color lowColor = clr;
 	lowColor[ 0 ] /= 2;
@@ -156,8 +163,8 @@ void CHud::DrawIconProgressBar( int x, int y, CHudTexture *icon, CHudTexture *ic
 		return;
 
 	//Clamp our percentage
-	percentage = min( 1.0f, percentage );
-	percentage = max( 0.0f, percentage );
+	percentage = MIN( 1.0f, percentage );
+	percentage = MAX( 0.0f, percentage );
 
 	int	height = icon->Height();
 	int	width  = icon->Width();

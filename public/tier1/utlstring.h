@@ -12,6 +12,8 @@
 
 
 #include "tier1/utlmemory.h"
+#include "tier1/strtools.h"
+#include "limits.h"
 
 
 //-----------------------------------------------------------------------------
@@ -38,6 +40,8 @@ public:
 	int			Length() const;
 	void		SetLength( int nLength );	// Undefined memory will result
 	bool		IsEmpty() const;
+	void		Clear();
+	void		Purge();
 
 	bool		IsReadOnly() const;
 
@@ -90,6 +94,17 @@ inline bool CUtlBinaryBlock::IsEmpty() const
 	return Length() == 0;
 }
 
+inline void CUtlBinaryBlock::Clear()
+{
+	SetLength( 0 );
+}
+
+inline void CUtlBinaryBlock::Purge()
+{
+	SetLength( 0 );
+	m_Memory.Purge();
+}
+
 
 //-----------------------------------------------------------------------------
 // Simple string class. 
@@ -108,6 +123,9 @@ public:
 
 	const char	*Get( ) const;
 	void		Set( const char *pValue );
+	
+	// Set directly and don't look for a null terminator in pValue.
+	void		SetDirect( const char *pValue, int nChars );
 
 	// Converts to c-strings
 	operator const char*() const;
@@ -120,8 +138,11 @@ public:
 	bool		IsEmpty() const;
 
 	// Sets the length (used to serialize into the buffer )
+	// Note: If nLen != 0, then this adds an extra byte for a null-terminator.	
 	void		SetLength( int nLen );
 	char		*Get();
+	void		Clear();
+	void		Purge();
 
 	// Strips the trailing slash
 	void		StripTrailingSlash();
@@ -141,7 +162,38 @@ public:
 	CUtlString &operator+=( int rhs );
 	CUtlString &operator+=( double rhs );
 
+	CUtlString operator+( const char *pOther );
+	CUtlString operator+( int rhs );
+
 	int Format( const char *pFormat, ... );
+
+	// Take a piece out of the string.
+	// If you only specify nStart, it'll go from nStart to the end.
+	// You can use negative numbers and it'll wrap around to the start.
+	CUtlString Slice( int32 nStart=0, int32 nEnd=INT_MAX );
+
+	// Grab a substring starting from the left or the right side.
+	CUtlString Left( int32 nChars );
+	CUtlString Right( int32 nChars );
+
+	// Replace all instances of one character with another.
+	CUtlString Replace( char cFrom, char cTo );
+
+	// Calls right through to V_MakeAbsolutePath.
+	CUtlString AbsPath( const char *pStartingDir=NULL );	
+
+	// Gets the filename (everything except the path.. c:\a\b\c\somefile.txt -> somefile.txt).
+	CUtlString UnqualifiedFilename();
+	
+	// Strips off one directory. Uses V_StripLastDir but strips the last slash also!
+	CUtlString DirName();
+	
+	// Works like V_ComposeFileName.
+	static CUtlString PathJoin( const char *pStr1, const char *pStr2 );
+
+	// These can be used for utlvector sorts.
+	static int __cdecl SortCaseInsensitive( const CUtlString *pString1, const CUtlString *pString2 );
+	static int __cdecl SortCaseSensitive( const CUtlString *pString1, const CUtlString *pString2 );
 
 private:
 	CUtlBinaryBlock m_Storage;
@@ -154,6 +206,16 @@ private:
 inline bool CUtlString::IsEmpty() const
 {
 	return Length() == 0;
+}
+
+inline int __cdecl CUtlString::SortCaseInsensitive( const CUtlString *pString1, const CUtlString *pString2 )
+{
+	return V_stricmp( pString1->String(), pString2->String() );
+}
+
+inline int __cdecl CUtlString::SortCaseSensitive( const CUtlString *pString1, const CUtlString *pString2 )
+{
+	return V_strcmp( pString1->String(), pString2->String() );
 }
 
 

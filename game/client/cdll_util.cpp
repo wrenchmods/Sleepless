@@ -1,10 +1,10 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
 //
 // Purpose: 
 //
 // $Workfile:     $
 // $NoKeywords: $
-//=============================================================================//
+//===========================================================================//
 #include "cbase.h"
 #include <stdarg.h>
 #include "hud.h"
@@ -27,6 +27,10 @@
 #include <vgui/ILocalize.h>
 #include "view.h"
 #include "ixboxsystem.h"
+#include <ctype.h>
+#include <vgui_controls/EditablePanel.h>
+#include "vgui_int.h"
+#include "cdll_client_int.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -49,7 +53,7 @@ extern ConVar cl_leveloverview;
 //			... - 
 // Output : char
 //-----------------------------------------------------------------------------
-char *VarArgs( char *format, ... )
+char *VarArgs( const char *format, ... )
 {
 	va_list		argptr;
 	static char		string[1024];
@@ -250,18 +254,18 @@ float UTIL_WaterLevel( const Vector &position, float minz, float maxz )
 	Vector midUp = position;
 	midUp.z = minz;
 
-	if ( !(UTIL_PointContents(midUp) & MASK_WATER) )
+	if ( !(UTIL_PointContents(midUp, MASK_WATER) & MASK_WATER) )
 		return minz;
 
 	midUp.z = maxz;
-	if ( UTIL_PointContents(midUp) & MASK_WATER )
+	if ( UTIL_PointContents(midUp, MASK_WATER) & MASK_WATER )
 		return maxz;
 
 	float diff = maxz - minz;
 	while (diff > 1.0)
 	{
 		midUp.z = minz + diff/2.0;
-		if ( UTIL_PointContents(midUp) & MASK_WATER )
+		if ( UTIL_PointContents(midUp, MASK_WATER) & MASK_WATER )
 		{
 			minz = midUp.z;
 		}
@@ -369,7 +373,7 @@ int UTIL_PrecacheDecal( const char *name, bool preload )
 	return effects->Draw_DecalIndexFromName( (char*)name );
 }
 
-extern short g_sModelIndexSmoke;
+extern int g_sModelIndexSmoke;
 
 void UTIL_Smoke( const Vector &origin, const float scale, const float framerate )
 {
@@ -451,7 +455,7 @@ void UTIL_PrecacheOther( const char *szClassname )
 	}
 
 	// Bye bye
-	pEntity->Release();
+	UTIL_Remove( pEntity );
 }
 
 static csurface_t	g_NullSurface = { "**empty**", 0 };
@@ -485,11 +489,20 @@ bool GetVectorInScreenSpace( Vector pos, int& iX, int& iY, Vector *vecOffset )
 		pos += *vecOffset;
 
 	// Transform to screen space
+	int x, y, screenWidth, screenHeight;
+	int insetX, insetY;
+	VGui_GetEngineRenderBounds( GET_ACTIVE_SPLITSCREEN_SLOT(), x, y, screenWidth, screenHeight, insetX, insetY );
+
+	// Transform to screen space
 	int iFacing = ScreenTransform( pos, screen );
-	iX =  0.5 * screen[0] * ScreenWidth();
-	iY = -0.5 * screen[1] * ScreenHeight();
-	iX += 0.5 * ScreenWidth();
-	iY += 0.5 * ScreenHeight();
+
+	iX = 0.5 * screen[0] * screenWidth;
+	iY = -0.5 * screen[1] * screenHeight;
+	iX += 0.5 * screenWidth;
+	iY += 0.5 * screenHeight;	
+
+	iX += insetX;
+	iY += insetY;
 
 	// Make sure the player's facing it
 	if ( iFacing )
@@ -527,60 +540,7 @@ void ClientPrint( C_BasePlayer *player, int msg_dest, const char *msg_name, cons
 {
 }
 
-//-----------------------------------------------------------------------------
-// class CFlaggedEntitiesEnum
-//-----------------------------------------------------------------------------
-// enumerate entities that match a set of edict flags into a static array
-class CFlaggedEntitiesEnum : public IPartitionEnumerator
-{
-public:
-	CFlaggedEntitiesEnum( C_BaseEntity **pList, int listMax, int flagMask );
-	// This gets called	by the enumeration methods with each element
-	// that passes the test.
-	virtual IterationRetval_t EnumElement( IHandleEntity *pHandleEntity );
-	
-	int GetCount() { return m_count; }
-	bool AddToList( C_BaseEntity *pEntity );
-	
-private:
-	C_BaseEntity		**m_pList;
-	int				m_listMax;
-	int				m_flagMask;
-	int				m_count;
-};
 
-CFlaggedEntitiesEnum::CFlaggedEntitiesEnum( C_BaseEntity **pList, int listMax, int flagMask )
-{
-	m_pList = pList;
-	m_listMax = listMax;
-	m_flagMask = flagMask;
-	m_count = 0;
-}
-
-bool CFlaggedEntitiesEnum::AddToList( C_BaseEntity *pEntity )
-{
-	if ( m_count >= m_listMax )
-		return false;
-	m_pList[m_count] = pEntity;
-	m_count++;
-	return true;
-}
-
-IterationRetval_t CFlaggedEntitiesEnum::EnumElement( IHandleEntity *pHandleEntity )
-{
-	IClientEntity *pClientEntity = cl_entitylist->GetClientEntityFromHandle( pHandleEntity->GetRefEHandle() );
-	C_BaseEntity *pEntity = pClientEntity ? pClientEntity->GetBaseEntity() : NULL;
-	if ( pEntity )
-	{
-		if ( m_flagMask && !(pEntity->GetFlags() & m_flagMask) )	// Does it meet the criteria?
-			return ITERATION_CONTINUE;
-
-		if ( !AddToList( pEntity ) )
-			return ITERATION_STOP;
-	}
-
-	return ITERATION_CONTINUE;
-}
 
 //-----------------------------------------------------------------------------
 // Purpose: Pass in an array of pointers and an array size, it fills the array and returns the number inserted
@@ -782,6 +742,9 @@ void UTIL_ReplaceKeyBindings( const wchar_t *inbuf, int inbufsizebytes, wchar_t 
 	if ( !inbuf || !inbuf[0] )
 		return;
 
+	ASSERT_LOCAL_PLAYER_RESOLVABLE();
+	int nSlot = GET_ACTIVE_SPLITSCREEN_SLOT();
+
 	// copy to a new buf if there are vars
 	outbuf[0]=0;
 	int pos = 0;
@@ -811,7 +774,7 @@ void UTIL_ReplaceKeyBindings( const wchar_t *inbuf, int inbufsizebytes, wchar_t 
 				char binding[64];
 				g_pVGuiLocalize->ConvertUnicodeToANSI( token, binding, sizeof(binding) );
 
-				const char *key = engine->Key_LookupBinding( *binding == '+' ? binding + 1 : binding );
+				const char *key = engine->Key_LookupBindingEx( *binding == '+' ? binding + 1 : binding, nSlot );
 				if ( !key )
 				{
 					key = IsX360() ? "" : "< not bound >";
@@ -884,6 +847,27 @@ void UTIL_ReplaceKeyBindings( const wchar_t *inbuf, int inbufsizebytes, wchar_t 
 
 //-----------------------------------------------------------------------------
 // Purpose: 
+//-----------------------------------------------------------------------------
+void UTIL_SetControlStringWithKeybindings( vgui::EditablePanel *panel, const char *controlName, const char *str )
+{
+	if ( !panel || !controlName || !str )
+		return;
+
+	const wchar_t *unicodeStr = g_pVGuiLocalize->Find( str );
+	if ( unicodeStr )
+	{
+		wchar_t buf[512];
+		UTIL_ReplaceKeyBindings( unicodeStr, 0, buf, sizeof( buf ) );
+		panel->SetControlString( controlName, buf );
+	}
+	else
+	{
+		panel->SetControlString( controlName, str );
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
 // Input  : *filename - 
 //			*pLength - 
 // Output : byte
@@ -943,7 +927,7 @@ static unsigned char ComputeDistanceFade( C_BaseEntity *pEntity, float flMinDist
 
 	if( flMinDist > flMaxDist )
 	{
-		swap( flMinDist, flMaxDist );
+		V_swap( flMinDist, flMaxDist );
 	}
 
 	// If a negative value is provided for the min fade distance, then base it off the max.
@@ -1063,25 +1047,106 @@ void UTIL_BoundToWorldSize( Vector *pVecPos )
 #else
 #define MAP_KEY_FILE_DIR	"media"
 #endif
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+C_BasePlayer* UTIL_PlayerByUserId( int userID )
+{
+	for (int i = 1; i<=gpGlobals->maxClients; i++ )
+	{
+		C_BasePlayer *pPlayer = UTIL_PlayerByIndex( i );
+
+		if ( !pPlayer )
+			continue;
+
+		if ( pPlayer->GetUserID() == userID )
+		{
+			return pPlayer;
+		}
+	}
+
+	return NULL;
+}
+
+C_BaseEntity* UTIL_EntityFromUserMessageEHandle( long nEncodedEHandle )
+{
+	int nEntity, nSerialNum;
+	if( nEncodedEHandle == INVALID_NETWORKED_EHANDLE_VALUE )
+		return NULL;
+
+	nEntity = nEncodedEHandle & ((1 << MAX_EDICT_BITS) - 1);
+	nSerialNum = nEncodedEHandle >> MAX_EDICT_BITS;
+
+	EHANDLE hEntity( nEntity, nSerialNum );
+	return hEntity.Get();
+}
+
+//-----------------------------------------------------------------------------
+// 
+//-----------------------------------------------------------------------------
+void UTIL_ApproachTarget( float target, float increaseSpeed, float decreaseSpeed, float *val )
+{
+	if ( *val < target )
+	{
+		*val += gpGlobals->frametime*increaseSpeed;
+		*val = MIN( *val, target );
+	}
+	else if ( *val > target )
+	{
+		*val -= gpGlobals->frametime*decreaseSpeed;
+		*val = MAX( *val, target );
+	}
+}
+
+//-----------------------------------------------------------------------------
+// 
+//-----------------------------------------------------------------------------
+void UTIL_ApproachTarget( const Vector &target, float increaseSpeed, float decreaseSpeed, Vector *val )
+{
+	UTIL_ApproachTarget( target.x, increaseSpeed, decreaseSpeed, &val->x );
+	UTIL_ApproachTarget( target.y, increaseSpeed, decreaseSpeed, &val->y );
+	UTIL_ApproachTarget( target.z, increaseSpeed, decreaseSpeed, &val->z );
+}
 
 //-----------------------------------------------------------------------------
 // Purpose: Returns the filename to count map loads in
 //-----------------------------------------------------------------------------
-bool UTIL_GetMapLoadCountFileName( const char *pszFilePrependName, char *pszBuffer, int iBuflen )
+bool UTIL_GetMapLoadCountFileName( int iController, const char *pszFilePrependName, char *pszBuffer, int iBuflen )
 {
 	if ( IsX360() )
 	{
 #ifdef _X360
-		if ( XBX_GetStorageDeviceId() == XBX_INVALID_STORAGE_ID || XBX_GetStorageDeviceId() == XBX_STORAGE_DECLINED )
+		if ( iController < 0 || iController >= XUSER_MAX_COUNT )
+			return false;
+
+		int iSlot = -1;
+		for ( unsigned int k = 0; k < XBX_GetNumGameUsers(); ++ k )
+		{
+			if ( XBX_GetUserId( k ) == iController )
+			{
+				iSlot = k;
+				if ( XBX_GetUserIsGuest( k ) )
+					return false;
+			}
+		}
+		if ( iSlot < 0 )
+			return false;
+
+		DWORD nStorageDevice = XBX_GetStorageDeviceId( iController );
+		if ( !XBX_DescribeStorageDevice( nStorageDevice ) )
 			return false;
 #endif
 	}
 
+#ifdef _X360
 	if ( IsX360() )
 	{
-		Q_snprintf( pszBuffer, iBuflen, "%s:/%s", MAP_KEY_FILE_DIR, pszFilePrependName );
+		XBX_MakeStorageContainerRoot( iController, XBX_USER_SETTINGS_CONTAINER_DRIVE, pszBuffer, iBuflen );
+		int nLen = strlen( pszBuffer );
+		Q_snprintf( pszBuffer + nLen, iBuflen - nLen, ":/%s", pszFilePrependName );
 	}
 	else
+#endif
 	{
 		Q_snprintf( pszBuffer, iBuflen, "%s/%s", MAP_KEY_FILE_DIR, pszFilePrependName );
 	}
@@ -1089,19 +1154,23 @@ bool UTIL_GetMapLoadCountFileName( const char *pszFilePrependName, char *pszBuff
 	return true;
 }
 
-#ifdef TF_CLIENT_DLL
-#define MAP_KEY_FILE "viewed.res"
-#else
+
 #define MAP_KEY_FILE "mapkeys.res"
-#endif	
+
 
 void UTIL_IncrementMapKey( const char *pszCustomKey )
 {
+#ifdef _X360
+	// TODO: controller-specific code required
+	return;
+#endif
+	int iController = -1;
+
 	if ( !pszCustomKey )
 		return;
 
 	char szFilename[ _MAX_PATH ];
-	if ( !UTIL_GetMapLoadCountFileName( MAP_KEY_FILE, szFilename, _MAX_PATH ) )
+	if ( !UTIL_GetMapLoadCountFileName( iController, MAP_KEY_FILE, szFilename, _MAX_PATH ) )
 		return;
 
 	int iCount = 1;
@@ -1144,21 +1213,27 @@ void UTIL_IncrementMapKey( const char *pszCustomKey )
 		kvMapLoadFile->deleteThis();
 	}
 
-	if ( IsX360() )
-	{
 #ifdef _X360
-		xboxsystem->FinishContainerWrites();
-#endif
+	if ( xboxsystem )
+	{
+		xboxsystem->FinishContainerWrites( iController );
 	}
+#endif
 }
 
 int UTIL_GetMapKeyCount( const char *pszCustomKey )
 {
+#ifdef _X360
+	// TODO: controller-specific code required
+	return 0;
+#endif
+	int iController = -1;
+
 	if ( !pszCustomKey )
 		return 0;
 
 	char szFilename[ _MAX_PATH ];
-	if ( !UTIL_GetMapLoadCountFileName( MAP_KEY_FILE, szFilename, _MAX_PATH ) )
+	if ( !UTIL_GetMapLoadCountFileName( iController, MAP_KEY_FILE, szFilename, _MAX_PATH ) )
 		return 0;
 
 	int iCount = 0;
@@ -1192,4 +1267,56 @@ int UTIL_GetMapKeyCount( const char *pszCustomKey )
 	}
 
 	return iCount;
+}
+
+
+wchar_t *UTIL_GetLocalizedKeyString( const char *command, const char *fmt, const wchar_t *arg1, const wchar_t *arg2, const wchar_t *arg3 )
+{
+	static wchar_t useString[4][256];
+	static int index = 0;
+
+	index = index + 1;
+	if ( index > 3 )
+		index = 0;
+
+	const char *lowercaseKey = engine->Key_LookupBinding( command );
+	if ( !lowercaseKey )
+	{
+		lowercaseKey = "<NOT BOUND>";
+	}
+
+	char szKey[64];
+	V_strncpy( szKey, lowercaseKey, sizeof( szKey ) );
+	for ( char *tmp = szKey; *tmp; ++tmp )
+	{
+		*tmp = toupper( *tmp );
+	}
+
+	wchar_t wszKey[64];
+	g_pVGuiLocalize->ConvertANSIToUnicode( szKey,  wszKey, sizeof(wszKey) );
+
+	int argCount = 1;
+	if ( arg1 )
+	{
+		++argCount;
+		if ( arg2 )
+		{
+			++argCount;
+			if ( arg3 )
+			{
+				++argCount;
+			}
+		}
+	}
+
+	g_pVGuiLocalize->ConstructString( useString[index], sizeof( useString[index] ), g_pVGuiLocalize->Find( fmt ), argCount, wszKey, arg1, arg2, arg3 );
+	return useString[index];
+}
+
+void UTIL_ClearTrace( trace_t &trace )
+{
+	memset( &trace, 0, sizeof(trace));
+	trace.fraction = 1.f;
+	trace.fractionleftsolid = 0;
+	trace.surface = g_NullSurface;
 }

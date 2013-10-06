@@ -56,15 +56,13 @@ void DrawSpriteModel( IClientEntity *baseentity, CEngineSprite *psprite, const V
 		scale = 1.0f;
 	
 	if ( rendermode == kRenderNormal )
-		render->SetBlend( 1.0f );
-	
-	material = psprite->GetMaterial();
-	if ( !material )
 	{
-		return;
+		render->SetBlend( 1.0f );
 	}
-	psprite->SetRenderMode( rendermode );
-	psprite->SetFrame( frame );
+	
+	material = psprite->GetMaterial( (RenderMode_t)rendermode, frame );
+	if ( !material )
+		return;
 
 	CMatRenderContextPtr pRenderContext( materials );
 	
@@ -397,8 +395,7 @@ int C_SpriteRenderer::DrawSprite(
 			// don't draw viewmodel effects in reflections
 			if ( CurrentViewID() == VIEW_REFLECTION )
 			{
-				int group = ent->GetRenderGroup();
-				if ( group == RENDER_GROUP_VIEW_MODEL_TRANSLUCENT || group == RENDER_GROUP_VIEW_MODEL_OPAQUE )
+				if ( g_pClientLeafSystem->IsRenderingWithViewModels( ent->RenderHandle() ) )
 					return 0;
 			}
 			QAngle temp;
@@ -476,7 +473,7 @@ void CSprite::GetToolRecordingState( KeyValues *msg )
 			ent->GetAttachment( m_nAttachment, pState->m_vecRenderOrigin, temp );
 
 			// override viewmodel if we're driven by an attachment
-			bool bViewModel = dynamic_cast< C_BaseViewModel* >( ent ) != NULL;
+			bool bViewModel = ToBaseViewModel( ent ) != NULL;
 			msg->SetInt( "viewmodel", bViewModel );
 		}
 	}
@@ -485,9 +482,11 @@ void CSprite::GetToolRecordingState( KeyValues *msg )
 	if ( m_bWorldSpaceScale )
 	{
 		CEngineSprite *psprite = ( CEngineSprite * )modelinfo->GetModelExtraData( GetModel() );
-		float flMinSize = min( psprite->GetWidth(), psprite->GetHeight() );
+		float flMinSize = MIN( psprite->GetWidth(), psprite->GetHeight() );
 		renderscale /= flMinSize;
 	}
+
+	color24 c = GetRenderColor();
 
 	// sprite params
 	static SpriteRecordingState_t state;
@@ -495,8 +494,8 @@ void CSprite::GetToolRecordingState( KeyValues *msg )
 	state.m_flFrame = m_flFrame;
 	state.m_flProxyRadius = m_flGlowProxySize;
 	state.m_nRenderMode = GetRenderMode();
-	state.m_nRenderFX = m_nRenderFX;
-	state.m_Color.SetColor( m_clrRender.GetR(), m_clrRender.GetG(), m_clrRender.GetB(), GetRenderBrightness() );
+	state.m_nRenderFX = GetRenderFX() ? true : false;
+	state.m_Color.SetColor( c.r, c.g, c.b, GetRenderBrightness() );
 
 	msg->SetPtr( "sprite", &state );
 }

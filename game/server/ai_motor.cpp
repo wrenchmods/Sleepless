@@ -122,15 +122,23 @@ AIMotorMoveResult_t CAI_Motor::MoveGroundStep( const Vector &newPos, CBaseEntity
 	AIMoveTrace_t moveTrace;
 	unsigned testFlags = AITGM_IGNORE_FLOOR;
 
-	if ( !bTestZ )
-		testFlags |= AITGM_2D;
+	char *pchHackBoolToInt = (char*)(&bTestZ);
+	if ( *pchHackBoolToInt == 2 )
+	{
+		testFlags |= AITGM_CRAWL_LARGE_STEPS;
+	}
+	else
+	{
+		if ( !bTestZ )
+			testFlags |= AITGM_2D;
+	}
 
 #ifdef DEBUG
 	if ( ai_draw_motor_movement.GetBool() )
 		testFlags |= AITGM_DRAW_RESULTS;
 #endif
 
-	GetMoveProbe()->TestGroundMove( GetLocalOrigin(), newPos, MASK_NPCSOLID, testFlags, &moveTrace );
+	GetMoveProbe()->TestGroundMove( GetLocalOrigin(), newPos, GetOuter()->GetAITraceMask(), testFlags, &moveTrace );
 	if ( pTraceResult )
 	{
 		*pTraceResult = moveTrace;
@@ -144,7 +152,7 @@ AIMotorMoveResult_t CAI_Motor::MoveGroundStep( const Vector &newPos, CBaseEntity
 	if ( !bIsBlocked || bAsFarAsCan || bHitTarget )
 	{
 #ifdef DEBUG
-		if ( GetMoveProbe()->CheckStandPosition( GetLocalOrigin(), MASK_NPCSOLID ) && !GetMoveProbe()->CheckStandPosition( moveTrace.vEndPosition, MASK_NPCSOLID ) )
+		if ( GetMoveProbe()->CheckStandPosition( GetLocalOrigin(), GetOuter()->GetAITraceMask() ) && !GetMoveProbe()->CheckStandPosition( moveTrace.vEndPosition, GetOuter()->GetAITraceMask() ) )
 		{
 			DevMsg( 2, "Warning: AI motor probably given invalid instructions\n" );
 		}
@@ -298,7 +306,7 @@ AIMoveResult_t CAI_Motor::MoveClimbExecute( const Vector &climbDest, const Vecto
 	if (m_nDismountSequence != ACT_INVALID)
 	{
 		// catch situations where the climb mount/dismount finished before reaching goal
-		climbSpeed = max( climbSpeed, 30.0 );
+		climbSpeed = MAX( climbSpeed, 30.0 );
 	}
 	else
 	{
@@ -548,6 +556,12 @@ AIMotorMoveResult_t CAI_Motor::MoveGroundExecuteWalk( const AILocalMoveGoal_t &m
 	{
 		Vector vecFrom = GetLocalOrigin();
 		Vector vecTo = vecFrom + move.dir * dist;
+
+		if ( move.navType == NAV_CRAWL )
+		{
+			char *pchHackBoolToInt = (char*)(&bReachingLocalGoal);
+			*pchHackBoolToInt = 2;
+		}
 		
 		result = MoveGroundStep( vecTo, move.pMoveTarget, -1, true, bReachingLocalGoal, pTraceResult );
 
@@ -601,7 +615,7 @@ AIMotorMoveResult_t CAI_Motor::MoveFlyExecute( const AILocalMoveGoal_t &move, AI
 	VectorMA( vecStart, flTotal, move.dir, vecEnd );
 
 	AIMoveTrace_t moveTrace;
-	GetMoveProbe()->MoveLimit( NAV_FLY, vecStart, vecEnd, MASK_NPCSOLID, NULL, &moveTrace );
+	GetMoveProbe()->MoveLimit( NAV_FLY, vecStart, vecEnd, GetOuter()->GetAITraceMask(), NULL, &moveTrace );
 	if ( pTraceResult )
 		*pTraceResult = moveTrace;
 	
@@ -758,7 +772,7 @@ void CAI_Motor::UpdateYaw( int yawSpeed )
 	ideal = UTIL_AngleMod( GetIdealYaw() );
 
 	// FIXME: this needs a proper interval
-	float dt = min( 0.2, gpGlobals->curtime - GetLastThink() );
+	float dt = MIN( 0.2, gpGlobals->curtime - GetLastThink() );
 	
 	newYaw = AI_ClampYaw( (float)yawSpeed * 10.0, current, ideal, dt );
 		
@@ -890,7 +904,7 @@ AIMoveResult_t CAI_Motor::MoveNormalExecute( const AILocalMoveGoal_t &move )
 	AIMotorMoveResult_t fMotorResult;
 	AIMoveTrace_t 		moveTrace;
 	
-	if ( move.navType == NAV_GROUND )
+	if ( move.navType == NAV_GROUND || move.navType == NAV_CRAWL )
 	{
 		fMotorResult = MoveGroundExecute( move, &moveTrace );
 	}
@@ -928,7 +942,7 @@ float CAI_Motor::MinCheckDist( void )
 {
 	// Take the groundspeed into account
 	float flMoveDist = GetMoveInterval() * GetIdealSpeed();
-	float flMinDist = max( MinStoppingDist(), flMoveDist);
+	float flMinDist = MAX( MinStoppingDist(), flMoveDist);
 	if ( flMinDist < GetHullWidth() )
 		flMinDist = GetHullWidth();
 	return flMinDist;
@@ -994,7 +1008,7 @@ void CAI_Motor::SetPlaybackRate( float flRate )
 	return GetOuter()->SetPlaybackRate( flRate );
 }
 
-float CAI_Motor::GetPlaybackRate()
+float CAI_Motor::GetPlaybackRate() const
 {
 	return GetOuter()->GetPlaybackRate();
 }

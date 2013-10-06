@@ -44,6 +44,8 @@ enum
 	DRAWWORLDLISTS_DRAW_SHADOWDEPTH				= 0x040,
 	DRAWWORLDLISTS_DRAW_REFRACTION				= 0x080,
 	DRAWWORLDLISTS_DRAW_REFLECTION				= 0x100,
+	DRAWWORLDLISTS_DRAW_WORLD_GEOMETRY			= 0x200,
+	DRAWWORLDLISTS_DRAW_DECALS_AND_OVERLAYS		= 0x400,
 };
 
 enum
@@ -64,7 +66,6 @@ typedef VPlane Frustum[FRUSTUM_NUMPLANES];
 // Leaf index
 //-----------------------------------------------------------------------------
 typedef unsigned short LeafIndex_t;
-typedef short LeafFogVolume_t;
 enum
 {
 	INVALID_LEAF_INDEX = (LeafIndex_t)~0
@@ -73,7 +74,9 @@ enum
 
 //-----------------------------------------------------------------------------
 // Describes the leaves to be rendered this view, set by BuildWorldLists
+
 //-----------------------------------------------------------------------------
+// NOTE: This is slightly slower on x360 but saves memory
 #if 1
 struct WorldListLeafData_t
 {
@@ -95,8 +98,8 @@ struct WorldListInfo_t
 {
 	int		m_ViewFogVolume;
 	int		m_LeafCount;
-	LeafIndex_t*		m_pLeafList;
-	LeafFogVolume_t*	m_pLeafFogVolume;
+	bool	m_bHasWater;
+	WorldListLeafData_t	*m_pLeafDataList;
 };
 
 class IWorldRenderList : public IRefCounted
@@ -227,6 +230,7 @@ public:
 
 	virtual void			BuildWorldLists( IWorldRenderList *pList, WorldListInfo_t* pInfo, int iForceFViewLeaf, const VisOverrideData_t* pVisData = NULL, bool bShadowDepth = false, float *pReflectionWaterHeight = NULL ) = 0;
 	virtual void			DrawWorldLists( IWorldRenderList *pList, unsigned long flags, float waterZAdjust ) = 0;
+	virtual int				GetNumIndicesForWorldLists( IWorldRenderList *pList, unsigned long nFlags ) = 0;
 
 	// Optimization for top view
 	virtual void			DrawTopView( bool enable ) = 0;
@@ -237,8 +241,8 @@ public:
 	// FIXME:  This function is a stub, doesn't do anything in the engine right now
 	virtual void			DrawMaskEntities( void ) = 0;
 
-	// Draw surfaces with alpha
-	virtual void			DrawTranslucentSurfaces( IWorldRenderList *pList, int sortIndex, unsigned long flags, bool bShadowDepth ) = 0;
+	// Draw surfaces with alpha, don't call in shadow depth pass
+	virtual void			DrawTranslucentSurfaces( IWorldRenderList *pList, int *pSortList, int sortCount, unsigned long flags ) = 0;
 
 	// Draw Particles ( just draws the linefine for debugging map leaks )
 	virtual void			DrawLineFile( void ) = 0;
@@ -259,6 +263,7 @@ public:
 	virtual colorVec		GetLightAtPoint( Vector& pos ) = 0;
 	// Whose eyes are we looking through?
 	virtual int				GetViewEntity( void ) = 0;
+	virtual bool			IsViewEntity( int entindex ) = 0;
 	// Get engine field of view setting
 	virtual float			GetFieldOfView( void ) = 0;
 	// 1 == ducking, 0 == not

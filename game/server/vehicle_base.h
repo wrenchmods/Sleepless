@@ -86,6 +86,7 @@ public:
 	unsigned int GetVehicleType( void )							{ return m_nVehicleType; }
 
 	// CBaseEntity
+	virtual void	Precache();
 	void			Spawn( void );
 	virtual int		Restore( IRestore &restore );
 	void			VPhysicsUpdate( IPhysicsObject *pPhysics );

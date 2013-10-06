@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright ï¿½ 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -9,6 +9,10 @@
 #include <vgui/isurface.h>
 #include <vgui_controls/AnimationController.h>
 #include "hud_base_account.h"
+
+// NOTE: This has to be the last file included!
+#include "tier0/memdbgon.h"
+
 
 using namespace vgui;
 
@@ -38,9 +42,9 @@ void CHudBaseAccount::ApplySchemeSettings(vgui::IScheme *pScheme)
 	m_clrRed	= pScheme->GetColor( "HudIcon_Red", Color( 255, 16, 16, 255 ) );
 	m_clrGreen	= pScheme->GetColor( "HudIcon_Green", Color( 16, 255, 16, 255 ) );
 
-	m_pAccountIcon = gHUD.GetIcon( "dollar_sign" );
-	m_pPlusIcon = gHUD.GetIcon( "plus_sign" );
-	m_pMinusIcon = gHUD.GetIcon( "minus_sign" );
+	m_pAccountIcon = HudIcons().GetIcon( "dollar_sign" );
+	m_pPlusIcon = HudIcons().GetIcon( "plus_sign" );
+	m_pMinusIcon = HudIcons().GetIcon( "minus_sign" );
 
 	if( m_pAccountIcon )
 	{
@@ -144,7 +148,7 @@ int CHudBaseAccount::GetNumberWidth(HFont font, int number)
 
 	surface()->DrawSetTextFont(font);
 	wchar_t unicode[6];
-	swprintf(unicode, L"%d", number);
+	V_snwprintf(unicode, ARRAYSIZE(unicode), L"%d", number);
 
 	for (wchar_t *ch = unicode; *ch != 0; ch++)
 	{

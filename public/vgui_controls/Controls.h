@@ -90,6 +90,8 @@ class BuildModeDialog;
 class Button;
 class CheckButton;
 class CheckButtonList;
+class CircularProgressBar;
+template< class T >class CvarToggleCheckButton;
 class ComboBox;
 class DirectorySelectDialog;
 class Divider;
@@ -145,7 +147,7 @@ class TextImage;
 
 // hotkeys disabled until we work out exactly how we want to do them
 #define VGUI_HOTKEYS_ENABLED
-// #define VGUI_DRAW_HOTKEYS_ENABLED
+#define VGUI_DRAW_HOTKEYS_ENABLED
 
 #define USING_BUILD_FACTORY( className )				\
 	extern className *g_##className##LinkerHack;		\

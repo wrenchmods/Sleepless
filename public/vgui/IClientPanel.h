@@ -13,6 +13,7 @@
 #endif
 
 #include <vgui/VGUI.h>
+#include <vgui/MouseCode.h>
 
 #ifdef GetClassName
 #undef GetClassName
@@ -76,6 +77,9 @@ public:
 	// deletes this
 	virtual void DeletePanel() = 0;
 
+	// Mouse Codes...
+	virtual bool HandleMouseCode( MouseCode code ) = 0;
+
 	// interfaces
 	virtual void *QueryInterface(EInterfaceID id) = 0;
 
@@ -84,6 +88,8 @@ public:
 
 	// returns the name of the module this panel is part of
 	virtual const char *GetModuleName() = 0;
+
+	virtual void OnTick() = 0;
 };
 
 } // namespace vgui

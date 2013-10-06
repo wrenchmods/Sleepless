@@ -15,9 +15,7 @@
 #include "vphysics/constraints.h"
 #include "vcollide_parse.h"
 #include "ndebugoverlay.h"
-#ifdef HL2_DLL
-#include "hl2_player.h"
-#endif
+#include "player.h"
 #include "props.h"
 #include "vehicle_choreo_generic_shared.h"
 #include "ai_utils.h"
@@ -525,12 +523,14 @@ void CPropVehicleChoreoGeneric::InputViewlock( inputdata_t &inputdata )
 //-----------------------------------------------------------------------------
 void CPropVehicleChoreoGeneric::HandleAnimEvent( animevent_t *pEvent )
 {
-	if ( pEvent->event == AE_CHOREO_VEHICLE_OPEN )
+	int nEvent = pEvent->Event();
+
+	if ( nEvent == AE_CHOREO_VEHICLE_OPEN )
 	{
 		m_OnOpen.FireOutput( this, this );
 		m_bLocked = false;
 	}
-	else if ( pEvent->event == AE_CHOREO_VEHICLE_CLOSE )
+	else if ( nEvent == AE_CHOREO_VEHICLE_CLOSE )
 	{
 		m_OnClose.FireOutput( this, this );
 		m_bLocked = true;

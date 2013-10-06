@@ -36,6 +36,7 @@ enum AI_Formations_t
 	AIF_SIDEKICK,
 	AIF_HUNTER,
 	AIF_VORTIGAUNT,
+	AIF_TOPDOWN_TIGHT,
 };
 
 enum AI_FollowFormationFlags_t

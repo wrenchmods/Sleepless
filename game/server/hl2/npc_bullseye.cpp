@@ -89,6 +89,9 @@ BEGIN_DATADESC( CNPC_Bullseye )
 	DEFINE_KEYFIELD( m_fAutoaimRadius, FIELD_FLOAT, "autoaimradius" ),
 	DEFINE_KEYFIELD( m_flFieldOfView, FIELD_FLOAT, "minangle" ),
 	DEFINE_KEYFIELD( m_flMinDistValidEnemy, FIELD_FLOAT, "mindist" ),
+
+
+
 	// DEFINE_FIELD( m_bPerfectAccuracy, FIELD_BOOLEAN ),	// Don't save
 
 	// Function Pointers
@@ -369,6 +372,9 @@ bool CNPC_Bullseye::CanBeAnEnemyOf( CBaseEntity *pEnemy )
 			return false;
 		}
 	}
+
+
+
 	return BaseClass::CanBeAnEnemyOf( pEnemy );
 }
 

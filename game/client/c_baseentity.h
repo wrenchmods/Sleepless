@@ -1,4 +1,4 @@
-//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
+//===== Copyright 1996-2005, Valve Corporation, All rights reserved. ======//
 //
 // Purpose: A base class for the client-side representation of entities.
 //
@@ -21,7 +21,6 @@
 #include "client_class.h"
 #include "IClientShadowMgr.h"
 #include "ehandle.h"
-#include "ge_screeneffects.h"
 #include "iclientunknown.h"
 #include "client_thinklist.h"
 #if !defined( NO_ENTITY_PREDICTION )
@@ -30,11 +29,15 @@
 #include "soundflags.h"
 #include "shareddefs.h"
 #include "networkvar.h"
-#include "interpolatedvar.h"
+#include "sharedvar.h"
+#include "tier1/interpolatedvar.h"
 #include "collisionproperty.h"
 #include "particle_property.h"
 #include "toolframework/itoolentity.h"
 #include "tier0/threadtools.h"
+
+#include "vscript/ivscript.h"
+#include "vscript_shared.h"
 
 class C_Team;
 class IPhysicsObject;
@@ -57,14 +60,23 @@ class CTakeDamageInfo;
 class C_BaseCombatCharacter;
 class CEntityMapData;
 class ConVar;
-
+class CClientAlphaProperty;
 struct CSoundParameters;
 
 typedef unsigned int			AimEntsListHandle_t;
 
+#ifndef AI_CriteriaSet
+#define AI_CriteriaSet ResponseRules::CriteriaSet 
+#endif
+namespace ResponseRules 
+{ 
+	class CriteriaSet; 
+	class IResponseSystem;
+};
+using ResponseRules::IResponseSystem;
+
 #define		INVALID_AIMENTS_LIST_HANDLE		(AimEntsListHandle_t)~0
 
-extern void RecvProxy_IntToColor32( const CRecvProxyData *pData, void *pStruct, void *pOut );
 extern void RecvProxy_LocalVelocity( const CRecvProxyData *pData, void *pStruct, void *pOut );
 
 enum CollideType_t
@@ -100,11 +112,11 @@ struct VarMapping_t
 
 																	
 
-#define DECLARE_INTERPOLATION
+#define DECLARE_INTERPOLATION()
 
 
 // How many data slots to use when in multiplayer.
-#define MULTIPLAYER_BACKUP			90
+#define MULTIPLAYER_BACKUP			150
 
 
 struct serialentity_t;
@@ -120,7 +132,7 @@ typedef C_BaseEntity* (*DISPATCHFUNCTION)( void );
 #include "touchlink.h"
 #include "groundlink.h"
 
-#if !defined( NO_ENTITY_PREDICTION )
+#if !defined( NO_ENTITY_PREDICTION ) && defined( USE_PREDICTABLEID )
 //-----------------------------------------------------------------------------
 // Purpose: For fully client side entities we use this information to determine
 //  authoritatively if the server has acknowledged creating this entity, etc.
@@ -167,6 +179,16 @@ struct thinkfunc_t
 #define ENTCLIENTFLAG_DONTUSEIK					0x0002		// Don't use IK on this entity even if its model has IK.
 #define ENTCLIENTFLAG_ALWAYS_INTERPOLATE		0x0004		// Used by view models.
 
+enum entity_list_ids_t
+{
+	ENTITY_LIST_INTERPOLATE = 0,
+	ENTITY_LIST_TELEPORT,
+	ENTITY_LIST_PRERENDER,
+	ENTITY_LIST_SIMULATE,
+	ENTITY_LIST_DELETE,
+	
+	NUM_ENTITY_LISTS
+};
 
 //-----------------------------------------------------------------------------
 // Purpose: Base client side entity object
@@ -183,12 +205,20 @@ public:
 	DECLARE_DATADESC();
 	DECLARE_CLIENTCLASS();
 	DECLARE_PREDICTABLE();
+	// script description
+	DECLARE_ENT_SCRIPTDESC();
 
 									C_BaseEntity();
+
+protected:
+	// Use UTIL_Remove to delete!
 	virtual							~C_BaseEntity();
 
+public:
 	static C_BaseEntity				*CreatePredictedEntityByName( const char *classname, const char *module, int line, bool persist = false );
-	
+	static void						UpdateVisibilityAllEntities();
+	virtual void					ModifyOrAppendCriteria( AI_CriteriaSet& set );
+
 	// FireBullets uses shared code for prediction.
 	virtual void					FireBullets( const FireBulletsInfo_t &info );
 	virtual bool					ShouldDrawUnderwaterBulletBubbles();
@@ -206,14 +236,19 @@ public:
 	virtual int						BloodColor();
 	virtual const char*				GetTracerType();
 
+	// called when entity is damaged by predicted attacks
+	virtual void					TakeDamage( const CTakeDamageInfo &info ) { }
+
 	virtual void					Spawn( void );
 	virtual void					SpawnClientEntity( void );
 	virtual void					Precache( void );
 	virtual void					Activate();
 
-	virtual void					ParseMapData( CEntityMapData *mapData );
+	void							ParseMapData( CEntityMapData *mapData );
+	virtual void					OnParseMapDataFinished();
 	virtual bool					KeyValue( const char *szKeyName, const char *szValue );
 	virtual bool					KeyValue( const char *szKeyName, float flValue );
+	virtual bool					KeyValue( const char *szKeyName, int nValue );
 	virtual bool					KeyValue( const char *szKeyName, const Vector &vecValue );
 	virtual bool					GetKeyValue( const char *szKeyName, char *szValue, int iMaxLen );
 
@@ -224,6 +259,8 @@ public:
 	void							SetAIWalkable( bool bBlocksLOS );
 	bool							IsAIWalkable( void );
 
+
+	virtual void					InitSharedVars( void ) {};
 
 	void							Interp_SetupMappings( VarMapping_t *map );
 	
@@ -253,7 +290,14 @@ public:
 	virtual C_BaseAnimating*		GetBaseAnimating() { return NULL; }
 	virtual void					SetClassname( const char *className );
 
+	virtual Class_T					Classify( void ) { return CLASS_NONE; }
+
 	string_t						m_iClassname;
+
+	HSCRIPT GetScriptInstance();
+
+	HSCRIPT			m_hScriptInstance;
+	string_t		m_iszScriptId;
 
 // IClientUnknown overrides.
 public:
@@ -276,15 +320,20 @@ public:
 	void					DontRecordInTools();
 	bool					ShouldRecordInTools() const;
 
+	virtual ResponseRules::IResponseSystem *GetResponseSystem();
+
+protected:
 	virtual void					Release();
+
+public:
 	virtual ICollideable*			GetCollideable()		{ return &m_Collision; }
 	virtual IClientNetworkable*		GetClientNetworkable()	{ return this; }
 	virtual IClientRenderable*		GetClientRenderable()	{ return this; }
 	virtual IClientEntity*			GetIClientEntity()		{ return this; }
 	virtual C_BaseEntity*			GetBaseEntity()			{ return this; }
 	virtual IClientThinkable*		GetClientThinkable()	{ return this; }
-
-
+	virtual IClientModelRenderable*	GetClientModelRenderable()	{ return NULL; }
+	virtual IClientAlphaProperty*	GetClientAlphaProperty();
 // Methods of IClientRenderable
 public:
 
@@ -292,14 +341,9 @@ public:
 	virtual const QAngle&			GetRenderAngles( void );
 	virtual Vector					GetObserverCamOrigin( void ) { return GetRenderOrigin(); }	// Return the origin for player observers tracking this target
 	virtual const matrix3x4_t &		RenderableToWorldTransform();
-	virtual bool					IsTransparent( void );
-	virtual bool					IsTwoPass( void );
-	virtual bool					UsesPowerOfTwoFrameBufferTexture();
-	virtual bool					UsesFullFrameBufferTexture();
+	virtual int 					GetRenderFlags( void );
 	virtual const model_t			*GetModel( void ) const;
-	virtual int						DrawModel( int flags );
-	virtual void					ComputeFxBlend( void );
-	virtual int						GetFxBlend( void );
+	virtual int						DrawModel( int flags, const RenderableInstance_t &instance );
 	virtual bool					LODTest() { return true; }   // NOTE: UNUSED
 	virtual void					GetRenderBounds( Vector& mins, Vector& maxs );
 	virtual IPVSNotify*				GetPVSNotifyInterface();
@@ -322,6 +366,8 @@ public:
 	C_BaseEntity					*GetEffectEntity( void ) const;
 	void							SetEffectEntity( C_BaseEntity *pEffectEnt );
 
+	bool							IsAbleToHaveFireEffect( void ) const;
+
 	// This function returns a value that scales all damage done by this entity.
 	// Use CDamageModifier to hook in damage modifiers on a guy.
 	virtual float					GetAttackDamageScale( void );
@@ -339,6 +385,8 @@ public:
 	// pvs info. NOTE: Do not override these!!
 	virtual void					SetDormant( bool bDormant );
 	virtual bool					IsDormant( void );
+
+	virtual void					OnSetDormant( bool bDormant ) {}
 
 	// Tells the entity that it's about to be destroyed due to the client receiving
 	// an uncompressed update that's caused it to destroy all entities & recreate them.
@@ -388,6 +436,8 @@ public:
 	const CCollisionProperty*CollisionProp() const;
 	CParticleProperty		*ParticleProp();
 	const CParticleProperty *ParticleProp() const;
+	CClientAlphaProperty	*AlphaProp();
+	const CClientAlphaProperty *AlphaProp() const;
 
 	// Simply here for game shared 
 	bool					IsFloating();
@@ -407,11 +457,6 @@ private:
 
 	int SaveDataDescBlock( ISave &save, datamap_t *dmap );
 	int RestoreDataDescBlock( IRestore &restore, datamap_t *dmap );
-
-	// Called after restoring data into prediction slots. This function is used in place of proxies
-	// on the variables, so if some variable like m_nModelIndex needs to update other state (like 
-	// the model pointer), it is done here.
-	void OnPostRestoreData();
 
 public:
 
@@ -446,16 +491,16 @@ public:
 
 // IClientEntity implementation.
 public:
-	virtual bool					SetupBones( matrix3x4_t *pBoneToWorldOut, int nMaxBones, int boneMask, float currentTime );
+	virtual bool					SetupBones( matrix3x4a_t *pBoneToWorldOut, int nMaxBones, int boneMask, float currentTime );
 	virtual void					SetupWeights( const matrix3x4_t *pBoneToWorld, int nFlexWeightCount, float *pFlexWeights, float *pFlexDelayedWeights );
 	virtual bool					UsesFlexDelayedWeights() { return false; }
 	virtual void					DoAnimationEvents( void );
 
-	// Add entity to visible entities list?
-	virtual void					AddEntity( void );
-
 	virtual const Vector&			GetAbsOrigin( void ) const;
-	virtual const QAngle&			GetAbsAngles( void ) const;
+	virtual const QAngle&			GetAbsAngles( void ) const;  // see also GetVectors()
+	inline Vector					Forward() const; ///< get my forward (+x) vector
+	inline Vector					Left() const;    ///< get my left    (+y) vector
+	inline Vector					Up() const;      ///< get my up      (+z) vector
 
 	const Vector&					GetNetworkOrigin() const;
 	const QAngle&					GetNetworkAngles() const;
@@ -541,6 +586,12 @@ public:
 	int								GetFlags( void ) const;
 	void							ClearFlags();
 
+	void							SetDistanceFade( float flMinDist, float flMaxDist );
+	void							SetGlobalFadeScale( float flFadeScale );
+	float							GetMinFadeDist( ) const;
+	float							GetMaxFadeDist( ) const;
+	float							GetGlobalFadeScale( ) const;
+
 	MoveType_t						GetMoveType( void ) const;
 	MoveCollide_t					GetMoveCollide( void ) const;
 	virtual SolidType_t				GetSolid( void ) const;
@@ -564,6 +615,7 @@ public:
 	virtual bool					GetAttachment( int number, Vector &origin );
 	virtual	bool					GetAttachment( int number, Vector &origin, QAngle &angles );
 	virtual bool					GetAttachmentVelocity( int number, Vector &originVel, Quaternion &angleVel );
+	virtual void					InvalidateAttachments() {}
 
 	// Team handling
 	virtual C_Team					*GetTeam( void );
@@ -598,7 +650,7 @@ public:
 	static void EmitSound( IRecipientFilter& filter, int iEntIndex, const EmitSound_t & params );
 	static void EmitSound( IRecipientFilter& filter, int iEntIndex, const EmitSound_t & params, HSOUNDSCRIPTHANDLE& handle );
 
-	static void StopSound( int iEntIndex, int iChannel, const char *pSample );
+	static void StopSound( int iEntIndex, int iChannel, const char *pSample, bool bIsStoppingSpeakerSound = false );
 
 	static void EmitAmbientSound( int entindex, const Vector& origin, const char *soundname, int flags = 0, float soundtime = 0.0f, float *duration = NULL );
 
@@ -622,22 +674,26 @@ public:
 
 	static bool IsSimulatingOnAlternateTicks();
 
+public:
+	static bool	sm_bAccurateTriggerBboxChecks;	// SOLID_BBOX entities do a fully accurate trigger vs bbox check when this is set
+
 // C_BaseEntity local functions
 public:
 
-	void UpdatePartitionListEntry();
+	virtual void UpdatePartitionListEntry();
 
 	// This can be used to setup the entity as a client-only entity. 
 	// Override this to perform per-entity clientside setup
-	virtual bool InitializeAsClientEntity( const char *pszModelName, RenderGroup_t renderGroup );
+	virtual bool InitializeAsClientEntity( const char *pszModelName, bool bRenderWithViewModels );
 
 	
 
 
 
-	// This function gets called on all client entities once per simulation phase.
-	// It dispatches events like OnDataChanged(), and calls the legacy function AddEntity().
-	virtual void					Simulate();	
+	// This function gets called on all client entities once per simulation phase. If the entity
+	// is in the simulate list.  It dispatches events like OnDataChanged()
+	// return false if this entity no longer needs to simulate, true otherwise
+	virtual bool					Simulate() { return false; }
 
 
 	// This event is triggered during the simulation phase if an entity's data has changed. It is 
@@ -670,7 +726,23 @@ public:
 	inline ClientEntityHandle_t		GetClientHandle() const	{ return ClientEntityHandle_t( m_RefEHandle ); }
 	inline bool						IsServerEntity( void );
 
-	virtual RenderGroup_t			GetRenderGroup();
+	void							RenderWithViewModels( bool bEnable );
+	bool							IsRenderingWithViewModels() const;
+	void							DisableCachedRenderBounds( bool bDisabled );
+	bool							IsCachedRenderBoundsDisabled() const;
+
+	// NOTE: The goal of this function is different from IsTranslucent().
+	// Here, we need to determine whether a renderable is inherently translucent
+	// when run-time alpha modulation or any other game code is not taken into account
+	virtual RenderableTranslucencyType_t ComputeTranslucencyType( );
+	virtual uint8	OverrideAlphaModulation( uint8 nAlpha ) { return nAlpha; }
+	virtual uint8	OverrideShadowAlphaModulation( uint8 nAlpha ) { return nAlpha; }
+	
+	// Client code should call this under any circumstances where translucency type may change
+	void							OnTranslucencyTypeChanged();
+
+	// Client code should call this under any circumstances where splitscreen rendering may change
+	void							OnSplitscreenRenderingChanged();
 
 	virtual void					GetToolRecordingState( KeyValues *msg );
 	virtual void					CleanupToolRecordingState( KeyValues *msg );
@@ -680,7 +752,8 @@ public:
 	virtual CollideType_t			GetCollideType( void );
 
 	virtual bool					ShouldDraw();
-	inline	bool					IsVisible() const { return m_hRender != INVALID_CLIENT_RENDER_HANDLE; }
+	inline	bool					IsVisible() const;
+	inline bool						IsVisibleToAnyPlayer() const;
 			void					UpdateVisibility();
 	
 	// Returns true if the entity changes its position every frame on the server but it doesn't
@@ -696,6 +769,7 @@ public:
 	// Initialize things given a new model.
 	virtual CStudioHdr				*OnNewModel();
 	virtual void					OnNewParticleEffect( const char *pszParticleName, CNewParticleEffect *pNewParticleEffect );
+	virtual void					OnParticleEffectDeleted( CNewParticleEffect *pParticleEffect );
 
 	bool							IsSimulatedEveryTick() const;
 	bool							IsAnimatedEveryTick() const;
@@ -705,7 +779,7 @@ public:
 	void							Interp_Reset( VarMapping_t *map );
 	virtual void					ResetLatched();
 	
-	float							GetInterpolationAmount( int flags );
+	virtual float					GetInterpolationAmount( int flags );
 	float							GetLastChangeTime( int flags );
 
 	// Interpolate the position for rendering
@@ -716,7 +790,7 @@ public:
 	// Is this a submodel of the world ( *1 etc. in name ) ( brush models only )
 	virtual bool					IsSubModel( void );
 	// Deal with EF_* flags
-	virtual void					CreateLightEffects( void );
+	virtual bool					CreateLightEffects( void );
 
 	void							AddToAimEntsList();
 	void							RemoveFromAimEntsList();
@@ -757,7 +831,7 @@ public:
 
 	// Sets up a render handle so the leaf system will draw this entity.
 	void							AddToLeafSystem();
-	void							AddToLeafSystem( RenderGroup_t group );
+	void							AddToLeafSystem( bool bRenderWithViewModels );
 	// remove entity form leaf system again
 	void							RemoveFromLeafSystem();	
 
@@ -785,6 +859,7 @@ public:
 	// Prediction stuff
 	/////////////////
 	void							CheckInitPredictable( const char *context );
+	virtual C_BasePlayer			*GetPredictionOwner( void );
 
 	void							AllocateIntermediateData( void );
 	void							DestroyIntermediateData( void );
@@ -794,8 +869,9 @@ public:
 	void							*GetOriginalNetworkDataObject( void );
 	bool							IsIntermediateDataAllocated( void ) const;
 
-	void							InitPredictable( void );
+	virtual void					InitPredictable( C_BasePlayer *pOwner );
 	void							ShutdownPredictable( void );
+	int								GetSplitUserPlayerPredictionSlot();
 
 	virtual void					SetPredictable( bool state );
 	bool							GetPredictable( void ) const;
@@ -810,8 +886,13 @@ public:
 		SLOT_ORIGINALDATA = -1,
 	};
 
-	int								SaveData( const char *context, int slot, int type );
-	virtual int						RestoreData( const char *context, int slot, int type );
+	void							SaveData( const char *context, int slot, int type );
+	void							RestoreData( const char *context, int slot, int type );
+
+	// Called after restoring data into prediction slots. This function is used in place of proxies
+	// on the variables, so if some variable like m_nModelIndex needs to update other state (like 
+	// the model pointer), it is done here.
+	void OnPostRestoreData();
 
 	virtual char const *			DamageDecal( int bitsDamageType, int gameMaterial );
 	virtual void					DecalTrace( trace_t *pTrace, char const *decalName );
@@ -840,18 +921,26 @@ public:
 		VISUALIZE_RENDER_BOUNDS			= 0x4,
 	};
 
+	void							ClearBBoxVisualization( void );
 	void							ToggleBBoxVisualization( int fVisFlags );
 	void							DrawBBoxVisualizations( void );
+
+	virtual bool					PreRender( int nSplitScreenPlayerSlot );
+
+	bool							IsViewEntity() const;
 
 // Methods implemented on both client and server
 public:
 	void							SetSize( const Vector &vecMin, const Vector &vecMax ); // UTIL_SetSize( pev, mins, maxs );
-	char const						*GetClassname( void );
+	virtual char const				*GetClassname( void );
 	char const						*GetDebugName( void );
+	virtual const char				*GetPlayerName() const { return NULL; }
 	static int						PrecacheModel( const char *name ); 
 	static bool						PrecacheSound( const char *name );
 	static void						PrefetchSound( const char *name );
 	void							Remove( ); // UTIL_Remove( this );
+
+
 
 public:
 
@@ -870,7 +959,7 @@ public:
 	void					DestroyAllDataObjects( void );
 
 	// Determine approximate velocity based on updates from server
-	void					EstimateAbsVelocity( Vector& vel );
+	virtual void			EstimateAbsVelocity( Vector& vel );
 
 #if !defined( NO_ENTITY_PREDICTION )
 	// The player drives simulation of this entity
@@ -912,6 +1001,7 @@ public:
 	void					PhysicsImpact( C_BaseEntity *other, trace_t &trace );
  	void					PhysicsMarkEntitiesAsTouching( C_BaseEntity *other, trace_t &trace );
 	void					PhysicsMarkEntitiesAsTouchingEventDriven( C_BaseEntity *other, trace_t &trace );
+	void					PhysicsTouchTriggers( const Vector *pPrevAbsOrigin = NULL );
 
 	// Physics helper
 	static void				PhysicsRemoveTouchedList( C_BaseEntity *ent );
@@ -944,6 +1034,7 @@ public:
 
 	void					SetGroundEntity( C_BaseEntity *ground );
 	C_BaseEntity			*GetGroundEntity( void );
+	C_BaseEntity			*GetGroundEntity( void ) const { return const_cast<C_BaseEntity *>(this)->GetGroundEntity(); }
 
 	void					PhysicsPushEntity( const Vector& push, trace_t *pTrace );
 	void					PhysicsCheckWaterTransition( void );
@@ -986,16 +1077,29 @@ public:
 
 	bool							IsInWorld( void ) { return true; }
 
+	bool							IsWorld() const { return entindex() == 0; }
 	/////////////////
 
+	virtual bool 					ShouldRegenerateOriginFromCellBits() const;
+
 	virtual bool					IsPlayer( void ) const { return false; };
-	virtual bool					IsBot( void ) const { return ((GetFlags() & FL_FAKECLIENT) == FL_FAKECLIENT) ? true : false; }
 	virtual bool					IsBaseCombatCharacter( void ) { return false; };
 	virtual C_BaseCombatCharacter	*MyCombatCharacterPointer( void ) { return NULL; }
 	virtual bool					IsNPC( void ) { return false; }
 	C_AI_BaseNPC					*MyNPCPointer( void ); 
+
+	virtual bool					IsSprite( void ) const { return false; }
+	virtual bool					IsProp( void ) const { return false; }
+
 	// TF2 specific
 	virtual bool					IsBaseObject( void ) const { return false; }
+	virtual bool					IsBaseCombatWeapon( void ) const { return false; }
+	virtual class C_BaseCombatWeapon		*MyCombatWeaponPointer() { return NULL; }
+
+	// Entities like the player, weapon models, and view models have special logic per-view port related to visibility and the model to be used, etc.
+	virtual bool					ShouldDrawForSplitScreenUser( int nSlot );
+	void							SetBlurState( bool bShouldBlur );
+	virtual bool					IsBlurred( void );
 
 	virtual bool					IsBaseTrain( void ) const { return false; }
 
@@ -1057,8 +1161,18 @@ public:
 	const Vector&		GetBaseVelocity() const;
 	void				SetBaseVelocity( const Vector& v );
 
-	const Vector&		GetViewOffset() const;
-	void				SetViewOffset( const Vector& v );
+	virtual const Vector &GetViewOffset() const;
+	virtual void		  SetViewOffset( const Vector& v );
+
+	virtual void		GetGroundVelocityToApply( Vector &vecGroundVel ) { vecGroundVel = vec3_origin; }
+
+	// TrackIR
+	const Vector&		GetEyeOffset() const;
+	void				SetEyeOffset( const Vector& v );
+
+	const QAngle &		GetEyeAngleOffset() const;
+	void				SetEyeAngleOffset( const QAngle & qa );
+	// TrackIR    
 
 	// Invalidates the abs state of all children
 	void InvalidatePhysicsRecursive( int nChangeFlags );
@@ -1066,6 +1180,8 @@ public:
 	ClientRenderHandle_t	GetRenderHandle() const;
 
 	void				SetRemovalFlag( bool bRemove );
+
+	bool				HasSpawnFlags( int nFlags ) const;
 
 	// Effects...
 	bool				IsEffectActive( int nEffectMask ) const;
@@ -1090,6 +1206,11 @@ public:
 	// For shadows rendering the correct body + sequence...
 	virtual int GetBody() { return 0; }
 	virtual int GetSkin() { return 0; }
+
+	const Vector &ScriptGetForward( void ) { static Vector vecForward; GetVectors( &vecForward, NULL, NULL ); return vecForward; }
+	const Vector &ScriptGetLeft( void ) { static Vector vecLeft; GetVectors( NULL, &vecLeft, NULL ); return vecLeft; }
+	const Vector &ScriptGetUp( void ) { static Vector vecUp; GetVectors( NULL, NULL, &vecUp ); return vecUp; }
+
 
 	// Stubs on client
 	void	NetworkStateManualMode( bool activate )		{ }
@@ -1119,6 +1240,9 @@ public:
 
 	float	GetSimulationTime() const;
 	void	SetSimulationTime( float st );
+
+	float	GetCreateTime()										{ return m_flCreateTime; }
+	void	SetCreateTime( float flCreateTime )					{ m_flCreateTime = flCreateTime; }
 
 	int		GetCreationTick() const;
 
@@ -1166,9 +1290,6 @@ protected:
 
 	// For non-players
 	int	PhysicsClipVelocity (const Vector& in, const Vector& normal, Vector& out, float overbounce );
-
-	// Allow entities to perform client-side fades
-    virtual unsigned char GetClientSideFade() { return 255; }
 
 protected:
 	// Two part guts of Interpolate(). Shared with C_BaseAnimating.
@@ -1218,47 +1339,141 @@ public:
 	
 	static bool IsAbsRecomputationsEnabled( void );
 
+	static void PreRenderEntities( int nSplitScreenPlayerSlot );
+	static void PurgeRemovedEntities();
+	static void SimulateEntities();
 
 	// Bloat the culling bbox past the parent ent's bbox in local space if EF_BONEMERGE_FASTCULL is set.
 	virtual void BoneMergeFastCullBloat( Vector &localMins, Vector &localMaxs, const Vector &thisEntityMins, const Vector &thisEntityMaxs ) const;
 
 
 	// Accessors for color.
-	const color32 GetRenderColor() const;
+	const color24 GetRenderColor() const;
+	byte GetRenderColorR() const;
+	byte GetRenderColorG() const;
+	byte GetRenderColorB() const;
+	byte GetRenderAlpha() const;
 	void SetRenderColor( byte r, byte g, byte b );
-	void SetRenderColor( byte r, byte g, byte b, byte a );
 	void SetRenderColorR( byte r );
 	void SetRenderColorG( byte g );
 	void SetRenderColorB( byte b );
-	void SetRenderColorA( byte a );
+	void SetRenderAlpha( byte a );
 
 	void SetRenderMode( RenderMode_t nRenderMode, bool bForceUpdate = false );
 	RenderMode_t GetRenderMode() const;
+
+	void SetRenderFX( RenderFx_t nRenderFX, float flStartTime = FLT_MAX, float flDuration = 0.0f );
+	RenderFx_t GetRenderFX() const;
+
+	// Returns true if there was a change.
+	bool SetCellBits( int cellbits = CELL_BASEENTITY_ORIGIN_CELL_BITS );
+
+	static void RecvProxy_CellBits( const CRecvProxyData *pData, void *pStruct, void *pOut );
+	static void RecvProxy_CellX( const CRecvProxyData *pData, void *pStruct, void *pOut );
+	static void RecvProxy_CellY( const CRecvProxyData *pData, void *pStruct, void *pOut );
+	static void RecvProxy_CellZ( const CRecvProxyData *pData, void *pStruct, void *pOut );
+	static void RecvProxy_CellOrigin( const CRecvProxyData *pData, void *pStruct, void *pOut );
+	static void RecvProxy_CellOriginXY( const CRecvProxyData *pData, void *pStruct, void *pOut );
+	static void RecvProxy_CellOriginZ( const CRecvProxyData *pData, void *pStruct, void *pOut );
+
+	const char	*GetEntityName();
 
 public:	
 
 	// Determine what entity this corresponds to
 	int								index;	
 
-	// Render information
-	unsigned char					m_nRenderFX;
-	unsigned char					m_nRenderFXBlend;
-
 	// Entity flags that are only for the client (ENTCLIENTFLAG_ defines).
 	unsigned short					m_EntClientFlags;
 
-	CNetworkColor32( m_clrRender );
-
-public:	
-	CNetworkVar( bool, m_bEnableGlow ); 
-	CNetworkVar( color32, m_GlowColor );
-
 private:
-	CEntGlowEffect *m_pEntGlowEffect;
-	bool m_bClientGlow;
+	
 	// Model for rendering
 	const model_t					*model;	
+	CNetworkColor32( m_clrRender );
 
+public:
+protected: // Cell data is available to derived classes for RecvProxy issues
+	int								m_cellbits;
+	int								m_cellwidth;
+	int								m_cellX;
+	int								m_cellY;
+	int								m_cellZ;
+	Vector							m_vecCellOrigin; // cached cell offset position
+// BEGIN PREDICTION DATA COMPACTION (these fields are together to allow for faster copying in prediction system)
+// FTYPEDESC_INSENDTABLE STUFF
+private:
+	Vector							m_vecAbsVelocity;
+	Vector							m_vecAbsOrigin;
+	Vector							m_vecOrigin;
+
+	QAngle							m_vecAngVelocity;
+	QAngle							m_angAbsRotation;
+	QAngle							m_angRotation;
+
+	float							m_flGravity;
+	// A random value used by material proxies for each model instance.
+	float							m_flProxyRandomValue;
+
+	int								m_iEFlags;	// entity flags EFL_*
+
+	unsigned char					m_nWaterType;
+	// For client/server entities, true if the entity goes outside the PVS.
+	// Unused for client only entities.
+	bool							m_bDormant;
+
+// FTYPEDESC_INSENDTABLE STUFF (end)
+private:
+	// Effects to apply
+	int								m_fEffects;
+public:
+	// Team Handling
+	int								m_iTeamNum;
+	int								m_nNextThinkTick;
+	int								m_iHealth;
+private:
+	int								m_fFlags; // Behavior flags
+protected:
+	// Object eye position
+	Vector							m_vecViewOffset;
+private:
+	// Object velocity
+	Vector							m_vecVelocity;
+	Vector							m_vecBaseVelocity;	// Base velocity
+
+	QAngle							m_angNetworkAngles;
+
+	// Last values to come over the wire. Used for interpolation.
+	Vector							m_vecNetworkOrigin;
+
+	// Friction.
+	float							m_flFriction;      
+
+	// The moveparent received from networking data
+	CHandle<C_BaseEntity>			m_hNetworkMoveParent;
+	// The owner!
+	EHANDLE							m_hOwnerEntity;
+	EHANDLE							m_hGroundEntity;
+
+	char							m_iName[MAX_PATH];
+
+
+
+public:
+	// Object model index
+	short							m_nModelIndex;
+private:
+	unsigned char					m_nRenderFX;
+	unsigned char 					m_nRenderMode;
+	unsigned char					m_MoveType;
+	unsigned char					m_MoveCollide;
+	unsigned char					m_nWaterLevel;
+
+public:
+	char							m_lifeState;
+
+// END PREDICTION DATA COMPACTION
+public:
 
 public:
 	// Time animation sequence or frame was last changed
@@ -1268,45 +1483,40 @@ public:
 	float							m_flSimulationTime;
 	float							m_flOldSimulationTime;
 	
+	float							m_flCreateTime;
 
 private:
-	// Effects to apply
-	int								m_fEffects;
-	unsigned char 					m_nRenderMode;
 	unsigned char 					m_nOldRenderMode;
 
 public:
 	// Used to store the state we were added to the BSP as, so it can
 	// reinsert the entity if the state changes.
 	ClientRenderHandle_t			m_hRender;	// link into spatial partition
+	CBitVec< MAX_SPLITSCREEN_PLAYERS > m_VisibilityBits;
 
 	// Interpolation says don't draw yet
 	bool							m_bReadyToDraw;
+	bool							m_bClientSideRagdoll;
 
 	// Should we be interpolating?
 	static bool						IsInterpolationEnabled();
 
 
 	// 
-	int								m_nNextThinkTick;
+
 	int								m_nLastThinkTick;
 
-	// Object model index
-	short							m_nModelIndex;
 
 	char							m_takedamage;
-	char							m_lifeState;
 
-	int								m_iHealth;
+
+
 
 	// was pev->speed
 	float							m_flSpeed;
 
-	// Team Handling
-	int								m_iTeamNum;
-
-#if !defined( NO_ENTITY_PREDICTION )
 	// Certain entities (projectiles) can be created on the client
+#if !defined( NO_ENTITY_PREDICTION ) && defined( USE_PREDICTABLEID )
 	CPredictableId					m_PredictableID;
 	PredictionContext				*m_pPredictionContext;
 #endif
@@ -1348,9 +1558,17 @@ public:
 	// used by SourceTV since move-parents may be missing when child spawns.
 	void							HierarchyUpdateMoveParent();
 
-protected:
-	int								m_nFXComputeFrame;
+	void							SetCPULevels( int nMinCPULevel, int nMaxCPULevel );
+	void							SetGPULevels( int nMinGPULevel, int nMaxGPULevel );
+	int								GetMinCPULevel( ) const;
+	int								GetMaxCPULevel( ) const;
+	int								GetMinGPULevel( ) const;
+	int								GetMaxGPULevel( ) const;
 
+
+
+
+protected:
 	// FIXME: Should I move the functions handling these out of C_ClientEntity
 	// and into C_BaseEntity? Then we could make these private.
 	// Client handle
@@ -1381,18 +1599,27 @@ protected:
 	CUtlVector< thinkfunc_t >		m_aThinkFunctions;
 	int								m_iCurrentThinkContext;
 
-	// Object eye position
-	Vector							m_vecViewOffset;
+
+	// TrackIR
+	Vector							m_vecEyeOffset;
+	QAngle							m_EyeAngleOffset;    
+
+	// TrackIR
+	int								m_spawnflags;
 
 	// Allow studio models to tell us what their m_nBody value is
 	virtual int						GetStudioBody( void ) { return 0; }
+	// call this in postdataupdate to detect hierarchy changes
+	bool							IsParentChanging();
+
+
 
 private:
 	friend void OnRenderStart();
 
 	// This can be used to setup the entity as a client-only entity. It gets an entity handle,
 	// a render handle, and is put into the spatial partition.
-	bool InitializeAsClientEntityByIndex( int iIndex, RenderGroup_t renderGroup );
+	bool InitializeAsClientEntityByIndex( int iIndex, bool bRenderWithViewModels );
 
 	// Figure out the smoothly interpolated origin for all server entities. Happens right before
 	// letting all entities simulate.
@@ -1434,7 +1661,6 @@ private:
 	void AddBrushModelDecal( const Ray_t& ray, const Vector& decalCenter, int decalIndex, bool doTrace, trace_t& tr );
 
 	void ComputePackedOffsets( void );
-	int ComputePackedSize_R( datamap_t *map );
 	int GetIntermediateDataSize( void );
 
 	void UnlinkChild( C_BaseEntity *pParent, C_BaseEntity *pChild );
@@ -1457,15 +1683,7 @@ private:
 	float GetNextThink( int nContextIndex ) const;
 	int	GetNextThinkTick( int nContextIndex ) const;
 
-	// Object velocity
-	Vector							m_vecVelocity;
-
-	Vector							m_vecAbsVelocity;
-
-	// was pev->avelocity
-	QAngle							m_vecAngVelocity;
-
-//	QAngle							m_vecAbsAngVelocity;
+	void CleanUpAlphaProperty();
 
 #if !defined( NO_ENTITY_PREDICTION )
 	// It's still in the list for "fixup purposes" and simulation, but don't try to render it any more...
@@ -1481,54 +1699,45 @@ private:
 	// Timestamp of message arrival
 	float							m_flLastMessageTime;
 
-	// Base velocity
-	Vector							m_vecBaseVelocity;
-	
-	// Gravity multiplier
-	float							m_flGravity;
+
 
 	// Model instance data..
 	ModelInstanceHandle_t			m_ModelInstance;
 
 	// Shadow data
 	ClientShadowHandle_t			m_ShadowHandle;
+	CBitVec< MAX_SPLITSCREEN_PLAYERS > m_ShadowBits; // Per-splitscreen user shadow visibility bits
 
-	// A random value used by material proxies for each model instance.
-	float							m_flProxyRandomValue;
+	// Fades
+	float							m_fadeMinDist;
+	float							m_fadeMaxDist;
+	float							m_flFadeScale;
 
 	ClientThinkHandle_t				m_hThink;
 
-	int								m_iEFlags;	// entity flags EFL_*
-
-	// Object movetype
-	unsigned char					m_MoveType;
-	unsigned char					m_MoveCollide;
 	unsigned char					m_iParentAttachment; // 0 if we're relative to the parent's absorigin and absangles.
 	unsigned char					m_iOldParentAttachment;
 
-	unsigned char					m_nWaterLevel;
-	unsigned char					m_nWaterType;
-	// For client/server entities, true if the entity goes outside the PVS.
-	// Unused for client only entities.
-	bool							m_bDormant;
+
+
 	// Prediction system
 	bool							m_bPredictable;
-
+	bool							m_bRenderWithViewModels;
+	bool							m_bDisableCachedRenderBounds;
+	int								m_nSplitUserPlayerPredictionSlot;
 
 	// Hierarchy
 	CHandle<C_BaseEntity>			m_pMoveParent;
 	CHandle<C_BaseEntity>			m_pMoveChild;
 	CHandle<C_BaseEntity>			m_pMovePeer;
 	CHandle<C_BaseEntity>			m_pMovePrevPeer;
-
-	// The moveparent received from networking data
-	CHandle<C_BaseEntity>			m_hNetworkMoveParent;
 	CHandle<C_BaseEntity>			m_hOldMoveParent;
 
 	string_t						m_ModelName;
 
 	CNetworkVarEmbedded( CCollisionProperty, m_Collision );
 	CNetworkVarEmbedded( CParticleProperty, m_Particles );
+	CClientAlphaProperty			*m_pClientAlphaProperty;
 
 	// Physics state
 	float							m_flElasticity;
@@ -1536,35 +1745,20 @@ private:
 	float							m_flShadowCastDistance;
 	EHANDLE							m_ShadowDirUseOtherEntity;
 
-	EHANDLE							m_hGroundEntity;
 	float							m_flGroundChangeTime;
 
 
-	// Friction.
-	float							m_flFriction;       
 
-	Vector							m_vecAbsOrigin;
-
-	// Object orientation
-	QAngle							m_angAbsRotation;
 
 	Vector							m_vecOldOrigin;
 	QAngle							m_vecOldAngRotation;
 
-	Vector							m_vecOrigin;
+
 	CInterpolatedVar< Vector >		m_iv_vecOrigin;
-	QAngle							m_angRotation;
 	CInterpolatedVar< QAngle >		m_iv_angRotation;
 
 	// Specifies the entity-to-world transform
 	matrix3x4_t						m_rgflCoordinateFrame;
-
-	// Last values to come over the wire. Used for interpolation.
-	Vector							m_vecNetworkOrigin;
-	QAngle							m_angNetworkAngles;
-
-	// Behavior flags
-	int								m_fFlags;
 
 	// used to cull collision tests
 	int								m_CollisionGroup;
@@ -1582,11 +1776,18 @@ private:
 	CNetworkVar( bool, m_bAnimatedEveryTick );
 	CNetworkVar( bool, m_bAlternateSorting );
 
+	unsigned char m_nMinCPULevel;
+	unsigned char m_nMaxCPULevel;
+	unsigned char m_nMinGPULevel;
+	unsigned char m_nMaxGPULevel;
+
 	//Adrian
 	unsigned char					m_iTextureFrameIndex;
 
 	// Bbox visualization
 	unsigned char					m_fBBoxVisFlags;
+
+	bool							m_bIsValidIKAttachment;
 
 	// The list that holds OnDataChanged events uses this to make sure we don't get multiple
 	// OnDataChanged calls in the same frame if the client receives multiple packets.
@@ -1597,8 +1798,7 @@ private:
 	CHandle< CBasePlayer >			m_hPlayerSimulationOwner;
 #endif
 
-	// The owner!
-	EHANDLE							m_hOwnerEntity;
+
 	EHANDLE							m_hEffectEntity;
 	
 	// This is a random seed used by the networking code to allow client - side prediction code
@@ -1624,16 +1824,15 @@ public:
 
 protected:
 
-	void AddToInterpolationList();
-	void RemoveFromInterpolationList();
-	unsigned short m_InterpolationListEntry;	// Entry into g_InterpolationList (or g_InterpolationList.InvalidIndex if not in the list).
+	void AddToEntityList( entity_list_ids_t listId );
+	void RemoveFromEntityList( entity_list_ids_t listId );
+	unsigned short m_ListEntry[NUM_ENTITY_LISTS];	// Entry into each g_EntityList (or InvalidIndex() if not in the list).
 	
-	void AddToTeleportList();
-	void RemoveFromTeleportList();
-	unsigned short m_TeleportListEntry;
-
 	CThreadFastMutex m_CalcAbsolutePositionMutex;
 	CThreadFastMutex m_CalcAbsoluteVelocityMutex;
+
+private:
+	bool							m_bIsBlurred;
 };
 
 EXTERN_RECV_TABLE(DT_BaseEntity);
@@ -1670,6 +1869,16 @@ inline CCollisionProperty *C_BaseEntity::CollisionProp()
 inline const CCollisionProperty *C_BaseEntity::CollisionProp() const
 {
 	return &m_Collision;
+}
+
+inline CClientAlphaProperty *C_BaseEntity::AlphaProp()
+{
+	return m_pClientAlphaProperty;
+}
+
+inline const CClientAlphaProperty *C_BaseEntity::AlphaProp() const
+{
+	return m_pClientAlphaProperty;
 }
 
 //-----------------------------------------------------------------------------
@@ -1893,7 +2102,7 @@ inline void	C_BaseEntity::SetBaseVelocity( const Vector& v )
 
 inline void C_BaseEntity::SetFriction( float flFriction ) 
 { 
-	m_flFriction = flFriction; 
+	m_flFriction = flFriction;
 }
 
 inline void C_BaseEntity::SetGravity( float flGravity ) 
@@ -1921,47 +2130,91 @@ inline float C_BaseEntity::GetElasticity( void )	const
 	return m_flElasticity; 
 }
 
-inline const color32 CBaseEntity::GetRenderColor() const
+inline const color24 CBaseEntity::GetRenderColor() const
 {
-	return m_clrRender.Get();
+	color24 c = { m_clrRender->r, m_clrRender->g, m_clrRender->b }; 
+	return c;
+}
+
+inline byte C_BaseEntity::GetRenderColorR() const
+{
+	return m_clrRender->r;
+}
+
+inline byte C_BaseEntity::GetRenderColorG() const
+{
+	return m_clrRender->g;
+}
+
+inline byte C_BaseEntity::GetRenderColorB() const
+{
+	return m_clrRender->b;
 }
 
 inline void C_BaseEntity::SetRenderColor( byte r, byte g, byte b )
 {
-	color32 clr = { r, g, b, m_clrRender->a };
-	m_clrRender = clr;
-}
-
-inline void C_BaseEntity::SetRenderColor( byte r, byte g, byte b, byte a )
-{
-	color32 clr = { r, g, b, a };
-	m_clrRender = clr;
+	m_clrRender.SetR( r );
+	m_clrRender.SetG( g );
+	m_clrRender.SetB( b );
 }
 
 inline void C_BaseEntity::SetRenderColorR( byte r )
 {
-	SetRenderColor( r, GetRenderColor().g, GetRenderColor().b );
+	m_clrRender.SetR( r );
 }
 
 inline void C_BaseEntity::SetRenderColorG( byte g )
 {
-	SetRenderColor( GetRenderColor().r, g, GetRenderColor().b );
+	m_clrRender.SetG( g );
 }
 
 inline void C_BaseEntity::SetRenderColorB( byte b )
 {
-	SetRenderColor( GetRenderColor().r, GetRenderColor().g, b );
+	m_clrRender.SetB( b );
 }
 
-inline void C_BaseEntity::SetRenderColorA( byte a )
-{
-	SetRenderColor( GetRenderColor().r, GetRenderColor().g, GetRenderColor().b, a );
-}
-
-inline RenderMode_t CBaseEntity::GetRenderMode() const
+inline RenderMode_t C_BaseEntity::GetRenderMode() const
 {
 	return (RenderMode_t)m_nRenderMode;
 }
+
+inline RenderFx_t C_BaseEntity::GetRenderFX() const
+{
+	return (RenderFx_t)m_nRenderFX;
+}
+
+inline void	C_BaseEntity::SetCPULevels( int nMinCPULevel, int nMaxCPULevel )
+{
+	m_nMinCPULevel = nMinCPULevel;
+	m_nMaxCPULevel = nMaxCPULevel;
+}
+
+inline void C_BaseEntity::SetGPULevels( int nMinGPULevel, int nMaxGPULevel )
+{
+	m_nMinGPULevel = nMinGPULevel;
+	m_nMaxGPULevel = nMaxGPULevel;
+}
+
+inline int C_BaseEntity::GetMinCPULevel( ) const
+{
+	return m_nMinCPULevel;
+}
+
+inline int C_BaseEntity::GetMaxCPULevel( ) const
+{
+	return m_nMaxCPULevel;
+}
+
+inline int C_BaseEntity::GetMinGPULevel( ) const
+{
+	return m_nMinGPULevel;
+}
+
+inline int C_BaseEntity::GetMaxGPULevel( ) const
+{
+	return m_nMaxGPULevel;
+}
+
 
 //-----------------------------------------------------------------------------
 // checks to see if the entity is marked for deletion
@@ -1991,16 +2244,6 @@ inline unsigned char CBaseEntity::GetParentAttachment() const
 	return m_iParentAttachment;
 }
 
-inline const Vector& CBaseEntity::GetViewOffset() const 
-{ 
-	return m_vecViewOffset; 
-}
-
-inline void CBaseEntity::SetViewOffset( const Vector& v ) 
-{ 
-	m_vecViewOffset = v; 
-}
-
 inline ClientRenderHandle_t CBaseEntity::GetRenderHandle() const 
 { 
 	return m_hRender; 
@@ -2010,6 +2253,28 @@ inline ClientRenderHandle_t& CBaseEntity::RenderHandle()
 {
 	return m_hRender;
 }
+
+// TrackIR
+inline const Vector& CBaseEntity::GetEyeOffset() const 
+{ 
+	return m_vecEyeOffset; 
+}
+
+inline void CBaseEntity::SetEyeOffset( const Vector& v ) 
+{ 
+	m_vecEyeOffset = v; 
+}
+
+inline const QAngle & CBaseEntity::GetEyeAngleOffset() const 
+{ 
+	return m_EyeAngleOffset; 
+}
+
+inline void CBaseEntity::SetEyeAngleOffset( const QAngle & qa ) 
+{ 
+	m_EyeAngleOffset = qa; 
+}
+// TrackIR
 
 //-----------------------------------------------------------------------------
 // Methods to cast away const
@@ -2038,6 +2303,7 @@ inline VarMapping_t* C_BaseEntity::GetVarMapping()
 {
 	return &m_VarMap;
 }
+
 
 //-----------------------------------------------------------------------------
 // Should we be interpolating?
@@ -2085,6 +2351,16 @@ inline bool C_BaseEntity::IsEnabledInToolView() const
 #endif
 }
 
+
+//-----------------------------------------------------------------------------
+// Client version of UTIL_Remove
+//-----------------------------------------------------------------------------
+inline void UTIL_Remove( C_BaseEntity *pEntity )
+{
+	pEntity->Remove();
+}
+
+
 //-----------------------------------------------------------------------------
 // Purpose: 
 // Input  :  - 
@@ -2099,6 +2375,134 @@ inline bool C_BaseEntity::ShouldRecordInTools() const
 #endif
 }
 
+inline bool C_BaseEntity::IsVisible() const
+{
+	ASSERT_LOCAL_PLAYER_RESOLVABLE();
+	if ( INVALID_CLIENT_RENDER_HANDLE == m_hRender )
+		return false;
+	return m_VisibilityBits.IsBitSet( GET_ACTIVE_SPLITSCREEN_SLOT() );
+}
+
+inline bool C_BaseEntity::IsVisibleToAnyPlayer() const
+{
+	return !m_VisibilityBits.IsAllClear();
+}
+
+inline bool C_BaseEntity::HasSpawnFlags( int nFlags ) const
+{ 
+	return (m_spawnflags & nFlags) != 0; 
+}
+
+//-----------------------------------------------------------------------------
+// Inline methods
+//-----------------------------------------------------------------------------
+inline const char *C_BaseEntity::GetEntityName() 
+{ 
+	return m_iName; 
+}
+
+
+
+class CAbsQueryScopeGuard
+{
+public:
+	CAbsQueryScopeGuard( bool state )
+	{
+		m_bSavedState = C_BaseEntity::IsAbsQueriesValid();
+		C_BaseEntity::SetAbsQueriesValid( state );
+	}
+	~CAbsQueryScopeGuard()
+	{
+		C_BaseEntity::SetAbsQueriesValid( m_bSavedState );
+	}
+private:
+	bool	m_bSavedState;
+};
+
+#define ABS_QUERY_GUARD( state ) CAbsQueryScopeGuard s_AbsQueryGuard( state );
+
 C_BaseEntity *CreateEntityByName( const char *className );
+
+#if !defined( NO_ENTITY_PREDICTION )
+
+class CEntIndexLessFunc
+{
+public:
+	bool Less( C_BaseEntity * const & lhs, C_BaseEntity * const & rhs, void *pContext )
+	{
+		int e1 = lhs->entindex();
+		int e2 = rhs->entindex();
+
+		// if an entity has an invalid entity index, then put it at the end of the list
+		e1 = ( e1 == -1 ) ? MAX_EDICTS : e1;
+		e2 = ( e2 == -1 ) ? MAX_EDICTS : e2;
+
+		return e1 < e2;
+	}
+};
+
+
+//-----------------------------------------------------------------------------
+// Purpose: Maintains a list of predicted or client created entities
+//-----------------------------------------------------------------------------
+class CPredictableList
+{
+public:
+	C_BaseEntity	*GetPredictable( int slot );
+	int				GetPredictableCount( void ) const;
+
+protected:
+	void			AddToPredictableList( C_BaseEntity *add );
+	void			RemoveFromPredictablesList( C_BaseEntity *remove );
+
+private:
+	CUtlSortVector< C_BaseEntity *, CEntIndexLessFunc >	m_Predictables;
+
+	friend class C_BaseEntity;
+};
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : slot - 
+// Output : C_BaseEntity
+//-----------------------------------------------------------------------------
+FORCEINLINE C_BaseEntity *CPredictableList::GetPredictable( int slot )
+{
+	return m_Predictables[ slot ];
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Output : int
+//-----------------------------------------------------------------------------
+FORCEINLINE int CPredictableList::GetPredictableCount( void ) const
+{
+	return m_Predictables.Count();
+}
+
+FORCEINLINE int C_BaseEntity::GetSplitUserPlayerPredictionSlot()
+{
+#if defined( USE_PREDICTABLEID )
+	Assert( m_bPredictable || m_pPredictionContext );
+#else
+	Assert( m_bPredictable );
+#endif
+	return m_nSplitUserPlayerPredictionSlot;
+}
+
+extern CPredictableList *GetPredictables( int nSlot );
+
+// To temporarily muck with gpGlobals->curtime
+class CCurTimeScopeGuard
+{
+public:
+	CCurTimeScopeGuard( float flNewCurTime, bool bOptionalCondition = true );
+	~CCurTimeScopeGuard();
+private:
+
+	float	m_flSavedTime;
+	bool	m_bActive;
+};
+#endif
 
 #endif // C_BASEENTITY_H

@@ -1,10 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
-//
-// Purpose: 
-//
-// $NoKeywords: $
-//
-//=============================================================================//
+//========= Copyright © 1996-2008, Valve Corporation, All rights reserved. ====
 /*
 Entity Data Descriptions
 
@@ -71,6 +65,7 @@ OUTPUTS:
 	of an entity changes it will often fire off outputs so that map makers can hook up behaviors.
 	e.g.  A door entity would have OnDoorOpen, OnDoorClose, OnTouched, etc outputs.
 */
+//=============================================================================
 
 
 #include "cbase.h"
@@ -78,6 +73,7 @@ OUTPUTS:
 #include "mapentities_shared.h"
 #include "isaverestore.h"
 #include "eventqueue.h"
+#include "entitydefs.h"
 #include "entityinput.h"
 #include "entityoutput.h"
 #include "mempool.h"
@@ -128,11 +124,17 @@ CEventAction::CEventAction( const char *ActionData )
 		return;
 
 	char szToken[256];
+	
+	char chDelim = VMF_IOPARAM_STRING_DELIMITER;
+	if (!strchr(ActionData, VMF_IOPARAM_STRING_DELIMITER))
+	{
+		chDelim = ',';
+	}
 
 	//
 	// Parse the target name.
 	//
-	const char *psz = nexttoken(szToken, ActionData, ',');
+	const char *psz = nexttoken(szToken, ActionData, chDelim);
 	if (szToken[0] != '\0')
 	{
 		m_iTarget = AllocPooledString(szToken);
@@ -141,7 +143,7 @@ CEventAction::CEventAction( const char *ActionData )
 	//
 	// Parse the input name.
 	//
-	psz = nexttoken(szToken, psz, ',');
+	psz = nexttoken(szToken, psz, chDelim);
 	if (szToken[0] != '\0')
 	{
 		m_iTargetInput = AllocPooledString(szToken);
@@ -154,7 +156,7 @@ CEventAction::CEventAction( const char *ActionData )
 	//
 	// Parse the parameter override.
 	//
-	psz = nexttoken(szToken, psz, ',');
+	psz = nexttoken(szToken, psz, chDelim);
 	if (szToken[0] != '\0')
 	{
 		m_iParameter = AllocPooledString(szToken);
@@ -163,7 +165,7 @@ CEventAction::CEventAction( const char *ActionData )
 	//
 	// Parse the delay.
 	//
-	psz = nexttoken(szToken, psz, ',');
+	psz = nexttoken(szToken, psz, chDelim);
 	if (szToken[0] != '\0')
 	{
 		m_flDelay = atof(szToken);
@@ -172,7 +174,7 @@ CEventAction::CEventAction( const char *ActionData )
 	//
 	// Parse the number of times to fire.
 	//
-	nexttoken(szToken, psz, ',');
+	nexttoken(szToken, psz, chDelim);
 	if (szToken[0] != '\0')
 	{
 		m_nTimesToFire = atoi(szToken);
@@ -183,10 +185,22 @@ CEventAction::CEventAction( const char *ActionData )
 	}
 }
 
+CEventAction::CEventAction( const CEventAction &p_EventAction )
+{
+	m_pNext = NULL;
+	m_iIDStamp = ++s_iNextIDStamp;
+
+	m_flDelay = p_EventAction.m_flDelay;
+	m_iTarget = p_EventAction.m_iTarget;
+	m_iParameter = p_EventAction.m_iParameter;
+	m_iTargetInput = p_EventAction.m_iTargetInput;
+	m_nTimesToFire = p_EventAction.m_nTimesToFire;
+}
+
 
 // this memory pool stores blocks around the size of CEventAction/inputitem_t structs
 // can be used for other blocks; will error if to big a block is tried to be allocated
-CMemoryPool g_EntityListPool( max(sizeof(CEventAction),sizeof(CMultiInputVar::inputitem_t)), 512, CMemoryPool::GROW_FAST, "g_EntityListPool" );
+CUtlMemoryPool g_EntityListPool( MAX(sizeof(CEventAction),sizeof(CMultiInputVar::inputitem_t)), 512, CUtlMemoryPool::GROW_FAST, "g_EntityListPool" );
 
 #include "tier0/memdbgoff.h"
 
@@ -361,6 +375,28 @@ void CBaseEntityOutput::AddEventAction( CEventAction *pEventAction )
 	m_ActionList = pEventAction;
 }
 
+void CBaseEntityOutput::RemoveEventAction( CEventAction *pEventAction )
+{
+	CEventAction *pAction = GetFirstAction();
+	CEventAction *pPrevAction = NULL;
+	while ( pAction )
+	{
+		if ( pAction == pEventAction )
+		{
+			if ( !pPrevAction )
+			{
+				m_ActionList = NULL;
+			}
+			else
+			{
+				pPrevAction->m_pNext = pAction->m_pNext;
+			}
+			return;
+		}
+		pAction = pAction->m_pNext;
+	}
+}
+
 
 // save data description for the event queue
 BEGIN_SIMPLE_DATADESC( CBaseEntityOutput )
@@ -418,6 +454,17 @@ int CBaseEntityOutput::Restore( IRestore &restore, int elementCount )
 	}
 
 	return 1;
+}
+
+const CEventAction *CBaseEntityOutput::GetActionForTarget( string_t iSearchTarget ) const
+{
+	for ( CEventAction *ev = m_ActionList; ev != NULL; ev = ev->m_pNext )
+	{
+		if ( ev->m_iTarget == iSearchTarget )
+			return ev;
+	}
+
+	return NULL;
 }
 
 int CBaseEntityOutput::NumberOfElements( void )
@@ -612,7 +659,7 @@ void CMultiInputVar::inputitem_t::operator delete( void *pMem )
 //
 // Purpose: holds and executes a global prioritized queue of entity actions
 //-----------------------------------------------------------------------------
-DEFINE_FIXEDSIZE_ALLOCATOR( EventQueuePrioritizedEvent_t, 128, CMemoryPool::GROW_SLOW );
+DEFINE_FIXEDSIZE_ALLOCATOR( EventQueuePrioritizedEvent_t, 128, CUtlMemoryPool::GROW_SLOW );
 
 CEventQueue g_EventQueue;
 
@@ -1528,6 +1575,7 @@ typedescription_t variant_t::m_SaveVector[] =
 {
 	// Just here to shut up ClassCheck
 //	DEFINE_ARRAY( vecVal, FIELD_FLOAT, 3 ),
+//  DEFINE_FIELD( vecSave, FIELD_CLASSCHECK_IGNORE ) // do this or else we get a warning about multiply-defined fields
 
 	DEFINE_FIELD( vecSave, FIELD_VECTOR ),
 };
@@ -1544,6 +1592,7 @@ struct variant_savevmatrix_t
 };
 typedescription_t variant_t::m_SaveVMatrix[] =
 {
+//  DEFINE_FIELD( matSave, FIELD_CLASSCHECK_IGNORE ) // do this or else we get a warning about multiply-defined fields
 	DEFINE_FIELD( matSave, FIELD_VMATRIX ),
 };
 typedescription_t variant_t::m_SaveVMatrixWorldspace[] =
@@ -1696,7 +1745,7 @@ ISaveRestoreOps *variantFuncs = &g_VariantSaveDataOps;
 
 /////////////////////// entitylist /////////////////////
 
-CMemoryPool g_EntListMemPool( sizeof(entitem_t), 256, CMemoryPool::GROW_NONE, "g_EntListMemPool" );
+CUtlMemoryPool g_EntListMemPool( sizeof(entitem_t), 256, CUtlMemoryPool::GROW_NONE, "g_EntListMemPool" );
 
 #include "tier0/memdbgoff.h"
 

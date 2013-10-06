@@ -13,10 +13,6 @@
 #include "iservervehicle.h"
 #include "physics_saverestore.h"
 
-#ifdef HL2MP
-#include "hl2mp_gamerules.h"
-#endif
-
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
@@ -97,11 +93,6 @@ BEGIN_DATADESC( CItem )
 	DEFINE_THINKFUNC( Materialize ),
 	DEFINE_THINKFUNC( ComeToRest ),
 
-#if defined( HL2MP )
-	DEFINE_FIELD( m_flNextResetCheckTime, FIELD_TIME ),
-	DEFINE_THINKFUNC( FallThink ),
-#endif
-
 	// Outputs
 	DEFINE_OUTPUT( m_OnPlayerTouch, "OnPlayerTouch" ),
 	DEFINE_OUTPUT( m_OnCacheInteraction, "OnCacheInteraction" ),
@@ -115,6 +106,15 @@ END_DATADESC()
 CItem::CItem()
 {
 	m_bActivateWhenAtRest = false;
+}
+
+CItem::~CItem()
+{
+	if ( m_pConstraint )
+	{
+		physenv->DestroyConstraint( m_pConstraint );
+		m_pConstraint = NULL;
+	}
 }
 
 bool CItem::CreateItemVPhysicsObject( void )
@@ -148,6 +148,8 @@ bool CItem::CreateItemVPhysicsObject( void )
 //-----------------------------------------------------------------------------
 void CItem::Spawn( void )
 {
+	SetNetworkQuantizeOriginAngAngles( true );
+
 	if ( g_pGameRules->IsAllowedToSpawn( this ) == false )
 	{
 		UTIL_Remove( this );
@@ -167,7 +169,10 @@ void CItem::Spawn( void )
 	// This will make them not collide with the player, but will collide
 	// against other items + weapons
 	SetCollisionGroup( COLLISION_GROUP_WEAPON );
-	CollisionProp()->UseTriggerBounds( true, ITEM_PICKUP_BOX_BLOAT );
+	if( HasBloatedCollision() )
+	{
+		CollisionProp()->UseTriggerBounds( true, ITEM_PICKUP_BOX_BLOAT );
+	}
 	SetTouch(&CItem::ItemTouch);
 
 	if ( CreateItemVPhysicsObject() == false )
@@ -201,10 +206,12 @@ void CItem::Spawn( void )
 	}
 #endif //CLIENT_DLL
 
-#if defined( HL2MP )
-	SetThink( &CItem::FallThink );
-	SetNextThink( gpGlobals->curtime + 0.1f );
-#endif
+
+	Vector origin = GetAbsOrigin();
+	QAngle angles = GetAbsAngles();
+	NetworkQuantize( origin, angles );
+	SetAbsOrigin( origin );
+	SetAbsAngles( angles );
 }
 
 void CItem::Use( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value )
@@ -266,41 +273,6 @@ void CItem::ComeToRest( void )
 	}
 }
 
-#if defined( HL2MP )
-
-//-----------------------------------------------------------------------------
-// Purpose: Items that have just spawned run this think to catch them when 
-//			they hit the ground. Once we're sure that the object is grounded, 
-//			we change its solid type to trigger and set it in a large box that 
-//			helps the player get it.
-//-----------------------------------------------------------------------------
-void CItem::FallThink ( void )
-{
-	SetNextThink( gpGlobals->curtime + 0.1f );
-
-	bool shouldMaterialize = false;
-	IPhysicsObject *pPhysics = VPhysicsGetObject();
-	if ( pPhysics )
-	{
-		shouldMaterialize = pPhysics->IsAsleep();
-	}
-	else
-	{
-		shouldMaterialize = (GetFlags() & FL_ONGROUND) ? true : false;
-	}
-
-	if ( shouldMaterialize )
-	{
-		SetThink ( NULL );
-
-		m_vOriginalSpawnOrigin = GetAbsOrigin();
-		m_vOriginalSpawnAngles = GetAbsAngles();
-
-		HL2MPRules()->AddLevelDesignerPlacedObject( this );
-	}
-}
-
-#endif
 
 //-----------------------------------------------------------------------------
 // Purpose: Used to tell whether an item may be picked up by the player.  This
@@ -417,9 +389,6 @@ void CItem::ItemTouch( CBaseEntity *pOther )
 		{
 			UTIL_Remove( this );
 
-#ifdef HL2MP
-			HL2MPRules()->RemoveLevelDesignerPlacedObject( this );
-#endif
 		}
 	}
 	else if (gEvilImpulse101)
@@ -442,9 +411,9 @@ CBaseEntity* CItem::Respawn( void )
 	UTIL_SetOrigin( this, g_pGameRules->VecItemRespawnSpot( this ) );// blip to whereever you should respawn.
 	SetAbsAngles( g_pGameRules->VecItemRespawnAngles( this ) );// set the angles.
 
-#if !defined( TF_DLL )
+
 	UTIL_DropToFloor( this, MASK_SOLID );
-#endif
+
 
 	RemoveAllDecals(); //remove any decals
 
@@ -461,11 +430,7 @@ void CItem::Materialize( void )
 	{
 		// changing from invisible state to visible.
 
-#ifdef HL2MP
-		EmitSound( "AlyxEmp.Charge" );
-#else
 		EmitSound( "Item.Materialize" );
-#endif
 		RemoveEffects( EF_NODRAW );
 		DoMuzzleFlash();
 	}

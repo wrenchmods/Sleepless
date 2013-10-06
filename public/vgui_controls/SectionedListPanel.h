@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -162,8 +162,14 @@ public:
 
 	virtual void SetProportional(bool state);
 
+	HFont GetHeaderFont( void ) const;
+	void SetHeaderFont( HFont hFont );
+	HFont GetRowFont( void ) const;
+	void SetRowFont( HFont hFont );
 	void MoveSelectionDown( void );
 	void MoveSelectionUp( void );
+
+	ScrollBar* GetScrollBar() { return m_pScrollBar; }
 
 protected:
 	virtual void PerformLayout();
@@ -187,7 +193,7 @@ private:
 	// Returns the index of a new item button, reusing an existing item button if possible
 	int GetNewItemButton();
 
-	friend CItemButton;
+	friend class CItemButton;
 	void SetSelectedItem(CItemButton *item);
 	DHANDLE<CItemButton> m_hSelectedItem;
 
@@ -227,6 +233,9 @@ private:
 	bool m_bDeleteImageListWhenDone;
 	bool m_bSortNeeded;
 	bool m_bVerticalScrollbarEnabled;
+
+	HFont m_hHeaderFont;
+	HFont m_hRowFont;
 
 	CPanelAnimationVar( bool, m_bShowColumns, "show_columns", "false" );
 };

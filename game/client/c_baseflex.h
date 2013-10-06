@@ -53,30 +53,29 @@ public:
 
 	virtual void Spawn();
 
+	virtual IClientModelRenderable*	GetClientModelRenderable();
+
 	virtual void InitPhonemeMappings();
 
 	void		SetupMappings( char const *pchFileRoot );
 
 	virtual CStudioHdr *OnNewModel( void );
 
-	virtual void	StandardBlendingRules( CStudioHdr *hdr, Vector pos[], Quaternion q[], float currentTime, int boneMask );
+	virtual void	StandardBlendingRules( CStudioHdr *hdr, Vector pos[], QuaternionAligned q[], float currentTime, int boneMask );
 
 	virtual void OnThreadedDrawSetup();
 
 	// model specific
+	virtual void BuildTransformations( CStudioHdr *pStudioHdr, Vector *pos, Quaternion q[], const matrix3x4_t& cameraTransform, int boneMask, CBoneBitList &boneComputed );
 	virtual	void	SetupWeights( const matrix3x4_t *pBoneToWorld, int nFlexWeightCount, float *pFlexWeights, float *pFlexDelayedWeights );
 	virtual bool	UsesFlexDelayedWeights();
-
-	virtual void	RunFlexRules( CStudioHdr *pStudioHdr, float *dest );
-
-	virtual Vector	SetViewTarget( CStudioHdr *pStudioHdr );
 
 	virtual bool	GetSoundSpatialization( SpatializationInfo_t& info );
 
 	virtual void	GetToolRecordingState( KeyValues *msg );
 
 	// Called at the lowest level to actually apply a flex animation
-	void				AddFlexAnimation( CSceneEventInfo *info );
+	void			AddFlexAnimation( CSceneEventInfo *info );
 
 	void			SetFlexWeight( LocalFlexController_t index, float value );
 	float			GetFlexWeight( LocalFlexController_t index );
@@ -107,16 +106,6 @@ public:
 	// Start the specifics of an scene event
 	virtual bool		StartSceneEvent( CSceneEventInfo *info, CChoreoScene *scene, CChoreoEvent *event, CChoreoActor *actor, C_BaseEntity *pTarget );
 
-	// Manipulation of events for the object
-	// Should be called by think function to process all scene events
-	// The default implementation resets m_flexWeight array and calls
-	//  AddSceneEvents
-	virtual void		ProcessSceneEvents( bool bFlexEvents );
-
-	// Assumes m_flexWeight array has been set up, this adds the actual currently playing
-	//  expressions to the flex weights and adds other scene events as needed
-	virtual	bool		ProcessSceneEvent( bool bFlexEvents, CSceneEventInfo *info, CChoreoScene *scene, CChoreoEvent *event );
-
 	virtual bool		ProcessSequenceSceneEvent( CSceneEventInfo *info, CChoreoScene *scene, CChoreoEvent *event );
 
 	// Remove all playing events
@@ -126,7 +115,7 @@ public:
 	virtual	bool		ClearSceneEvent( CSceneEventInfo *info, bool fastKill, bool canceled );
 
 	// Add the event to the queue for this actor
-	void				AddSceneEvent( CChoreoScene *scene, CChoreoEvent *event, C_BaseEntity *pTarget = NULL, bool bClientSide = false );
+	void				AddSceneEvent( CChoreoScene *scene, CChoreoEvent *event, C_BaseEntity *pTarget = NULL, bool bClientSide = false, C_SceneEntity *pSceneEntity = NULL );
 
 	// Remove the event from the queue for this actor
 	void				RemoveSceneEvent( CChoreoScene *scene, CChoreoEvent *event, bool fastKill );
@@ -141,15 +130,30 @@ public:
 	void				EnsureTranslations( const flexsettinghdr_t *pSettinghdr );
 
 	// For handling scene files
-	void				*FindSceneFile( const char *filename );
+	const void			*FindSceneFile( const char *filename );
+
+	static void			InvalidateFlexCaches();
+	bool				IsFlexCacheValid() const;
 
 private:
+	Vector	SetViewTarget( CStudioHdr *pStudioHdr, const float *pGlobalFlexWeight );
+	void	RunFlexRules( CStudioHdr *pStudioHdr, const float *pGlobalFlexWeight, float *dest );
+
+	// Manipulation of events for the object
+	// Should be called by think function to process all scene events
+	// The default implementation resets m_flexWeight array and calls
+	//  AddSceneEvents
+	void ProcessSceneEvents( bool bFlexEvents, float *pGlobalFlexWeight );
+
+	// Assumes m_flexWeight array has been set up, this adds the actual currently playing
+	//  expressions to the flex weights and adds other scene events as needed
+	bool ProcessSceneEvent( float *pGlobalFlexWeight, bool bFlexEvents, CSceneEventInfo *info, CChoreoScene *scene, CChoreoEvent *event );
 
 	bool RequestStartSequenceSceneEvent( CSceneEventInfo *info, CChoreoScene *scene, CChoreoEvent *event, CChoreoActor *actor, CBaseEntity *pTarget );
 
 	bool ProcessFlexAnimationSceneEvent( CSceneEventInfo *info, CChoreoScene *scene, CChoreoEvent *event );
-	bool ProcessFlexSettingSceneEvent( CSceneEventInfo *info, CChoreoScene *scene, CChoreoEvent *event );
-	void AddFlexSetting( const char *expr, float scale, 
+	bool ProcessFlexSettingSceneEvent( float *pGlobalFlexWeight, CSceneEventInfo *info, CChoreoScene *scene, CChoreoEvent *event );
+	void AddFlexSetting( float *pGlobalFlexWeight, const char *expr, float scale, 
 		const flexsettinghdr_t *pSettinghdr, bool newexpression );
 
 	// Array of active SceneEvents, in order oldest to newest
@@ -214,18 +218,22 @@ private:
 	float			m_blinktime;
 	int				m_prevblinktoggle;
 
-	int				m_iBlink;
-	LocalFlexController_t				m_iEyeUpdown;
-	LocalFlexController_t				m_iEyeRightleft;
-	bool			m_bSearchedForEyeFlexes;
+	int						m_iBlink;
+	LocalFlexController_t	m_iEyeUpdown;
+	LocalFlexController_t	m_iEyeRightleft;
 	int				m_iMouthAttachment;
 
 	float			*m_flFlexDelayedWeight;
 
+	int					m_iMostRecentFlexCounter;
+	Vector				m_CachedViewTarget;
+	CUtlVector< float > m_CachedFlexWeights;
+	CUtlVector< float > m_CachedDelayedFlexWeights;
+
 	// shared flex controllers
 	static int		g_numflexcontrollers;
 	static char		*g_flexcontroller[MAXSTUDIOFLEXCTRL*4]; // room for global set of flexcontrollers
-	static float	g_flexweight[MAXSTUDIOFLEXDESC];
+	static float	s_pGlobalFlexWeight[MAXSTUDIOFLEXCTRL*4];
 
 protected:
 
@@ -264,9 +272,9 @@ private:
 
 	const flexsetting_t *FindNamedSetting( const flexsettinghdr_t *pSettinghdr, const char *expr );
 
-	void			ProcessVisemes( Emphasized_Phoneme *classes );
-	void			AddVisemesForSentence( Emphasized_Phoneme *classes, float emphasis_intensity, CSentence *sentence, float t, float dt, bool juststarted );
-	void			AddViseme( Emphasized_Phoneme *classes, float emphasis_intensity, int phoneme, float scale, bool newexpression );
+	void			ProcessVisemes( Emphasized_Phoneme *classes, float *pGlobalFlexWeight );
+	void			AddVisemesForSentence( float *pGlobalFlexWeight, Emphasized_Phoneme *classes, float emphasis_intensity, CSentence *sentence, float t, float dt, bool juststarted );
+	void			AddViseme( float *pGlobalFlexWeight, Emphasized_Phoneme *classes, float emphasis_intensity, int phoneme, float scale, bool newexpression );
 	bool			SetupEmphasisBlend( Emphasized_Phoneme *classes, int phoneme );
 	void			ComputeBlendedSetting( Emphasized_Phoneme *classes, float emphasis_intensity );
 

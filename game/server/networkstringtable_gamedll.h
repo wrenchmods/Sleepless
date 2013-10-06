@@ -24,7 +24,7 @@ class CStringTableSaveRestoreOps;
 #define MAX_MATERIAL_STRINGS			( 1 << MAX_MATERIAL_STRING_BITS )
 #define OVERLAY_MATERIAL_INVALID_STRING	( MAX_MATERIAL_STRINGS - 1 )
 
-#define MAX_CHOREO_SCENES_STRING_BITS	12
+#define MAX_CHOREO_SCENES_STRING_BITS	13
 #define MAX_CHOREO_SCENES_STRINGS		( 1 << MAX_CHOREO_SCENES_STRING_BITS )
 #define CHOREO_SCENES_INVALID_STRING	( MAX_CHOREO_SCENES_STRINGS - 1 )
 
@@ -34,7 +34,6 @@ class CStringTableSaveRestoreOps;
 
 extern INetworkStringTableContainer *networkstringtable;
 extern INetworkStringTable *g_pStringTableVguiScreen;
-extern INetworkStringTable *g_pStringTableEffectDispatch;
 extern INetworkStringTable *g_pStringTableClientSideChoreoScenes;
 
 #define MAX_INFOPANEL_STRINGS			128

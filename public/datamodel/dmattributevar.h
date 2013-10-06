@@ -19,8 +19,8 @@
 #include "mathlib/vector4d.h"
 #include "mathlib/vmatrix.h"
 #include "datamodel/dmelement.h"
+#include "datamodel/dmehandle.h"
 
-template< class C, bool D > class CDmeHandle;
 
 //-----------------------------------------------------------------------------
 // Specialization for color
@@ -48,18 +48,30 @@ public:
 
 
 //-----------------------------------------------------------------------------
-// Specialization for object ids
+// Specialization for DmeTime_t
 //-----------------------------------------------------------------------------
-class CDmaObjectId : public CDmaVar< DmObjectId_t >
+class CDmaTime : public CDmaVar< DmeTime_t >
 {
 public:
-	void CreateObjectId( );
-	void Invalidate( );
-	bool IsValid( ) const;
-	bool IsEqual( const DmObjectId_t &id ) const;
-	const DmObjectId_t &operator=( const DmObjectId_t& src );
-	const CDmaObjectId& operator=( const CDmaObjectId& src );
-	const DmObjectId_t& Set( const DmObjectId_t &src );
+	// Cast operators
+	operator const DmeTime_t&() const { return Value(); }
+	const DmeTime_t* operator->() const { return &Value(); }
+
+	// Math utility operations
+	const DmeTime_t& operator= ( const DmeTime_t &val ) { return Set( val ); }
+	const DmeTime_t& operator+=( const DmeTime_t &val ) { return Set( Value() + val ); }
+	const DmeTime_t& operator-=( const DmeTime_t &val ) { return Set( Value() - val ); }
+	const DmeTime_t& operator/=( float f ) { return Set( Value() / f ); }
+	const DmeTime_t& operator*=( float f ) { return Set( Value() * f ); }
+	DmeTime_t operator++() { return Set( Value() + DMETIME_MINDELTA ); }
+	DmeTime_t operator--() { return Set( Value() - DMETIME_MINDELTA ); }
+	DmeTime_t operator++( int ) { DmeTime_t t = Value(); Set( t + DMETIME_MINDELTA ); return t; } // postfix version..
+	DmeTime_t operator--( int ) { DmeTime_t t = Value(); Set( t - DMETIME_MINDELTA ); return t; } // postfix version..
+
+	void SetTenthsOfMS( int tms );
+	void SetSeconds( float seconds );
+	int GetTenthsOfMS() const;
+	float GetSeconds() const;
 };
 
 
@@ -93,11 +105,15 @@ public:
 	void Init( CDmElement *pOwner, const char *pAttributeName, int flags = 0 );
 
 	// Returns the type of elements allowed into this attribute. UTL_INVAL_SYMBOL allows everything.
-	UtlSymId_t GetElementType() const;
+	CUtlSymbolLarge GetElementType() const;
 
 	// Get/set
 	void Set( T* pElement );
 	T* GetElement() const;
+	const DmElementHandle_t& GetHandle() const
+	{
+		return Value();
+	}
 
 	// Cast
 	T* operator->() const;
@@ -127,6 +143,15 @@ public:
 	template <class S> bool operator!=( const CDmaElement<S>& src )	const
 	{
 		return Value() != src.Value();
+	}
+
+protected:
+	// hide this to avoid accidental use in code like this:
+	// if ( m_var.Get() )
+	// which returns a DmElementHandle_t, which is true for most handles, including the invalid one
+	const DmElementHandle_t& Get() const
+	{
+		return Value();
 	}
 };
 
@@ -280,16 +305,16 @@ public:
 	const char *operator[]( int i ) const;
 	const char *Element( int i ) const;
 	const char *Get( int i ) const;
-	const CUtlVector< CUtlString > &Get() const;
+	const CUtlVector< CUtlSymbolLarge > &Get() const;
 
 	// Returns strlen of element i
 	int	Length( int i ) const;
 };
 
 template< class B >
-class CDmaStringArrayBase : public CDmaStringArrayConstBase< CDmaArrayBase< CUtlString, B > >
+class CDmaStringArrayBase : public CDmaStringArrayConstBase< CDmaArrayBase< CUtlSymbolLarge, B > >
 {
-	typedef CDmaStringArrayConstBase< CDmaArrayBase< CUtlString, B > > BaseClass;
+	typedef CDmaStringArrayConstBase< CDmaArrayBase< CUtlSymbolLarge, B > > BaseClass;
 
 public:
 	// Sets an element in the array
@@ -313,7 +338,7 @@ class CDmaElementArrayConstBase : public BaseClass
 {
 public:
 	// Returns the element type
-	UtlSymId_t GetElementType() const;
+	CUtlSymbolLarge GetElementType() const;
 
 	// Array access
 	E *operator[]( int i ) const;
@@ -344,12 +369,12 @@ public:
 	int	InsertBefore( int elem, DmElementHandle_t src );
 	int	InsertBefore( int elem, E *pValue );
 
-	template< class C, bool D > int AddToTail( const CDmeHandle<C,D>& value )
+	template< class C, HandleType_t HT > int AddToTail( const CDmeHandle<C,HT>& value )
 	{
 		return BaseClass::AddToTail( value.GetHandle() );
 	}
 
-	template< class C, bool D > int InsertBefore( int elem, const CDmeHandle<C,D>& value )
+	template< class C, HandleType_t HT > int InsertBefore( int elem, const CDmeHandle<C,HT>& value )
 	{
 		return BaseClass::InsertBefore( elem, value.GetHandle() );
 	}
@@ -435,17 +460,17 @@ public:
 		_className() {}													\
 		_className( CDmAttribute* pAttribute ) { Init( pAttribute ); }	\
 		_className( CDmElement *pElement, const char *pAttributeName, bool bAddAttribute = false ) { Init( pElement, pAttributeName, bAddAttribute ); } \
-		_className( CDmaArray<_className>& var ) { Init( var.GetAttribute() ); } \
-		_className( CDmrArray<_className>& var ) { Init( var.GetAttribute() ); }
+		_className( CDmaArray<_elementType>& var ) { Init( var.GetAttribute() ); } \
+		_className( CDmrArray<_elementType>& var ) { Init( var.GetAttribute() ); }
 
 #define DECLARE_ATTRIBUTE_ARRAY_CONST_REFERENCE( _className, _elementType )	\
 	public:																	\
 		_className() {}														\
 		_className( const CDmAttribute* pAttribute ) { Init( pAttribute ); } \
 		_className( const CDmElement *pElement, const char *pAttributeName ) { Init( pElement, pAttributeName ); } \
-		_className( const CDmaArray<_className>& var ) { Init( var.GetAttribute() ); } \
-		_className( const CDmrArrayConst<_className>& var ) { Init( var.GetAttribute() ); } \
-		_className( const CDmrArray<_className>& var ) { Init( var.GetAttribute() ); }
+		_className( const CDmaArray<_elementType>& var ) { Init( var.GetAttribute() ); } \
+		_className( const CDmrArrayConst<_elementType>& var ) { Init( var.GetAttribute() ); } \
+		_className( const CDmrArray<_elementType>& var ) { Init( var.GetAttribute() ); }
 
 template<class T> class CDmrArray;
 template<class T> class CDmrArrayConst;
@@ -507,9 +532,9 @@ public:
 
 class CDmrStringArray;
 
-class CDmaStringArray : public CDmaDecorator< CUtlString, CDmaStringArrayBase< CDmaDataInternal< CUtlVector< CUtlString > > > >
+class CDmaStringArray : public CDmaDecorator< CUtlSymbolLarge, CDmaStringArrayBase< CDmaDataInternal< CUtlVector< CUtlSymbolLarge > > > >
 {
-	DECLARE_ATTRIBUTE_ARRAY_VARIABLE( CDmaStringArray, CUtlString );
+	DECLARE_ATTRIBUTE_ARRAY_VARIABLE( CDmaStringArray, CUtlSymbolLarge );
 
 public:
 	const CDmaStringArray& operator=( const CDmaStringArray &val ) 
@@ -528,10 +553,10 @@ private:
 	CDmaStringArray( const CDmaStringArray& array ) {}
 };
 
-class CDmrStringArray : public CDmrDecorator< CUtlString, CDmaStringArrayBase< CDmaDataExternal< CUtlVector< CUtlString > > > >
+class CDmrStringArray : public CDmrDecorator< CUtlSymbolLarge, CDmaStringArrayBase< CDmaDataExternal< CUtlVector< CUtlSymbolLarge > > > >
 {
-	typedef CDmrDecorator< CUtlString, CDmaStringArrayBase< CDmaDataExternal< CUtlVector< CUtlString > > > > BaseClass;
-	DECLARE_ATTRIBUTE_ARRAY_REFERENCE( CDmrStringArray, CUtlString );
+	typedef CDmrDecorator< CUtlSymbolLarge, CDmaStringArrayBase< CDmaDataExternal< CUtlVector< CUtlSymbolLarge > > > > BaseClass;
+	DECLARE_ATTRIBUTE_ARRAY_REFERENCE( CDmrStringArray, CUtlSymbolLarge );
 
 public:
 	CDmrStringArray( CDmaStringArray& var ) { Init( var.GetAttribute() ); }
@@ -550,10 +575,10 @@ public:
 	}
 };
 
-class CDmrStringArrayConst : public CDmrDecoratorConst< CUtlString, CDmaStringArrayConstBase< CDmaArrayConstBase< CUtlString, CDmaDataExternal< CUtlVector< CUtlString > > > > >
+class CDmrStringArrayConst : public CDmrDecoratorConst< CUtlSymbolLarge, CDmaStringArrayConstBase< CDmaArrayConstBase< CUtlSymbolLarge, CDmaDataExternal< CUtlVector< CUtlSymbolLarge > > > > >
 {
-	typedef CDmrDecoratorConst< CUtlString, CDmaStringArrayConstBase< CDmaArrayConstBase< CUtlString, CDmaDataExternal< CUtlVector< CUtlString > > > > > BaseClass;
-	DECLARE_ATTRIBUTE_ARRAY_CONST_REFERENCE( CDmrStringArrayConst, CUtlString );
+	typedef CDmrDecoratorConst< CUtlSymbolLarge, CDmaStringArrayConstBase< CDmaArrayConstBase< CUtlSymbolLarge, CDmaDataExternal< CUtlVector< CUtlSymbolLarge > > > > > BaseClass;
+	DECLARE_ATTRIBUTE_ARRAY_CONST_REFERENCE( CDmrStringArrayConst, CUtlSymbolLarge );
 
 public:
 	CDmrStringArrayConst( const CDmaStringArray& var )		{ Init( var.GetAttribute() ); }
@@ -654,7 +679,7 @@ public:
 
 	void Init( const CDmElement *pElement, const char *pAttributeName )
 	{
-		CDmAttribute *pAttribute = NULL;
+		const CDmAttribute *pAttribute = NULL;
 		if ( pElement && pAttributeName && pAttributeName[0] )
 		{
 			pAttribute = pElement->GetAttribute( pAttributeName );
@@ -662,9 +687,14 @@ public:
 		Init( pAttribute );
 	}
 
+	int Count() const
+	{
+		return IsValid() ? Value().Count() : 0;
+	}
+
 	bool IsValid() const
 	{
-		return this->m_pAttribute != NULL;
+		return m_pAttribute != NULL;
 	}
 };
 
@@ -728,9 +758,14 @@ public:
 		Init( pAttribute );
 	}
 
+	int Count() const
+	{
+		return IsValid() ? Value().Count() : 0;
+	}
+
 	bool IsValid() const
 	{
-		return this->m_pAttribute != NULL;
+		return m_pAttribute != NULL;
 	}
 
 	template< typename C > CDmrElementArray<T>& operator=( const C &val )
@@ -997,49 +1032,27 @@ inline void CDmaColor::SetRawColor( int color )
 
 //-----------------------------------------------------------------------------
 //
-// Inline methods for CDmaObjectId
+// Inline methods for CDmaTime
 //
 //-----------------------------------------------------------------------------
-inline void CDmaObjectId::CreateObjectId( )
-{ 
-	DmObjectId_t id;
-	CreateUniqueId( &id );
-	m_pAttribute->SetValue( id );
+inline void CDmaTime::SetTenthsOfMS( int tms )
+{
+	Set( DmeTime_t( tms ) );
 }
 
-inline void CDmaObjectId::Invalidate( )
+inline void CDmaTime::SetSeconds( float seconds )
 {
-	DmObjectId_t id;
-	InvalidateUniqueId( &id );
-	m_pAttribute->SetValue( id );
+	Set( DmeTime_t( seconds ) );
 }
 
-inline bool CDmaObjectId::IsValid( ) const
+inline int CDmaTime::GetTenthsOfMS() const
 {
-	return IsUniqueIdValid( Value() );
+	return Value().GetTenthsOfMS();
 }
 
-inline bool CDmaObjectId::IsEqual( const DmObjectId_t &id ) const
+inline float CDmaTime::GetSeconds() const
 {
-	return IsUniqueIdEqual( Value(), id );
-}
-
-inline const DmObjectId_t &CDmaObjectId::operator=( const DmObjectId_t& src )
-{
-	m_pAttribute->SetValue( src );
-	return Value();
-}
-
-inline const CDmaObjectId& CDmaObjectId::operator=( const CDmaObjectId& src )
-{
-	m_pAttribute->SetValue( src.Get() );
-	return *this;
-}
-
-inline const DmObjectId_t& CDmaObjectId::Set( const DmObjectId_t &src )
-{
-	m_pAttribute->SetValue( src );
-	return Value();
+	return Value().GetSeconds();
 }
 
 
@@ -1050,24 +1063,47 @@ inline const DmObjectId_t& CDmaObjectId::Set( const DmObjectId_t &src )
 //-----------------------------------------------------------------------------
 inline const char *CDmaString::Get( ) const
 {
-	return Value().Get();
+	return Value().String();
 }
 
 inline CDmaString::operator const char*() const
 {
-	return Value().Get();
+	return Value().String();
 }
+
+
+inline void CDmaString::InitAndSet( CDmElement *pOwner, const char *pAttributeName, const char *pValue, int flags )
+{
+	CUtlSymbolLarge symbol = g_pDataModel->GetSymbol( pValue );
+	CDmaVar< CUtlSymbolLarge >::InitAndSet( pOwner, pAttributeName, symbol, flags );
+}
+
 
 inline void CDmaString::Set( const char *pValue )
 {
-	CUtlString str( pValue, pValue ? Q_strlen( pValue ) + 1 : 0 );
-	m_pAttribute->SetValue( str );
+	CUtlSymbolLarge symbol = g_pDataModel->GetSymbol( pValue );
+	m_pAttribute->SetValue( symbol );
 }
 
 // Returns strlen
 inline int CDmaString::Length() const
 {
-	return Value().Length();
+	return V_strlen( Value().String() );
+}
+
+inline bool CDmaString::IsEmpty() const
+{
+	if ( Value() == UTL_INVAL_SYMBOL_LARGE )
+		return true;
+
+	const char *pString = Value().String();
+	if ( pString == NULL )
+		return true;
+
+	if ( *pString == 0 )
+		return true;
+
+	return false;
 }
 
 inline CDmaString &CDmaString::operator=( const char *src )
@@ -1151,7 +1187,7 @@ inline void CDmaElement<T>::Init( CDmElement *pOwner, const char *pAttributeName
 }
 
 template <class T>
-inline UtlSymId_t CDmaElement<T>::GetElementType() const
+inline CUtlSymbolLarge CDmaElement<T>::GetElementType() const
 {
 	return Data().m_ElementType;
 }
@@ -1292,23 +1328,23 @@ inline const CDmAttribute *CDmaArrayBase<T,B>::GetAttribute() const
 template< class B >
 inline const char *CDmaStringArrayConstBase<B>::operator[]( int i ) const
 {
-	return Value()[ i ].Get();
+	return Value()[ i ].String();
 }
 
 template< class B >
 inline const char *CDmaStringArrayConstBase<B>::Element( int i ) const
 {
-	return Value()[ i ].Get();
+	return Value()[ i ].String();
 }
 
 template< class B >
 inline const char *CDmaStringArrayConstBase<B>::Get( int i ) const
 {
-	return Value()[ i ].Get();
+	return Value()[ i ].String();
 }
 
 template< class B >
-inline const CUtlVector< CUtlString > &CDmaStringArrayConstBase<B>::Get() const
+inline const CUtlVector< CUtlSymbolLarge > &CDmaStringArrayConstBase<B>::Get() const
 {
 	return Value();
 }
@@ -1323,23 +1359,23 @@ inline int CDmaStringArrayConstBase<B>::Length( int i ) const
 template< class B >
 inline void CDmaStringArrayBase<B>::Set( int i, const char * pValue )
 {
-	CUtlString str( pValue, Q_strlen( pValue ) + 1 );
-	BaseClass::Set( i, str );
+	CUtlSymbolLarge symbol = g_pDataModel->GetSymbol( pValue );
+	BaseClass::Set( i, symbol );
 }
 
 // Adds an element, uses copy constructor
 template< class B >
 inline int CDmaStringArrayBase<B>::AddToTail( const char *pValue )
 {
-	CUtlString str( pValue, Q_strlen( pValue ) + 1 );
-	return BaseClass::AddToTail( str );
+	CUtlSymbolLarge symbol = g_pDataModel->GetSymbol( pValue );
+	return BaseClass::AddToTail( symbol );
 }
 
 template< class B >
 inline int CDmaStringArrayBase<B>::InsertBefore( int elem, const char *pValue )
 {
-	CUtlString str( pValue, Q_strlen( pValue ) + 1 );
-	return BaseClass::InsertBefore( elem, str );
+	CUtlSymbolLarge symbol = g_pDataModel->GetSymbol( pValue );
+	return BaseClass::InsertBefore( elem, symbol );
 }
 
 
@@ -1349,7 +1385,7 @@ inline int CDmaStringArrayBase<B>::InsertBefore( int elem, const char *pValue )
 //
 //-----------------------------------------------------------------------------
 template< class E, class B > 
-inline UtlSymId_t CDmaElementArrayConstBase<E,B>::GetElementType() const
+inline CUtlSymbolLarge CDmaElementArrayConstBase<E,B>::GetElementType() const
 {
 	return Data().m_ElementType;
 }

@@ -58,7 +58,9 @@ public:
 	bool			IgnorePredictionCull( void ) const;
 	void			SetIgnorePredictionCull( bool ignore );
 
-	void			AddPlayersFromBitMask( CBitVec< ABSOLUTE_PLAYER_LIMIT >& playerbits );
+	void			AddPlayersFromBitMask( CPlayerBitVec& playerbits );
+
+	void			RemoveSplitScreenPlayers();
 
 private:
 

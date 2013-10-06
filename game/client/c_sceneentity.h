@@ -47,6 +47,7 @@ public:
 	virtual void			DispatchEndSpeak( CChoreoScene *scene, C_BaseFlex *actor, CChoreoEvent *event );
 
 	bool IsClientOnly( void ){ return m_bClientOnly; }
+	bool IsMultiplayer() const	{ return m_bMultiplayer; }
 
 private:
 

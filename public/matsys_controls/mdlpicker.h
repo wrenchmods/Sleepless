@@ -84,7 +84,7 @@ private:
 	void RefreshRenderSettings();
 	int	 UpdateSkinsList();
 	void UpdateInfoTab();
-	int  UpdatePropDataList( const char* pszPropData, bool &bIsStatic );
+	int  UpdatePropDataList( KeyValues *pkvPropData, bool &bIsStatic );
 
 	// Plays the selected activity
 	void PlaySelectedActivity( );

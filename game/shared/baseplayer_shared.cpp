@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright ï¿½ 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: Implements shared baseplayer class functionality
 //
@@ -9,6 +9,7 @@
 #include "movevars_shared.h"
 #include "util_shared.h"
 #include "datacache/imdlcache.h"
+#include "collisionutils.h"
 
 #if defined( CLIENT_DLL )
 
@@ -28,6 +29,7 @@
 	#include "doors.h"
 	#include "ai_basenpc.h"
 	#include "env_zoom.h"
+	#include "ammodef.h"
 
 	extern int TrainSpeed(int iSpeed, int iMax);
 	
@@ -43,7 +45,9 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-#if defined(GAME_DLL) && !defined(_XBOX)
+#if defined(GAME_DLL) 
+	ConVar sv_infinite_ammo( "sv_infinite_ammo", "0", FCVAR_CHEAT, "Player's active weapon will never run out of ammo" );
+#if !defined(_XBOX)
 	extern ConVar sv_pushaway_max_force;
 	extern ConVar sv_pushaway_force;
 	extern ConVar sv_turbophysics;
@@ -66,6 +70,7 @@
 			return g_pGameRules->CanEntityBeUsePushed( pEntity );
 		}
 	};
+#endif
 #endif
 
 #ifdef CLIENT_DLL
@@ -101,30 +106,12 @@ void CBasePlayer::ItemPreFrame()
 	// Handle use events
 	PlayerUse();
 
-	//Tony; re-ordered this for efficiency and to make sure that certain things happen in the correct order!
-    if ( gpGlobals->curtime < m_flNextAttack )
-	{
-		return;
-	}
-
-	if (!GetActiveWeapon())
-		return;
-
-#if defined( CLIENT_DLL )
-	// Not predicting this weapon
-	if ( !GetActiveWeapon()->IsPredicted() )
-		return;
-#endif
-
-	GetActiveWeapon()->ItemPreFrame();
-
-	CBaseCombatWeapon *pWeapon;
-
 	CBaseCombatWeapon *pActive = GetActiveWeapon();
+
 	// Allow all the holstered weapons to update
 	for ( int i = 0; i < WeaponCount(); ++i )
 	{
-		pWeapon = GetWeapon( i );
+		CBaseCombatWeapon *pWeapon = GetWeapon( i );
 
 		if ( pWeapon == NULL )
 			continue;
@@ -134,6 +121,20 @@ void CBasePlayer::ItemPreFrame()
 
 		pWeapon->ItemHolsterFrame();
 	}
+
+    if ( gpGlobals->curtime < m_flNextAttack )
+		return;
+
+	if (!pActive)
+		return;
+
+#if defined( CLIENT_DLL )
+	// Not predicting this weapon
+	if ( !pActive->IsPredicted() )
+		return;
+#endif
+
+	pActive->ItemPreFrame();
 }
 
 //-----------------------------------------------------------------------------
@@ -231,6 +232,22 @@ void CBasePlayer::ItemPostFrame()
 
 #if !defined( CLIENT_DLL )
 	ImpulseCommands();
+
+	extern ConVar sv_infinite_ammo;
+	if( sv_infinite_ammo.GetBool() && (GetActiveWeapon() != NULL) )
+	{
+		CBaseCombatWeapon *pWeapon = GetActiveWeapon();
+		
+		pWeapon->m_iClip1 = pWeapon->GetMaxClip1();
+		int iPrimaryAmmoType = pWeapon->GetPrimaryAmmoType();
+		if( iPrimaryAmmoType >= 0 )
+			SetAmmoCount( GetAmmoDef()->MaxCarry( iPrimaryAmmoType, this ), iPrimaryAmmoType );
+		
+		pWeapon->m_iClip2 = pWeapon->GetMaxClip2();
+		int iSecondaryAmmoType = pWeapon->GetSecondaryAmmoType();
+		if( iSecondaryAmmoType >= 0 )
+			SetAmmoCount( GetAmmoDef()->MaxCarry( iSecondaryAmmoType, this ), iSecondaryAmmoType );
+	}
 #else
 	// NOTE: If we ever support full impulse commands on the client,
 	// remove this line and call ImpulseCommands instead.
@@ -249,6 +266,11 @@ const QAngle &CBasePlayer::EyeAngles( )
 
 	if ( !pMoveParent )
 	{
+		// if in camera mode, use that
+		if ( GetViewEntity() != NULL )
+		{
+			return GetViewEntity()->EyeAngles();
+		}
 		return pl.v_angle;
 	}
 
@@ -286,13 +308,19 @@ Vector CBasePlayer::EyePosition( )
 		{
 			if ( m_iObserverMode == OBS_MODE_CHASE )
 			{
-				if ( IsLocalPlayer() )
+				if ( IsLocalPlayer( this ) )
 				{
-					return MainViewOrigin();
+					return MainViewOrigin(GetSplitScreenPlayerSlot());
 				}
 			}
 		}
 #endif
+		// if in camera mode, use that
+		if ( GetViewEntity() != NULL )
+		{
+			return GetViewEntity()->EyePosition();
+		}
+
 		return BaseClass::EyePosition();
 	}
 }
@@ -345,6 +373,23 @@ const Vector CBasePlayer::GetPlayerMaxs( void ) const
 		}
 	}
 }
+
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CBasePlayer::UpdateCollisionBounds( void )
+{
+	if ( GetFlags() & FL_DUCKING )
+	{
+		SetCollisionBounds( VEC_DUCK_HULL_MIN, VEC_DUCK_HULL_MAX );
+	}
+	else
+	{
+		SetCollisionBounds( VEC_HULL_MIN, VEC_HULL_MAX );
+	}
+}
+
 
 //-----------------------------------------------------------------------------
 // Purpose: Update the vehicle view, or simply return the cached position and angles
@@ -407,7 +452,7 @@ void CBasePlayer::EyePositionAndVectors( Vector *pPosition, Vector *pForward,
 	}
 	else
 	{
-		VectorCopy( BaseClass::EyePosition(), *pPosition );
+		VectorCopy( EyePosition(), *pPosition );
 		AngleVectors( EyeAngles(), pForward, pRight, pUp );
 	}
 }
@@ -438,7 +483,7 @@ void CBasePlayer::UpdateStepSound( surfacedata_t *psurface, const Vector &vecOri
 	float speed;
 	float velrun;
 	float velwalk;
-	int	fLadder;
+	bool fLadder;
 
 	if ( m_flStepSoundTime > 0 )
 	{
@@ -473,12 +518,7 @@ void CBasePlayer::UpdateStepSound( surfacedata_t *psurface, const Vector &vecOri
 	bool movingalongground = ( groundspeed > 0.0001f );
 	bool moving_fast_enough =  ( speed >= velwalk );
 
-#ifdef PORTAL
-	// In Portal we MUST play footstep sounds even when the player is moving very slowly
-	// This is used to count the number of footsteps they take in the challenge mode
-	// -Jeep
-	moving_fast_enough = true;
-#endif
+
 
 	// To hear step sounds you must be either on a ladder or moving along the ground AND
 	// You must be moving fast enough
@@ -488,7 +528,7 @@ void CBasePlayer::UpdateStepSound( surfacedata_t *psurface, const Vector &vecOri
 
 //	MoveHelper()->PlayerSetAnimation( PLAYER_WALK );
 
-	bWalking = speed < velrun;		
+	bWalking = speed < velrun;
 
 	VectorCopy( vecOrigin, knee );
 	VectorCopy( vecOrigin, feet );
@@ -601,7 +641,7 @@ void CBasePlayer::PlayStepSound( Vector &vecOrigin, surfacedata_t *psurface, flo
 		return;
 
 	int nSide = m_Local.m_nStepside;
-	unsigned short stepSoundName = nSide ? psurface->sounds.stepleft : psurface->sounds.stepright;
+	unsigned short stepSoundName = nSide ? psurface->sounds.runStepLeft : psurface->sounds.runStepRight;
 	if ( !stepSoundName )
 		return;
 
@@ -723,6 +763,11 @@ Vector CBasePlayer::Weapon_ShootPosition( )
 	return EyePosition();
 }
 
+bool CBasePlayer::Weapon_CanUse( CBaseCombatWeapon *pWeapon )
+{
+	return true;
+}
+
 void CBasePlayer::SetAnimationExtension( const char *pExtension )
 {
 	Q_strncpy( m_szAnimExtension, pExtension, sizeof(m_szAnimExtension) );
@@ -838,12 +883,6 @@ void CBasePlayer::SimulatePlayerSimulatedEntities( void )
 			continue;
 		}
 
-#if defined( CLIENT_DLL )
-		if ( e->IsClientCreated() && prediction->InPrediction() && !prediction->IsFirstTimePredicted() )
-		{
-			continue;
-		}
-#endif
 		Assert( e->IsPlayerSimulated() );
 		Assert( e->GetSimulatingPlayer() == this );
 
@@ -866,13 +905,6 @@ void CBasePlayer::SimulatePlayerSimulatedEntities( void )
 			continue;
 		}
 
-#if defined( CLIENT_DLL )
-		if ( e->IsClientCreated() && prediction->InPrediction() && !prediction->IsFirstTimePredicted() )
-		{
-			continue;
-		}
-#endif
-
 		Assert( e->IsPlayerSimulated() );
 		Assert( e->GetSimulatingPlayer() == this );
 
@@ -888,7 +920,7 @@ void CBasePlayer::SimulatePlayerSimulatedEntities( void )
 //-----------------------------------------------------------------------------
 void CBasePlayer::ClearPlayerSimulationList( void )
 {
-	int c = m_SimulatedByThisPlayer.Size();
+	int c = m_SimulatedByThisPlayer.Count();
 	int i;
 
 	for ( i = c - 1; i >= 0; i-- )
@@ -981,13 +1013,8 @@ CBaseEntity *CBasePlayer::FindUseEntity()
 	// A button, etc. can be made out of clip brushes, make sure it's +useable via a traceline, too.
 	int useableContents = MASK_SOLID | CONTENTS_DEBRIS | CONTENTS_PLAYERCLIP;
 
-#ifdef CSTRIKE_DLL
-	useableContents = MASK_NPCSOLID_BRUSHONLY | MASK_OPAQUE_AND_NPCS;
-#endif
 
-#ifdef HL1_DLL
-	useableContents = MASK_SOLID;
-#endif
+
 #ifndef CLIENT_DLL
 	CBaseEntity *pFoundByTrace = NULL;
 #endif
@@ -1221,10 +1248,10 @@ void CBasePlayer::PlayerUse ( void )
 				vPushAway.z = 0;
 
 				float flDist = VectorNormalize( vPushAway );
-				flDist = max( flDist, 1 );
+				flDist = MAX( flDist, 1 );
 
 				float flForce = sv_pushaway_force.GetFloat() / flDist;
-				flForce = min( flForce, sv_pushaway_max_force.GetFloat() );
+				flForce = MIN( flForce, sv_pushaway_max_force.GetFloat() );
 
 				pObj->ApplyForceOffset( vPushAway * flForce, WorldSpaceCenter() );
 			}
@@ -1458,6 +1485,37 @@ void CBasePlayer::CalcView( Vector &eyeOrigin, QAngle &eyeAngles, float &zNear, 
 	{
 		CalcVehicleView( pVehicle, eyeOrigin, eyeAngles, zNear, zFar, fov );
 	}
+
+#if defined( CLIENT_DLL )
+	// Set the follow bone if necessary
+	FOR_EACH_VALID_SPLITSCREEN_PLAYER( hh )
+	{
+		ACTIVE_SPLITSCREEN_PLAYER_GUARD( hh );
+
+		static ConVarRef cvFollowBoneIndexVar( "cl_camera_follow_bone_index" );
+
+		CStudioHdr const* pHdr = GetModelPtr();
+
+		if ( pHdr &&
+			 cvFollowBoneIndexVar.IsValid() && 
+			 C_BasePlayer::GetLocalPlayer() == this )
+		{
+			int boneIdx = cvFollowBoneIndexVar.GetInt();
+			if ( boneIdx >= -1 && boneIdx <	pHdr->numbones() )
+			{
+				extern Vector g_cameraFollowPos;
+				if ( boneIdx == -1 )
+				{
+					VectorCopy( GetRenderOrigin(), g_cameraFollowPos );
+				}
+				else if ( pHdr->pBone( boneIdx )->flags & BONE_USED_BY_ANYTHING )
+				{
+					MatrixPosition( m_BoneAccessor.GetBone( boneIdx ), g_cameraFollowPos );
+				}
+			}
+		}
+	}
+#endif
 }
 
 
@@ -1483,10 +1541,17 @@ void CBasePlayer::CalcPlayerView( Vector& eyeOrigin, QAngle& eyeAngles, float& f
 	}
 #endif
 
-	VectorCopy( EyePosition(), eyeOrigin );
-
-	VectorCopy( EyeAngles(), eyeAngles );
-
+	// TrackIR
+	if ( IsHeadTrackingEnabled() )
+	{
+		VectorCopy( EyePosition() + GetEyeOffset(), eyeOrigin );
+		VectorCopy( EyeAngles() + GetEyeAngleOffset(), eyeAngles );
+	}
+	else
+	{
+		VectorCopy( EyePosition(), eyeOrigin );
+		VectorCopy( EyeAngles(), eyeAngles );
+	}
 
 #if defined( CLIENT_DLL )
 	if ( !prediction->InPrediction() )
@@ -1497,7 +1562,9 @@ void CBasePlayer::CalcPlayerView( Vector& eyeOrigin, QAngle& eyeAngles, float& f
 
 	// Snack off the origin before bob + water offset are applied
 	Vector vecBaseEyePosition = eyeOrigin;
+	QAngle baseEyeAngles = eyeAngles;
 
+	CalcViewBob( eyeOrigin );
 	CalcViewRoll( eyeAngles );
 
 	// Apply punch angle
@@ -1507,8 +1574,10 @@ void CBasePlayer::CalcPlayerView( Vector& eyeOrigin, QAngle& eyeAngles, float& f
 	if ( !prediction->InPrediction() )
 	{
 		// Shake it up baby!
-		vieweffects->CalcShake();
-		vieweffects->ApplyShake( eyeOrigin, eyeAngles, 1.0 );
+		GetViewEffects()->CalcShake();
+		GetViewEffects()->ApplyShake( eyeOrigin, eyeAngles, 1.0 );
+
+		// Tilting handled in CInput::AdjustAngles
 	}
 #endif
 
@@ -1543,6 +1612,14 @@ void CBasePlayer::CalcVehicleView(
 	eyeOrigin = m_vecVehicleViewOrigin;
 	eyeAngles = m_vecVehicleViewAngles;
 
+	// TrackIR
+	if ( IsHeadTrackingEnabled() )
+	{
+		eyeAngles += GetEyeAngleOffset();
+		eyeOrigin += GetEyeOffset();
+	}
+	// TrackIR 
+
 #if defined( CLIENT_DLL )
 
 	fov = GetFOV();
@@ -1563,8 +1640,8 @@ void CBasePlayer::CalcVehicleView(
 	if ( !prediction->InPrediction() )
 	{
 		// Shake it up baby!
-		vieweffects->CalcShake();
-		vieweffects->ApplyShake( eyeOrigin, eyeAngles, 1.0 );
+		GetViewEffects()->CalcShake();
+		GetViewEffects()->ApplyShake( eyeOrigin, eyeAngles, 1.0 );
 	}
 #endif
 
@@ -1651,6 +1728,9 @@ void CBasePlayer::CalcViewRoll( QAngle& eyeAngles )
 	eyeAngles[ROLL] += side;
 }
 
+void CBasePlayer::CalcViewBob( Vector& eyeOrigin )
+{
+}
 
 void CBasePlayer::DoMuzzleFlash()
 {
@@ -1717,7 +1797,7 @@ void CBasePlayer::SharedSpawn()
 	m_Local.m_flStepSize = sv_stepsize.GetFloat();
 	m_Local.m_bAllowAutoMovement = true;
 
-	m_nRenderFX = kRenderFxNone;
+	SetRenderFX( kRenderFxNone );
 	m_flNextAttack	= gpGlobals->curtime;
 	m_flMaxspeed		= 0.0f;
 
@@ -1745,7 +1825,7 @@ int CBasePlayer::GetDefaultFOV( void ) const
 #if defined( CLIENT_DLL )
 	if ( GetObserverMode() == OBS_MODE_IN_EYE )
 	{
-		C_BasePlayer *pTargetPlayer = dynamic_cast<C_BasePlayer*>( GetObserverTarget() );
+		C_BasePlayer *pTargetPlayer = ToBasePlayer( GetObserverTarget() );
 
 		if ( pTargetPlayer && !pTargetPlayer->IsObserver() )
 		{
@@ -1945,8 +2025,10 @@ bool fogparams_t::operator !=( const fogparams_t& other ) const
 		this->colorSecondaryLerpTo.Get() != other.colorSecondaryLerpTo.Get() ||
 		this->startLerpTo != other.startLerpTo ||
 		this->endLerpTo != other.endLerpTo ||
+		this->maxdensityLerpTo != other.maxdensityLerpTo ||
 		this->lerptime != other.lerptime ||
-		this->duration != other.duration )
+		this->duration != other.duration ||
+		this->HDRColorScale != other.HDRColorScale )
 		return true;
 
 	return false;
@@ -1963,4 +2045,47 @@ void CBasePlayer::IncrementEFNoInterpParity()
 int CBasePlayer::GetEFNoInterpParity() const
 {
 	return (int)m_ubEFNoInterpParity;
+}
+
+void CBasePlayer::AddSplitScreenPlayer( CBasePlayer *pOther )
+{
+	CHandle< CBasePlayer > h;
+	h = pOther;
+	if ( m_hSplitScreenPlayers.Find( h ) == m_hSplitScreenPlayers.InvalidIndex() )
+	{
+		m_hSplitScreenPlayers.AddToTail( h );
+	}
+}
+
+void CBasePlayer::RemoveSplitScreenPlayer( CBasePlayer *pOther )
+{
+	CHandle< CBasePlayer > h;
+	h = pOther;
+	m_hSplitScreenPlayers.FindAndRemove( h );
+}
+
+CUtlVector< CHandle< CBasePlayer > > &CBasePlayer::GetSplitScreenPlayers()
+{
+	return m_hSplitScreenPlayers;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Strips off IN_xxx flags from the player's input
+//-----------------------------------------------------------------------------
+void CBasePlayer::ForceButtons( int nButtons )
+{
+	m_afButtonForced |= nButtons;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Re-enables stripped IN_xxx flags to the player's input
+//-----------------------------------------------------------------------------
+void CBasePlayer::UnforceButtons( int nButtons )
+{
+	m_afButtonForced &= ~nButtons;
+}
+
+CBaseEntity* CBasePlayer::GetSoundscapeListener()
+{
+	return this;
 }

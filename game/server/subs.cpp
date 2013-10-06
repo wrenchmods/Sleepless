@@ -60,10 +60,7 @@ END_DATADESC()
 
 
 // These are the new entry points to entities. 
-#if !defined( SDK_DLL )		//Tony; don't use the normal info_player_deathmatch in the SDK, use the custom one.
 LINK_ENTITY_TO_CLASS(info_player_deathmatch,CBaseDMStart);
-#endif
-
 LINK_ENTITY_TO_CLASS(info_player_start,CPointEntity);
 LINK_ENTITY_TO_CLASS(info_landmark,CPointEntity);
 
@@ -155,6 +152,10 @@ BEGIN_DATADESC( CBaseToggle )
 END_DATADESC()
 
 
+IMPLEMENT_SERVERCLASS_ST(CBaseToggle, DT_BaseToggle)
+END_SEND_TABLE()
+
+
 CBaseToggle::CBaseToggle()
 {
 #ifdef _DEBUG
@@ -166,6 +167,14 @@ CBaseToggle::CBaseToggle()
 	m_vecFinalDest.Init();
 	m_vecFinalAngle.Init();
 #endif
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Returns the velocity imparted to players standing on us.
+//-----------------------------------------------------------------------------
+void CBaseToggle::GetGroundVelocityToApply( Vector &vecGroundVel )
+{
+	vecGroundVel = GetLocalVelocity();
 }
 
 bool CBaseToggle::KeyValue( const char *szKeyName, const char *szValue )

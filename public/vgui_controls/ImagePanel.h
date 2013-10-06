@@ -12,8 +12,8 @@
 #pragma once
 #endif
 
-#include <vgui/VGUI.h>
-#include <vgui_controls/Panel.h>
+#include <vgui/vgui.h>
+#include <vgui_controls/panel.h>
 
 namespace vgui
 {
@@ -45,12 +45,22 @@ public:
 	Color GetFillColor();
 
 	virtual Color GetDrawColor( void );
-	virtual void SetDrawColor( Color drawColor );
+	virtual void SetDrawColor( Color color );
+
+	virtual void ApplySettings(KeyValues *inResourceData);
+
+	// unhooks and evicts image if possible, caller must re-establish
+	bool EvictImage();
+	
+	int GetNumFrames();
+	void SetFrame( int nFrame );
+	int GetFrame() const;
+
+	void SetRotation( int iRotation ) { m_iRotation = iRotation; }
 
 protected:
 	virtual void PaintBackground();
 	virtual void GetSettings(KeyValues *outResourceData);
-	virtual void ApplySettings(KeyValues *inResourceData);
 	virtual const char *GetDescription();
 	virtual void OnSizeChanged(int newWide, int newTall);
 	virtual void ApplySchemeSettings( IScheme *pScheme );
@@ -58,7 +68,8 @@ protected:
 private:
 	IImage *m_pImage;
 	char *m_pszImageName;
-	char *m_pszColorName;
+	char *m_pszFillColorName;
+	char *m_pszDrawColorName;
 	bool m_bScaleImage;
 	bool m_bTileImage;
 	bool m_bTileHorizontally;
@@ -66,6 +77,10 @@ private:
 	float m_fScaleAmount;
 	Color m_FillColor;
 	Color m_DrawColor;
+	int m_iRotation;
+
+	bool m_bFrameImage;
+	int m_iFrame;
 };
 
 } // namespace vgui

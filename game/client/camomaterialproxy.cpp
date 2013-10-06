@@ -19,6 +19,7 @@
 #include "materialsystem/IMaterial.h"
 #include "vtf/vtf.h"
 
+#include "imaterialproxydict.h"
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
@@ -299,20 +300,20 @@ void CCamoMaterialProxy::GetColors( Vector &diffuseColor, Vector &baseColor, int
 #endif
 	
 #if 0
-	float max;
-	max = diffuseColor[0];
-	if( diffuseColor[1] > max )
+	float MAX;
+	MAX = diffuseColor[0];
+	if( diffuseColor[1] > MAX )
 	{
-		max = diffuseColor[1];
+		MAX = diffuseColor[1];
 	}
-	if( diffuseColor[2] > max )
+	if( diffuseColor[2] > MAX )
 	{
-		max = diffuseColor[2];
+		MAX = diffuseColor[2];
 	}
-	if( max > 1.0f )
+	if( MAX > 1.0f )
 	{
-		max = 1.0f / max;
-		diffuseColor = diffuseColor * max;
+		MAX = 1.0f / MAX;
+		diffuseColor = diffuseColor * MAX;
 	}
 #else
 	if( diffuseColor[0] > 1.0f )
@@ -579,4 +580,4 @@ IMaterial *CCamoMaterialProxy::GetMaterial()
 	return m_pMaterial;
 }
 
-EXPOSE_INTERFACE( CCamoMaterialProxy, IMaterialProxy, "Camo" IMATERIAL_PROXY_INTERFACE_VERSION );
+EXPOSE_MATERIAL_PROXY( CCamoMaterialProxy, Camo );

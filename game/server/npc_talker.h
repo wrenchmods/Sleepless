@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright (c) 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose:
 //
@@ -10,12 +10,16 @@
 #ifndef TALKNPC_H
 #define TALKNPC_H
 
-#ifdef _LINUX
+#ifdef POSIX
 #undef time
 #include <time.h>
 #endif
 
 #ifndef _XBOX
+#ifdef POSIX
+#undef min
+#undef max
+#endif
 #pragma warning(push)
 #include <set>
 #pragma warning(pop)
@@ -25,7 +29,7 @@
 #pragma once
 #endif
 
-#ifdef _LINUX
+#ifdef POSIX
 // the include <set> monkey's with the max() define, unbreak it
 #undef MINMAX_H
 #include "minmax.h"

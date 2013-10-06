@@ -10,6 +10,7 @@
 #include "materialsystem/IMaterial.h"
 #include "view.h"
 
+#include "imaterialproxydict.h"
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
@@ -59,6 +60,7 @@ bool CLampHaloProxy::Init( IMaterial *pMaterial, KeyValues *pKeyValues )
 	// Need to get the color variable.
 	bool found;
 	m_pFadeValue = pMaterial->FindVar( "$alpha", &found );
+	pMaterial->SetMaterialVarFlag( MATERIAL_VAR_ALPHA_MODIFIED_BY_PROXY, true );
 	return found;
 }
 
@@ -86,7 +88,7 @@ void CLampHaloProxy::OnBind( C_BaseEntity *pEnt )
 	}
 	else
 	{
-		fade = min( (fade - 0.25) * 1.35, 1.0f );
+		fade = MIN( (fade - 0.25) * 1.35, 1.0f );
 	}
 
 	m_pFadeValue->SetFloatValue( fade );
@@ -100,4 +102,4 @@ IMaterial *CLampHaloProxy::GetMaterial()
 	return m_pFadeValue->GetOwningMaterial();
 }
 
-EXPOSE_INTERFACE( CLampHaloProxy, IMaterialProxy, "lamphalo" IMATERIAL_PROXY_INTERFACE_VERSION );
+EXPOSE_MATERIAL_PROXY( CLampHaloProxy, lamphalo );

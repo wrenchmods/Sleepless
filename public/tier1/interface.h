@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright ï¿½ 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -36,14 +36,12 @@
 #pragma once
 #endif
 
-#ifdef _LINUX
+#ifdef POSIX
 #include <dlfcn.h> // dlopen,dlclose, et al
 #include <unistd.h>
 
-#define HMODULE void *
 #define GetProcAddress dlsym
 
-#define _snprintf snprintf
 #endif
 
 // TODO: move interface.cpp into tier0 library.
@@ -77,7 +75,6 @@ public:
 	const char				*m_pName;
 
 	InterfaceReg			*m_pNext; // For the global list.
-	static InterfaceReg		*s_pInterfaceRegs;
 };
 
 // Use this to expose an interface that can have multiple instances.
@@ -180,6 +177,9 @@ extern CreateInterfaceFn	Sys_GetFactoryThis( void );
 extern CSysModule			*Sys_LoadModule( const char *pModuleName );
 extern void					Sys_UnloadModule( CSysModule *pModule );
 
+// Determines if current process is running with any debug modules
+extern bool					Sys_RunningWithDebugModules();
+
 // This is a helper function to load a module, get its factory, and get a specific interface.
 // You are expected to free all of these things.
 // Returns false and cleans up if any of the steps fail.
@@ -212,6 +212,7 @@ private:
 	CSysModule	*m_hModule;
 	bool		m_bLoadAttempted;
 };
+
 
 #endif
 

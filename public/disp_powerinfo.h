@@ -35,6 +35,8 @@ struct DispNodeInfo_t
 	unsigned short	m_FirstTesselationIndex;
 	unsigned char	m_Count;
 	unsigned char	m_Flags;
+	Vector m_mins;	// AABB for node triangles
+	Vector m_maxs;
 };
 
 

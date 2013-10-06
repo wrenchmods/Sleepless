@@ -27,6 +27,8 @@
 	#include "serverbenchmark_base.h"
 #endif
 
+#include "matchmaking/imatchframework.h"
+
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
@@ -509,7 +511,9 @@ void CTeamplayRoundBasedRules::Think( void )
 					event->SetBool( "forceupload", true );
 					gameeventmanager->FireEvent( event );
 				}
-				engine->MultiplayerEndGame();
+				
+				g_pMatchFramework->GetEventsSubscription()->BroadcastEvent( new KeyValues(
+					"OnEngineEndGame", "reason", "gameover" ) );
 			}
 
 			// Don't run this code again
@@ -645,7 +649,7 @@ void CTeamplayRoundBasedRules::SetInWaitingForPlayers( bool bWaitingForPlayers  
 	if( m_bInWaitingForPlayers == bWaitingForPlayers  )
 		return;
 
-	if ( IsInArenaMode() == true && m_flWaitingForPlayersTimeEnds == -1 && IsInTournamentMode() == false )
+	if ( IsInArenaMode() == true && m_flWaitingForPlayersTimeEnds == -1 )
 	{
 		m_bInWaitingForPlayers = false;
 		return;
@@ -808,6 +812,7 @@ void CTeamplayRoundBasedRules::CheckWaitingForPlayers( void )
 		}
 	}
 }
+
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -1292,7 +1297,6 @@ void CTeamplayRoundBasedRules::State_Think_PREROUND( void )
 				{
 					// check round restart
 					CheckReadyRestart();
-					State_Transition( GR_STATE_STALEMATE );
 				}
 
 				return;
@@ -1455,10 +1459,10 @@ void CTeamplayRoundBasedRules::State_Think_RND_RUNNING( void )
 //-----------------------------------------------------------------------------
 void CTeamplayRoundBasedRules::State_Enter_TEAM_WIN( void )
 {
-	float flTime = max( 5, mp_bonusroundtime.GetFloat() );
+	float flTime = MAX( 5, mp_bonusroundtime.GetFloat() );
 
 
-	m_flStateTransitionTime = gpGlobals->curtime + flTime;
+	m_flStateTransitionTime = gpGlobals->curtime + flTime * mp_enableroundwaittime.GetFloat();
 
 	// if we're forcing the map to reset it must be the end of a "full" round not a mini-round
 	if ( m_bForceMapReset )
@@ -1499,15 +1503,7 @@ void CTeamplayRoundBasedRules::State_Think_TEAM_WIN( void )
 			}
 
 			RestartTournament();
-
-			if ( IsInArenaMode() == true )
-			{
-				State_Transition( GR_STATE_PREROUND );
-			}
-			else
-			{
-				State_Transition( GR_STATE_RND_RUNNING );
-			}
+			State_Transition( GR_STATE_RND_RUNNING );
 		}
 	}
 }
@@ -1629,13 +1625,6 @@ void CTeamplayRoundBasedRules::State_Think_STALEMATE( void )
 	if( CountActivePlayers() <= 0 && IsInArenaMode() == false )
 	{
 		State_Transition( GR_STATE_PREGAME );
-		return;
-	}
-
-	if ( IsInTournamentMode() == true && IsInWaitingForPlayers() == true )
-	{
-		CheckReadyRestart();
-		CheckRespawnWaves();
 		return;
 	}
 
@@ -2055,9 +2044,6 @@ bool CTeamplayRoundBasedRules::MapHasActiveTimer( void )
 //-----------------------------------------------------------------------------
 void CTeamplayRoundBasedRules::CreateTimeLimitTimer( void )
 {
-	if ( IsInArenaMode () == true )
-		return;
-
 	if ( !m_hTimeLimitTimer )
 	{
 		m_hTimeLimitTimer = (CTeamRoundTimer*)CBaseEntity::Create( "team_round_timer", vec3_origin, vec3_angle );
@@ -2235,7 +2221,7 @@ void CTeamplayRoundBasedRules::CleanUpMap()
 				CMapEntityRef &ref = g_MapEntityRefs[m_iIterator];
 				m_iIterator = g_MapEntityRefs.Next( m_iIterator );	// Seek to the next entity.
 
-				if ( ref.m_iEdict == -1 || engine->PEntityOfEntIndex( ref.m_iEdict ) )
+				if ( ref.m_iEdict == -1 || INDEXENT( ref.m_iEdict ) )
 				{
 					// Doh! The entity was delete and its slot was reused.
 					// Just use any old edict slot. This case sucks because we lose the baseline.
@@ -2317,6 +2303,97 @@ void CTeamplayRoundBasedRules::CheckRespawnWaves( void )
 	}
 }
 
+class CBalanceTeamGroup : public CSameTeamGroup
+{
+	typedef CSameTeamGroup BaseClass;
+
+public:
+	CBalanceTeamGroup();
+	CBalanceTeamGroup( const CBalanceTeamGroup &src );
+
+	virtual void Build( CGameRules *pGameRules, CBasePlayer *pl );
+	virtual void MaybeAddPlayer( CBasePlayer *pl );
+
+	bool					AllAlive() const;
+	bool					AllDead() const;
+
+	static bool Less( const CBalanceTeamGroup &p1, const CBalanceTeamGroup &p2 )
+	{
+		return CSameTeamGroup::Less( p1, p2 );
+	}
+private:
+	int										m_nAlive;
+	int										m_nDead;
+};
+
+CBalanceTeamGroup::CBalanceTeamGroup() :
+	m_nAlive( 0 ), 
+	m_nDead( 0 )
+{
+}
+
+CBalanceTeamGroup::CBalanceTeamGroup( const CBalanceTeamGroup &src )
+{
+	m_nAlive = src.m_nAlive;
+	m_nDead = src.m_nDead;
+}
+
+bool CBalanceTeamGroup::AllAlive() const
+{
+	return m_nAlive > 0 && m_nDead == 0;
+}
+
+bool CBalanceTeamGroup::AllDead() const
+{
+	return m_nDead > 0 && m_nAlive == 0;
+}
+
+void CBalanceTeamGroup::Build( CGameRules *pGameRules, CBasePlayer *pl )
+{
+	m_Players.RemoveAll();
+	m_nScore = INT_MIN;
+	m_nAlive = m_nDead = 0;
+
+	// These are built by the "parent" player
+	if ( pGameRules->ForceSplitScreenPlayersOnToSameTeam() &&
+		pl->IsSplitScreenPlayer() )
+		return;
+
+	MaybeAddPlayer( pl );
+
+	if ( !pGameRules->ForceSplitScreenPlayersOnToSameTeam() )
+		return;
+
+	CUtlVector< CHandle< CBasePlayer > > &list = pl->GetSplitScreenPlayers();
+	for ( int i = 0; i < list.Count(); ++i )
+	{
+		MaybeAddPlayer( list[ i ] );
+	}
+}
+
+void CBalanceTeamGroup::MaybeAddPlayer( CBasePlayer *pl )
+{
+	CBaseMultiplayerPlayer *pPlayer = ToBaseMultiplayerPlayer( pl );
+	if ( pPlayer )
+	{
+		int nScore = pPlayer->CalculateTeamBalanceScore();
+		pPlayer->SetTeamBalanceScore( nScore );
+		if ( nScore > m_nScore )
+		{
+			m_nScore = nScore;
+		}
+		if ( pPlayer->IsAlive() )
+		{
+			++m_nAlive;
+		}
+		else
+		{
+			++m_nDead;
+		}
+		m_Players.AddToTail( pl );
+	}
+}
+
 //-----------------------------------------------------------------------------
 // Purpose: Return true if the teams are balanced after this function
 //-----------------------------------------------------------------------------
@@ -2367,7 +2444,7 @@ void CTeamplayRoundBasedRules::BalanceTeams( bool bRequireSwitcheesToBeDead )
 		m_bPrintedUnbalanceWarning = true;
 	}
 
-	// teams are unblanced, figure out some players that need to be switched
+	// teams are unbalanced, figure out players that need to be switched
 
 	CTeam *pHeavyTeam = GetGlobalTeam( iHeaviestTeam );
 	CTeam *pLightTeam = GetGlobalTeam( iLightestTeam );
@@ -2377,44 +2454,47 @@ void CTeamplayRoundBasedRules::BalanceTeams( bool bRequireSwitcheesToBeDead )
 	int iNumSwitchesRequired = ( pHeavyTeam->GetNumPlayers() - pLightTeam->GetNumPlayers() ) / 2;
 
 	// sort the eligible players and switch the n best candidates
-	CUtlVector<CBaseMultiplayerPlayer *> vecPlayers;
+	CUtlRBTree<CBalanceTeamGroup> vecGroups( 0, 0, CBalanceTeamGroup::Less );
 
 	CBaseMultiplayerPlayer *pPlayer;
-
-	int iScore;
 
 	int i;
 	for ( i = 0; i < pHeavyTeam->GetNumPlayers(); i++ )
 	{
-		pPlayer = ToBaseMultiplayerPlayer( pHeavyTeam->GetPlayer(i) );
-
-		if ( !pPlayer )
+		CBasePlayer *pl = pHeavyTeam->GetPlayer(i);
+		if ( !pl )
 			continue;
 
-		// calculate a score for this player. higher is more likely to be switched
-		iScore = pPlayer->CalculateTeamBalanceScore();
+		CBalanceTeamGroup group;
+		group.Build( this, pl );
+		if ( group.Count() <= 0 )
+			continue;
 
-		pPlayer->SetTeamBalanceScore( iScore );
+		if ( bRequireSwitcheesToBeDead && !group.AllDead() )
+			continue;
 
-		vecPlayers.AddToTail( pPlayer );
+		// Too many players
+		if ( group.Count() > iNumSwitchesRequired )
+			continue;
+
+		vecGroups.Insert( group );
 	}
 
-	// sort the vector
-	vecPlayers.Sort( SwitchPlayersSort );
-
-	int iNumEligibleSwitchees = iNumSwitchesRequired + 2;
-
-	for ( int i=0; i<vecPlayers.Count() && iNumSwitchesRequired > 0 && i < iNumEligibleSwitchees; i++ )
+	for ( int i=vecGroups.FirstInorder(); i != vecGroups.InvalidIndex(); i = vecGroups.NextInorder( i ) )
 	{
-		pPlayer = vecPlayers.Element(i);
+		if ( iNumSwitchesRequired <= 0 )
+			break;
 
-		Assert( pPlayer );
-
-		if ( !pPlayer )
+		CSameTeamGroup &group = vecGroups[ i ];
+		if ( !group.Count() || group.Count() > iNumSwitchesRequired )
 			continue;
 
-		if ( bRequireSwitcheesToBeDead == false || !pPlayer->IsAlive() )
+		for ( int j = 0; j < group.Count(); ++j )
 		{
+			pPlayer = ToBaseMultiplayerPlayer( group.GetPlayer( j ) );
+			if ( !pPlayer )
+				continue;
+
 			pPlayer->ChangeTeam( iLightestTeam );
 			pPlayer->SetLastForcedChangeTeamTimeToNow();
 
@@ -2615,12 +2695,9 @@ string_t CTeamplayRoundBasedRules::GetLastPlayedRound( void )
 //-----------------------------------------------------------------------------
 CTeamRoundTimer *CTeamplayRoundBasedRules::GetActiveRoundTimer( void )
 {
-#ifdef TF_DLL
-	int iTimerEntIndex = ObjectiveResource()->GetTimerInHUD();
-	return ( dynamic_cast<CTeamRoundTimer *>( UTIL_EntityByIndex( iTimerEntIndex ) ) );
-#else
+
 	return NULL;
-#endif
+
 }
 
 #endif // GAME_DLL
@@ -2645,7 +2722,7 @@ float CTeamplayRoundBasedRules::GetRespawnWaveMaxLength( int iTeam, bool bScaleW
 	// For long respawn times, scale the time as the number of players drops
 	if ( bScaleWithNumPlayers && flTime > 5 )
 	{
-		flTime = max( 5, flTime * GetRespawnTimeScalar(iTeam) );
+		flTime = MAX( 5, flTime * GetRespawnTimeScalar(iTeam) );
 	}
 
 	return flTime;
@@ -2676,7 +2753,7 @@ bool CTeamplayRoundBasedRules::ShouldBalanceTeams( void )
 //-----------------------------------------------------------------------------
 // Purpose: returns true if the passed team change would cause unbalanced teams
 //-----------------------------------------------------------------------------
-bool CTeamplayRoundBasedRules::WouldChangeUnbalanceTeams( int iNewTeam, int iCurrentTeam  )
+bool CTeamplayRoundBasedRules::WouldChangeUnbalanceTeams( int iNumPlayersToMove, int iNewTeam, int iCurrentTeam  )
 {
 	// players are allowed to change to their own team
 	if( iNewTeam == iCurrentTeam )
@@ -2698,8 +2775,8 @@ bool CTeamplayRoundBasedRules::WouldChangeUnbalanceTeams( int iNewTeam, int iCur
 		return true;
 	}
 
-	// add one because we're joining this team
-	int iNewTeamPlayers = pNewTeam->GetNumPlayers() + 1;
+	// Figure out how big the new team would be
+	int iNewTeamPlayers = pNewTeam->GetNumPlayers() + iNumPlayersToMove;
 
 	// for each game team
 	int i = FIRST_GAME_TEAM;
@@ -2715,10 +2792,11 @@ bool CTeamplayRoundBasedRules::WouldChangeUnbalanceTeams( int iNewTeam, int iCur
 
 		if ( i == iCurrentTeam )
 		{
-			iNumPlayers = max( 0, iNumPlayers-1 );
+			// Figure out how big the old team would end up being
+			iNumPlayers = MAX( 0, iNumPlayers-iNumPlayersToMove );
 		}
 
-		if ( ( iNewTeamPlayers - iNumPlayers ) > mp_teams_unbalance_limit.GetInt() )
+		if ( ( iNewTeamPlayers - iNumPlayers ) > ( mp_teams_unbalance_limit.GetInt() + iNumPlayersToMove - 1 ) )
 		{
 			return true;
 		}
@@ -2843,4 +2921,3 @@ void CTeamplayRoundBasedRules::OnDataChanged( DataUpdateType_t updateType )
 }
 
 #endif // CLIENT_DLL
-

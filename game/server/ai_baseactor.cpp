@@ -15,6 +15,7 @@
 #include "saverestore_utlvector.h"
 #include "bone_setup.h"
 #include "physics_npc_solver.h"
+#include "inforemarkable.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -254,7 +255,7 @@ bool CAI_BaseActor::StartSceneEvent( CSceneEventInfo *info, CChoreoScene *scene,
 				Blink();
 				// don't blink for duration, or next random blink time
 				float flDuration = (event->GetEndTime() - scene->GetTime());
-				m_flBlinktime = gpGlobals->curtime + max( flDuration, random->RandomFloat( 1.5, 4.5 ) ); 
+				m_flBlinktime = gpGlobals->curtime + MAX( flDuration, random->RandomFloat( 1.5, 4.5 ) ); 
 			}
 			else if (stricmp( event->GetParameters(), "AI_HOLSTER") == 0)
 			{
@@ -422,8 +423,8 @@ bool CAI_BaseActor::ProcessSceneEvent( CSceneEventInfo *info, CChoreoScene *scen
 			{
 				dir = 1;
 			}
-			flSpineYaw = min( diff, 30 );
-			flBodyYaw = min( diff - flSpineYaw, 30 );
+			flSpineYaw = MIN( diff, 30 );
+			flBodyYaw = MIN( diff - flSpineYaw, 30 );
 			m_goalSpineYaw = m_goalSpineYaw * (1.0 - intensity) + intensity * flSpineYaw * dir;
 			m_goalBodyYaw = m_goalBodyYaw * (1.0 - intensity) + intensity * flBodyYaw * dir;
 
@@ -465,15 +466,15 @@ bool CAI_BaseActor::ProcessSceneEvent( CSceneEventInfo *info, CChoreoScene *scen
 			}
 
 			// calc how much to use the spine for turning
-			float spineintensity = (1.0 - max( 0.0, (intensity - 0.5) / 0.5 ));
+			float spineintensity = (1.0 - MAX( 0.0, (intensity - 0.5) / 0.5 ));
 			// force spine to full if not in scene or locked
 			if (!bInScene || event->IsLockBodyFacing() )
 			{
 				spineintensity = 1.0;
 			}
 
-			flSpineYaw = min( diff * spineintensity, 30 );
-			flBodyYaw = min( diff * spineintensity - flSpineYaw, 30 );
+			flSpineYaw = MIN( diff * spineintensity, 30 );
+			flBodyYaw = MIN( diff * spineintensity - flSpineYaw, 30 );
 			info->m_flFacingYaw = info->m_flInitialYaw + (diff - flBodyYaw - flSpineYaw) * dir;
 
 			if (!event->IsLockBodyFacing())
@@ -490,7 +491,7 @@ bool CAI_BaseActor::ProcessSceneEvent( CSceneEventInfo *info, CChoreoScene *scen
 					{
 						// keep eyes not blinking for duration
 						float flDuration = (event->GetEndTime() - scene->GetTime());
-						m_flBlinktime = max( m_flBlinktime, gpGlobals->curtime + flDuration );
+						m_flBlinktime = MAX( m_flBlinktime, gpGlobals->curtime + flDuration );
 					}
 					return true;
 				case SCENE_AI_HOLSTER:
@@ -522,7 +523,7 @@ bool CAI_BaseActor::ProcessSceneEvent( CSceneEventInfo *info, CChoreoScene *scen
 							{
 								float flDuration = (event->GetEndTime() - scene->GetTime());
 								int i = m_syntheticLookQueue.Count() - 1;
-								m_syntheticLookQueue[i].m_flEndTime = min( m_syntheticLookQueue[i].m_flEndTime, gpGlobals->curtime + flDuration );
+								m_syntheticLookQueue[i].m_flEndTime = MIN( m_syntheticLookQueue[i].m_flEndTime, gpGlobals->curtime + flDuration );
 								m_syntheticLookQueue[i].m_flInterest = 0.1;
 							}
 						}
@@ -695,6 +696,55 @@ void CAI_BaseActor::SetViewtarget( const Vector &viewtarget )
 
 
 //-----------------------------------------------------------------------------
+// Purpose: Clear out head/look targets
+//-----------------------------------------------------------------------------
+
+
+void CAI_BaseActor::ClearHeadAdjustment()
+{
+	//DevMsg( "Teleport %s : %.0f %.0f %.0f  : %.0f %.0f %.0f\n", GetEntityNameAsCStr(), Get( m_ParameterHeadYaw ), Get( m_ParameterHeadPitch ), Get( m_ParameterHeadRoll ), m_goalHeadCorrection.x, m_goalHeadCorrection.y, m_goalHeadCorrection.z );
+	m_lookQueue.RemoveAll();
+	m_syntheticLookQueue.RemoveAll();
+	m_randomLookQueue.RemoveAll();
+
+	Set( m_ParameterHeadYaw, 0.0f );
+	Set( m_ParameterHeadPitch, 0.0f );
+	Set( m_ParameterHeadRoll, 0.0f );
+
+	m_goalHeadDirection.Init();
+	m_goalHeadInfluence = 0.0f;
+
+	m_goalSpineYaw = 0.0f;
+	m_goalBodyYaw = 0.0f;
+	m_goalHeadCorrection.Init();
+}
+
+
+void CAI_BaseActor::Teleport( const Vector *newPosition, const QAngle *newAngles, const Vector *newVelocity )
+{
+	ClearHeadAdjustment();
+
+	BaseClass::Teleport( newPosition, newAngles, newVelocity );
+}
+
+
+//-----------------------------------------------------------------------------
+// Purpose: Clear out eye/head latched positions
+//-----------------------------------------------------------------------------
+
+void CAI_BaseActor::InvalidateBoneCache()
+{
+	m_fLatchedPositions &= ~(HUMANOID_LATCHED_ALL);
+
+	BaseClass::InvalidateBoneCache();
+}
+
+const char *CAI_BaseActor::GetEyeAttachmentName()
+{
+	return "eyes";
+}
+
+//-----------------------------------------------------------------------------
 // Purpose: Returns true position of the eyeballs
 //-----------------------------------------------------------------------------
 void CAI_BaseActor::UpdateLatchedValues( ) 
@@ -704,7 +754,7 @@ void CAI_BaseActor::UpdateLatchedValues( )
 		// set head latch
 		m_fLatchedPositions |= HUMANOID_LATCHED_HEAD;
 
-		if (!HasCondition( COND_IN_PVS ) || !GetAttachment( "eyes", m_latchedEyeOrigin, &m_latchedHeadDirection ))
+		if ( CanSkipAnimation() || !GetAttachment( GetEyeAttachmentName(), m_latchedEyeOrigin, &m_latchedHeadDirection ))
 		{
 			m_latchedEyeOrigin = BaseClass::EyePosition( );
 			AngleVectors( GetLocalAngles(), &m_latchedHeadDirection );
@@ -907,7 +957,7 @@ void CAI_BaseActor::UpdateBodyControl( )
 }
 
 
-static ConVar scene_clamplookat( "scene_clamplookat", "1", FCVAR_NONE, "Clamp head turns to a max of 20 degrees per think." );
+static ConVar scene_clamplookat( "scene_clamplookat", "1", FCVAR_NONE, "Clamp head turns to a MAX of 20 degrees per think." );
 
 
 void CAI_BaseActor::UpdateHeadControl( const Vector &vHeadTarget, float flHeadInfluence )
@@ -983,7 +1033,7 @@ void CAI_BaseActor::UpdateHeadControl( const Vector &vHeadTarget, float flHeadIn
 		angBias.Init( 0, 0, 0 );
 	}
 
-	matrix3x4_t targetXform;
+	matrix3x4a_t targetXform;
 	targetXform = forwardToWorld;
 	Vector vTargetDir = vHeadTarget - EyePosition();
 
@@ -1412,6 +1462,89 @@ void CAI_BaseActor::StartTaskRangeAttack1( const Task_t *pTask )
 	}
 }
 
+//-----------------------------------------------------------------------------
+#pragma region INFO_REMARKABLE polling
+// hardcode the default rr_remarkables_enabled value for now because I don't know what
+// the current state of unhackable config files is. Should be fixed.
+// (TODO)
+
+#define AI_REMARKABLES_ENABLED_DEFAULT "0"
+
+
+ConVar rr_remarkable_world_entities_replay_limit( "rr_remarkable_world_entities_replay_limit", "1", FCVAR_CHEAT, "TLK_REMARKs will be dispatched no more than this many times for any given info_remarkable" );
+ConVar rr_remarkables_enabled( "rr_remarkables_enabled", AI_REMARKABLES_ENABLED_DEFAULT, FCVAR_CHEAT, "If 1, polling for info_remarkables and issuances of TLK_REMARK is enabled." );
+ConVar rr_remarkable_max_distance( "rr_remarkable_max_distance", "1200", FCVAR_CHEAT, "AIs will not even consider remarkarbles that are more than this many units away." );
+#define AI_REMARK_SPEECH_INTERVAL 1
+/************************************************************************/
+/* TODO: Make perfier
+ *       Plumb through interrupt priority in speech
+/************************************************************************/
+bool CAI_BaseActor::UpdateRemarkableSpeech() RESTRICT
+{
+	// done in caller
+	/*
+	if ( !rr_remarkables_enabled.GetBool() ) 
+		return false;
+	*/
+		
+	VPROF( "CAI_BaseActor::UpdateRemarkableSpeech" );
+	if ( CanPollRemarkables() )
+	{
+		m_fNextRemarkPollTime = gpGlobals->curtime + AI_REMARK_SPEECH_INTERVAL;
+
+		// this is somewhat hokey 12am logic -- we're going to iterate over all 
+		// the remarkables and ask each of them if they're in sight. It's better
+		// to do this the other way (ie the entities would know when they're being
+		// looked at) but we don't seem to have a function for that yet. 
+		CInfoRemarkable::tRemarkableList *pList = CInfoRemarkable::GetListOfAllThatIsRemarkable();
+		const float maxDistSq = rr_remarkable_max_distance.GetFloat() * rr_remarkable_max_distance.GetFloat();
+		const int remarkLimit = rr_remarkable_world_entities_replay_limit.GetInt();
+		for ( int i = pList->Head(); pList->IsValidIndex(i); i = pList->Next(i) )
+		{
+			CInfoRemarkable * RESTRICT remarkable = pList->Element(i);
+			// do a quick distance test for a rough cull.
+			if ( GetAbsOrigin().DistToSqr(remarkable->GetAbsOrigin()) > maxDistSq )
+				continue;
+
+			if ( remarkable->m_iTimesRemarkedUpon < remarkLimit &&
+				 TestRemarkingUpon( remarkable ) )
+			{
+				// remark upon it
+				float distToRemarkable = (remarkable->GetAbsOrigin() - GetAbsOrigin()).Length();
+				const char *pModifiers = UTIL_VarArgs( "Subject:%s,Distance:%f", remarkable->GetRemarkContext(), distToRemarkable );
+
+				if ( CanSpeak() && Speak( "TLK_REMARK", pModifiers ) )
+				{
+					remarkable->m_iTimesRemarkedUpon += 1;
+					return true;
+				}
+			}
+		}
+
+	}
+
+	return false;
+}
+
+
+bool CAI_BaseActor::CanPollRemarkables()
+{
+	return m_bRemarkablePolling &&
+		   ( gpGlobals->curtime > m_fNextRemarkPollTime )	;
+}
+
+bool CAI_BaseActor::TestRemarkingUpon( CInfoRemarkable * RESTRICT pRemarkable )
+{
+	return	IsInFieldOfView( pRemarkable )					&&
+			IsLineOfSightClear( pRemarkable, IGNORE_ACTORS );
+}
+
+
+//-----------------------------------------------------------------------------
+#pragma endregion
+
+
+
 
 //-----------------------------------------------------------------------------
 // Purpose: Set direction that the NPC is looking
@@ -1495,7 +1628,7 @@ void CAI_BaseActor::MaintainLookTargets( float flInterval )
 	}
 
 	// don't bother with any of the rest if the player can't see you
-	if (!HasCondition( COND_IN_PVS ))
+	if ( CanSkipAnimation() )
 	{
 		return;
 	}
@@ -1601,7 +1734,7 @@ void CAI_BaseActor::MaintainLookTargets( float flInterval )
 		// no target, decay all head control direction
 		m_goalHeadDirection = m_goalHeadDirection * 0.8 + vHead * 0.2;
 
-		m_goalHeadInfluence = max( m_goalHeadInfluence - 0.2, 0 );
+		m_goalHeadInfluence = MAX( m_goalHeadInfluence - 0.2, 0 );
 
 		VectorNormalize( m_goalHeadDirection );
 		UpdateHeadControl( vEyePosition + m_goalHeadDirection * 100, m_goalHeadInfluence );
@@ -1929,4 +2062,12 @@ bool CAI_BaseActor::CreateComponents()
 	return true;
 }
 
+void CAI_BaseActor::GatherConditions( void )
+{
+	BaseClass::GatherConditions();
+	if ( rr_remarkables_enabled.GetBool() )
+	{
+		UpdateRemarkableSpeech();
+	}
+}
 //-----------------------------------------------------------------------------

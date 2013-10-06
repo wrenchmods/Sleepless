@@ -55,6 +55,12 @@ public:
 	// Sets the current sequence
 	void SetSequence( int nSequence );
 
+	// Set the pose parameters
+	void SetPoseParameters( const float *pPoseParameters, int nCount );
+
+	// Set the overlay sequence layers
+	void SetSequenceLayers( const MDLSquenceLayer_t *pSequenceLayers, int nCount );
+
 	void SetCollsionModel( bool bVisible );
 	void SetGroundGrid( bool bVisible );
 	void SetWireFrame( bool bVisible );
@@ -65,6 +71,8 @@ public:
 	// Bounds.
 	bool GetBoundingBox( Vector &vecBoundsMin, Vector &vecBoundsMax );
 	bool GetBoundingSphere( Vector &vecCenter, float &flRadius );
+	bool GetAttachment( const char *szAttachment, matrix3x4_t& matrixOut );
+	bool GetAttachment( int iAttachmentNum, matrix3x4_t& matrixOut );
 
 	void SetModelAnglesAndPosition( const QAngle &angRot, const Vector &vecPos );
 
@@ -101,6 +109,12 @@ private:
 	bool	m_bLockView : 1;
 	bool	m_bWireFrame : 1;
 	bool	m_bLookAtCamera : 1;
+
+	float	m_PoseParameters[ MAXSTUDIOPOSEPARAM ];
+
+	static const int MAX_SEQUENCE_LAYERS = 8;
+	int					m_nNumSequenceLayers;
+	MDLSquenceLayer_t	m_SequenceLayers[ MAX_SEQUENCE_LAYERS ];
 };
 
 

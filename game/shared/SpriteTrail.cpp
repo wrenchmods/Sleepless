@@ -37,6 +37,7 @@ extern CEngineSprite *Draw_SetSpriteTexture( const model_t *pSpriteModel, int fr
 #if defined( CLIENT_DLL )
 
 BEGIN_SIMPLE_DATADESC( TrailPoint_t )
+	// DEFINE_FIELD( m_vecScreenPos,	FIELD_CLASSCHECK_IGNORE ) // do this or else we get a warning about multiply-defined fields
 #if SCREEN_SPACE_TRAILS
 	DEFINE_FIELD( m_vecScreenPos,	FIELD_VECTOR ),
 #else
@@ -417,7 +418,7 @@ void CSpriteTrail::UpdateTrail( void )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-int CSpriteTrail::DrawModel( int flags )
+int CSpriteTrail::DrawModel( int flags, const RenderableInstance_t &instance )
 {
 	VPROF_BUDGET( "CSpriteTrail::DrawModel", VPROF_BUDGETGROUP_PARTICLE_RENDERING );
 	
@@ -436,7 +437,7 @@ int CSpriteTrail::DrawModel( int flags )
 	// Specify all the segments.
 	CMatRenderContextPtr pRenderContext( g_pMaterialSystem );
 	CBeamSegDraw segDraw;
-	segDraw.Start( pRenderContext, m_nStepCount + 1, pSprite->GetMaterial() );
+	segDraw.Start( pRenderContext, m_nStepCount + 1, pSprite->GetMaterial( GetRenderMode() ) );
 	
 	// Setup the first point, always emanating from the attachment point
 	TrailPoint_t *pLast = GetTrailPoint( m_nStepCount-1 );
@@ -462,10 +463,9 @@ int CSpriteTrail::DrawModel( int flags )
 		float flLifePerc = (pPoint->m_flDieTime - gpGlobals->curtime) / m_flLifeTime;
 		flLifePerc = clamp( flLifePerc, 0.0f, 1.0f );
 
+		color24 c = GetRenderColor();
 		BeamSeg_t curSeg;
-		curSeg.m_vColor.x = (float) m_clrRender->r / 255.0f;
-		curSeg.m_vColor.y = (float) m_clrRender->g / 255.0f;
-		curSeg.m_vColor.z = (float) m_clrRender->b / 255.0f;
+		curSeg.m_color.r = c.r; curSeg.m_color.g = c.g; curSeg.m_color.b = c.b;
 
 		float flAlphaFade = flLifePerc;
 		if ( flTailAlphaDist > 0.0f )
@@ -485,7 +485,7 @@ int CSpriteTrail::DrawModel( int flags )
 				}
 			}
 		}
-		curSeg.m_flAlpha  = ( (float) GetRenderBrightness() / 255.0f ) * flAlphaFade;
+		curSeg.m_color.a  = GetRenderBrightness() * flAlphaFade;
 
 #if SCREEN_SPACE_TRAILS
 		curSeg.m_vPos = viewMatrix * pPoint->m_vecScreenPos;

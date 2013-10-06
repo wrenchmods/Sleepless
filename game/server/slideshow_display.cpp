@@ -10,6 +10,9 @@
 #include "vguiscreen.h"
 #include "filesystem.h"
 
+// NOTE: This has to be the last file included!
+#include "tier0/memdbgon.h"
+
 
 #define SLIDESHOW_LIST_BUFFER_MAX 8192
 
@@ -404,7 +407,7 @@ void CSlideshowDisplay::SpawnControlPanels()
 		float flWidth = m_iScreenWidth;
 		float flHeight = m_iScreenHeight;
 
-		CVGuiScreen *pScreen = CreateVGuiScreen( pScreenClassname, pScreenName, this, this, -1 );
+		CVGuiScreen *pScreen = CreateVGuiScreen( pScreenClassname, pScreenName, this, this, 0 );
 		pScreen->ChangeTeam( GetTeamNumber() );
 		pScreen->SetActualSize( flWidth, flHeight );
 		pScreen->SetActive( true );
@@ -469,7 +472,7 @@ void CSlideshowDisplay::BuildSlideShowImagesList( void )
 			return;
 		}
 
-		int iFileSize = min( g_pFullFileSystem->Size( fh ), SLIDESHOW_LIST_BUFFER_MAX );
+		int iFileSize = MIN( g_pFullFileSystem->Size( fh ), SLIDESHOW_LIST_BUFFER_MAX );
 
 		int iBytesRead = g_pFullFileSystem->Read( szFileBuffer, iFileSize, fh );
 		g_pFullFileSystem->Close( fh );

@@ -11,6 +11,11 @@
 
 #include "ProxyEntity.h"
 #include "materialsystem/IMaterialVar.h"
+#include "imaterialproxydict.h"
+
+// NOTE: This has to be the last file included!
+#include "tier0/memdbgon.h"
+
 
 class CEntityOriginMaterialProxy : public CEntityMaterialProxy
 {
@@ -51,7 +56,7 @@ protected:
 	IMaterialVar *m_pOriginVar;
 };
 
-EXPOSE_INTERFACE( CEntityOriginMaterialProxy, IMaterialProxy, "EntityOrigin" IMATERIAL_PROXY_INTERFACE_VERSION );
+EXPOSE_MATERIAL_PROXY( CEntityOriginMaterialProxy, EntityOrigin );
 
 //=================================================================================================================
 // This is a last-minute hack to ship Orange Box on the 360!
@@ -95,7 +100,7 @@ protected:
 	IMaterialVar *m_pOriginVar;
 };
 
-EXPOSE_INTERFACE( CEntityOriginAlyxMaterialProxy, IMaterialProxy, "EntityOriginAlyx" IMATERIAL_PROXY_INTERFACE_VERSION );
+EXPOSE_MATERIAL_PROXY( CEntityOriginAlyxMaterialProxy, EntityOriginAlyx );
 
 //=================================================================================================================
 // This is a last-minute hack to ship Orange Box on the 360!
@@ -145,4 +150,4 @@ protected:
 	IMaterialVar *m_pOriginVar;
 };
 
-EXPOSE_INTERFACE( CEp1IntroVortRefractMaterialProxy, IMaterialProxy, "Ep1IntroVortRefract" IMATERIAL_PROXY_INTERFACE_VERSION );
+EXPOSE_MATERIAL_PROXY( CEp1IntroVortRefractMaterialProxy, Ep1IntroVortRefract );

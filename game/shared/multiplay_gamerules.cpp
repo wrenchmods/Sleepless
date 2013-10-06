@@ -29,13 +29,15 @@
 	#include "voice_gamemgr.h"
 	#include "iscorer.h"
 	#include "hltvdirector.h"
+#if defined( REPLAY_ENABLED )
+	#include "replaydirector.h"
+#endif
 	#include "AI_Criteria.h"
 	#include "sceneentity.h"
-	#include "basemultiplayerplayer.h"
 	#include "team.h"
 	#include "usermessages.h"
 	#include "tier0/icommandline.h"
-
+	#include "basemultiplayerplayer.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -79,9 +81,9 @@ ConVar tv_delaymapchange( "tv_delaymapchange", "0", 0, "Delays map change until 
 
 ConVar mp_restartgame( "mp_restartgame", "0", FCVAR_GAMEDLL, "If non-zero, game will restart in the specified number of seconds" );
 
-#ifndef TF_DLL		// TF overrides the default value of this convar
+
 ConVar mp_waitingforplayers_time( "mp_waitingforplayers_time", "0", FCVAR_GAMEDLL, "WaitingForPlayers time length in seconds" );
-#endif
+
 
 ConVar mp_waitingforplayers_restart( "mp_waitingforplayers_restart", "0", FCVAR_GAMEDLL, "Set to 1 to start or restart the WaitingForPlayers period." );
 ConVar mp_waitingforplayers_cancel( "mp_waitingforplayers_cancel", "0", FCVAR_GAMEDLL, "Set to 1 to end the WaitingForPlayers period." );
@@ -91,18 +93,16 @@ ConVar mp_clan_ready_signal( "mp_clan_ready_signal", "ready", FCVAR_GAMEDLL, "Te
 ConVar nextlevel( "nextlevel", 
 				  "", 
 				  FCVAR_GAMEDLL | FCVAR_NOTIFY,
-#if defined( CSTRIKE_DLL ) || defined( TF_DLL )
-				  "If set to a valid map name, will trigger a changelevel to the specified map at the end of the round" );
-#else
+
 				  "If set to a valid map name, will change to this map during the next changelevel" );
-#endif // CSTRIKE_DLL || TF_DLL
+
 					  					  
 #endif
 
 #ifndef CLIENT_DLL
 int CMultiplayRules::m_nMapCycleTimeStamp = 0;
 int CMultiplayRules::m_nMapCycleindex = 0;
-CUtlVector<char*> CMultiplayRules::m_MapList;
+CUtlStringList CMultiplayRules::m_MapList;
 #endif
 
 //=========================================================
@@ -166,8 +166,7 @@ int	CMultiplayRules::Damage_GetShouldNotBleed( void )
 bool CMultiplayRules::Damage_IsTimeBased( int iDmgType )
 {
 	// Damage types that are time-based.
-	//Tony; fixed. return Damage_GetTimeBased instead of checking them directly.
-	return ( ( iDmgType & Damage_GetTimeBased() ) != 0 );
+	return ( ( iDmgType & ( DMG_PARALYZE | DMG_NERVEGAS | DMG_POISON | DMG_RADIATION | DMG_DROWNRECOVER | DMG_ACID | DMG_SLOWBURN ) ) != 0 );
 }
 
 //-----------------------------------------------------------------------------
@@ -267,18 +266,6 @@ CMultiplayRules::CMultiplayRules()
 	LoadVoiceCommandScript();
 }
 
-bool CMultiplayRules::Init()
-{
-#ifdef GAME_DLL
-
-	// Initialize the custom response rule dictionaries.
-	InitCustomResponseRulesDicts();
-
-#endif
-
-	return BaseClass::Init();
-}
-
 
 #ifdef CLIENT_DLL
 
@@ -301,10 +288,10 @@ bool CMultiplayRules::Init()
 	// override some values for multiplay.
 
 		// suitcharger
-#ifndef TF_DLL
+
 		ConVarRef suitcharger( "sk_suitcharger" );
 		suitcharger.SetValue( 30 );
-#endif
+
 	}
 
 
@@ -318,9 +305,7 @@ bool CMultiplayRules::Init()
 
 		if ( g_fGameOver )   // someone else quit the game already
 		{
-			// Tony; wait for intermission to end
-			if ( m_flIntermissionEndTime && ( m_flIntermissionEndTime < gpGlobals->curtime ) )
-				ChangeLevel(); // intermission is over
+			ChangeLevel(); // intermission is over
 			return;
 		}
 
@@ -490,6 +475,15 @@ bool CMultiplayRules::Init()
 	bool CMultiplayRules::ClientConnected( edict_t *pEntity, const char *pszName, const char *pszAddress, char *reject, int maxrejectlen )
 	{
 		GetVoiceGameMgr()->ClientConnected( pEntity );
+
+		/*
+		CBasePlayer *pl = ToBasePlayer( GetContainingEntity( pEntity ) );
+		if ( pl && ( engine->IsSplitScreenPlayer( pl->entindex() ) )
+		{
+			Msg( "%s is a split screen player\n", pszName );
+		}
+		*/
+
 		return true;
 	}
 
@@ -759,9 +753,9 @@ bool CMultiplayRules::Init()
 			{
 				killer_weapon_name += 7;
 			}
-			else if ( strncmp( killer_weapon_name, "NPC_", 4 ) == 0 )
+			else if ( strncmp( killer_weapon_name, "NPC_", 8 ) == 0 )
 			{
-				killer_weapon_name += 4;
+				killer_weapon_name += 8;
 			}
 			else if ( strncmp( killer_weapon_name, "func_", 5 ) == 0 )
 			{
@@ -1030,9 +1024,14 @@ bool CMultiplayRules::Init()
 
 		float flWaitTime = mp_chattime.GetInt();
 
-		if ( tv_delaymapchange.GetBool() && HLTVDirector()->IsActive() )	
+		if ( tv_delaymapchange.GetBool() )
 		{
-			flWaitTime = max ( flWaitTime, HLTVDirector()->GetDelay() );
+			if ( HLTVDirector()->IsActive() )	
+				flWaitTime = MAX ( flWaitTime, HLTVDirector()->GetDelay() );
+#if defined( REPLAY_ENABLED )
+			else if ( ReplayDirector()->IsActive() )
+				flWaitTime = MAX ( flWaitTime, ReplayDirector()->GetDelay() );
+#endif
 		}
 				
 		m_flIntermissionEndTime = gpGlobals->curtime + flWaitTime;
@@ -1449,3 +1448,38 @@ bool CMultiplayRules::Init()
 	}
 
 #endif
+
+//-----------------------------------------------------------------------------
+// Purpose: Sort function for sorting players by time spent connected ( user ID )
+//-----------------------------------------------------------------------------
+bool CSameTeamGroup::Less( const CSameTeamGroup &p1, const CSameTeamGroup &p2 )
+{
+	// sort by score
+	return ( p1.Score() > p2.Score() );
+}
+
+CSameTeamGroup::CSameTeamGroup() : 
+	m_nScore( INT_MIN )
+{
+}
+
+CSameTeamGroup::CSameTeamGroup( const CSameTeamGroup &src )
+{
+	m_nScore = src.m_nScore;
+	m_Players = src.m_Players;
+}
+
+int CSameTeamGroup::Score() const 
+{ 
+	return m_nScore; 
+}
+
+CBasePlayer *CSameTeamGroup::GetPlayer( int idx )
+{
+	return m_Players[ idx ];
+}
+
+int CSameTeamGroup::Count() const
+{
+	return m_Players.Count();
+}

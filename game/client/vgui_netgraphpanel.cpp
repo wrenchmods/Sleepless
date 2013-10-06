@@ -344,7 +344,7 @@ void CNetGraphPanel::ComputeNetgraphHeight()
 	{
 		lines = 4;
 	}
-	m_nNetGraphHeight = max( lines * tall, m_nNetGraphHeight );
+	m_nNetGraphHeight = MAX( lines * tall, m_nNetGraphHeight );
 }
 
 //-----------------------------------------------------------------------------
@@ -483,7 +483,7 @@ void CNetGraphPanel::DrawTimes( vrect_t vrect, cmdinfo_t *cmdinfo, int x, int w,
 	for (a=0 ; a<w ; a++)
 	{
 		i = ( m_OutgoingSequence - a ) & ( TIMINGS - 1 );
-		h = min( ( cmdinfo[i].cmd_lerp / 3.0 ) * LERP_HEIGHT, LERP_HEIGHT );
+		h = MIN( ( cmdinfo[i].cmd_lerp / 3.0 ) * LERP_HEIGHT, LERP_HEIGHT );
 
 		rcFill.x		= x + w -a - 1;
 		rcFill.width	= 1;
@@ -593,7 +593,7 @@ void CNetGraphPanel::GetFrameData( 	INetChannelInfo *netchannel, int *biggest_me
 	}
 
 	// Can't be below zero
-	m_AvgLatency = max( 0.0, m_AvgLatency );
+	m_AvgLatency = MAX( 0.0, m_AvgLatency );
 
 	flAdjust *= 1000.0f;
 
@@ -614,7 +614,7 @@ void CNetGraphPanel::GetFrameData( 	INetChannelInfo *netchannel, int *biggest_me
 		if ( lat->latency < 9995 )
 		{
 			lat->latency += flAdjust;
-			lat->latency = max( lat->latency, 0 );
+			lat->latency = MAX( lat->latency, 0 );
 		}		
 
 		for ( int i=0; i<=INetChannelInfo::TOTAL; i++ )
@@ -858,6 +858,8 @@ void CNetGraphPanel::DrawTextFields( int graphvalue, int x, int y, int w, netban
 		y -= textTall;
 		g_pMatSystemSurface->DrawColoredText( m_hFontSmall, x, y, 0, 255, 255, 255, "events" );
 		y -= textTall;
+		g_pMatSystemSurface->DrawColoredText( m_hFontSmall, x, y, 255, 0, 255, 255, "tempents" );
+		y -= textTall;
 		g_pMatSystemSurface->DrawColoredText( m_hFontSmall, x, y, 128, 128, 0, 255, "usermessages" );
 		y -= textTall;
 		g_pMatSystemSurface->DrawColoredText( m_hFontSmall, x, y, 0, 128, 128, 255, "entmessages" );
@@ -880,8 +882,9 @@ int CNetGraphPanel::GraphValue( void )
 	int graphtype;
 
 	graphtype = net_graph.GetInt();
-	
-	if ( !graphtype && !( in_graph.state & 1 ) )
+
+	ACTIVE_SPLITSCREEN_PLAYER_GUARD_VGUI( 0 );
+	if ( !graphtype && !( in_graph.GetPerUser().state & 1 ) )
 		return 0;
 
 	// With +graph key, use max area
@@ -970,7 +973,7 @@ void CNetGraphPanel::DrawHatches( int x, int y, int maxmsgbytes )
 	byte color[3];
 
 	ystep = (int)( 10.0 / net_scale.GetFloat() );
-	ystep = max( ystep, 1 );
+	ystep = MAX( ystep, 1 );
 
 	rcHatch.y		= y;
 	rcHatch.height	= 1;
@@ -1103,7 +1106,7 @@ void CNetGraphPanel::DrawLargePacketSizes( int x, int w, int graphtype, float wa
 		int nTotalBytes = m_Graph[ i ].msgbytes[ INetChannelInfo::TOTAL ];
 
 		if ( warning_threshold != 0.0f &&
-			nTotalBytes > max( 300, warning_threshold ) )
+			nTotalBytes > MAX( 300, warning_threshold ) )
 		{
 			char sz[ 32 ];
 			Q_snprintf( sz, sizeof( sz ), "%i", nTotalBytes );
@@ -1113,7 +1116,7 @@ void CNetGraphPanel::DrawLargePacketSizes( int x, int w, int graphtype, float wa
 			int textx, texty;
 
 			textx = rcFill.x - len / 2;
-			texty = max( 0, rcFill.y - 11 );
+			texty = MAX( 0, rcFill.y - 11 );
 
 			g_pMatSystemSurface->DrawColoredText( m_hFont, textx, texty, 255, 255, 255, 255, sz );
 		}
@@ -1147,17 +1150,29 @@ void CNetGraphPanel::Paint()
 		net_scale.SetValue( 0.1f );
 	}
 
+	// Get screen rectangle
 	int sw, sh;
 	surface()->GetScreenSize( sw, sh );
 
-	// Get screen rectangle
-	vrect.x			= 0;
-	vrect.y			= 0;
-	vrect.width		= sw;
-	vrect.height	= sh;
+	if ( IsX360() )
+	{
+		// shrink for titlesafe
+		int insetX = XBOX_MINBORDERSAFE * (float)sw;
+		int insetY = XBOX_MINBORDERSAFE * (float)sh;
+		vrect.x = insetX;
+		vrect.y = insetY;
+		vrect.width = sw - 2 * insetX;
+		vrect.height = sh - 2 * insetY;
+	}
+	else
+	{
+		vrect.x = 0;
+		vrect.y = 0;
+		vrect.width  = sw;
+		vrect.height = sh;
+	}
 
-
-	w = min( (int)TIMINGS, m_EstimatedWidth );
+	w = MIN( (int)TIMINGS, m_EstimatedWidth );
 	if ( vrect.width < w + 10 )
 	{
 		w = vrect.width - 10;
@@ -1304,7 +1319,10 @@ void CNetGraphPanel::PaintLineArt( int x, int y, int w, int graphtype, int maxms
 
 		if ( !DrawDataSegment( &rcFill, m_Graph[ i ].msgbytes[INetChannelInfo::EVENTS], 0, 255, 255 ) )
 			continue;
-		
+	
+		if ( !DrawDataSegment( &rcFill, m_Graph[ i ].msgbytes[INetChannelInfo::TEMPENTS], 255, 0, 255 ) )
+			continue;
+
 		if ( !DrawDataSegment( &rcFill, m_Graph[ i ].msgbytes[INetChannelInfo::USERMESSAGES], 128, 128, 0 ) )
 			continue;
 
@@ -1367,30 +1385,38 @@ void CNetGraphPanel::DrawLineSegments()
 	if ( c <= 0 )
 		return;
 
-	CMatRenderContextPtr pRenderContext( materials );
-	IMesh* m_pMesh = pRenderContext->GetDynamicMesh( true, NULL, NULL, m_WhiteMaterial );
-	CMeshBuilder		meshBuilder;
-	meshBuilder.Begin( m_pMesh, MATERIAL_LINES, c );
-
-	int i;
-	for ( i = 0 ; i < c; i++ )
+	int start = 0;
+	while ( start < c )
 	{
-		CLineSegment *seg = &m_Rects[ i ];
+		int consume = MIN( 5000, c - start );
 
-		meshBuilder.Color4ubv( seg->color );
-		meshBuilder.TexCoord2f( 0, 0.0f, 0.0f );
-		meshBuilder.Position3f( seg->x1, seg->y1, 0 );
-		meshBuilder.AdvanceVertex();
+		CMatRenderContextPtr pRenderContext( materials );
+		IMesh* m_pMesh = pRenderContext->GetDynamicMesh( true, NULL, NULL, m_WhiteMaterial );
+		CMeshBuilder		meshBuilder;
+		meshBuilder.Begin( m_pMesh, MATERIAL_LINES, c );
 
-		meshBuilder.Color4ubv( seg->color2 );
-		meshBuilder.TexCoord2f( 0, 0.0f, 0.0f );
-		meshBuilder.Position3f( seg->x2, seg->y2, 0 );
-		meshBuilder.AdvanceVertex();
+		int i;
+		for ( i = start ; i < start + consume; i++ )
+		{
+			CLineSegment *seg = &m_Rects[ i ];
+
+			meshBuilder.Color4ubv( seg->color );
+			meshBuilder.TexCoord2f( 0, 0.0f, 0.0f );
+			meshBuilder.Position3f( seg->x1, seg->y1, 0 );
+			meshBuilder.AdvanceVertex();
+
+			meshBuilder.Color4ubv( seg->color2 );
+			meshBuilder.TexCoord2f( 0, 0.0f, 0.0f );
+			meshBuilder.Position3f( seg->x2, seg->y2, 0 );
+			meshBuilder.AdvanceVertex();
+		}
+
+		meshBuilder.End();
+
+		m_pMesh->Draw();
+
+		start += consume;
 	}
-
-	meshBuilder.End();
-
-	m_pMesh->Draw();
 }
 
 //-----------------------------------------------------------------------------

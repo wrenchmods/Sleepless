@@ -22,6 +22,8 @@ CBaseModelPanel::CBaseModelPanel( vgui::Panel *pParent, const char *pName ): Bas
 	m_bForcePos = false;
 	m_bMousePressed = false;
 	m_bAllowRotation = false;
+
+	vgui::SETUP_PANEL( this );
 }
 
 //-----------------------------------------------------------------------------
@@ -219,6 +221,22 @@ void CBaseModelPanel::SetModelAnim( int iAnim )
 	if ( nAnimCount == 0 || !m_BMPResData.m_aAnimations.IsValidIndex( iAnim ) )
 		return;
 
+	// Do we have an activity or a sequence?
+	if ( m_BMPResData.m_aAnimations[iAnim].m_pszActivity && m_BMPResData.m_aAnimations[iAnim].m_pszActivity[0] )
+	{
+		SetModelAnim( m_BMPResData.m_aAnimations[iAnim].m_pszActivity );
+	}
+	else if ( m_BMPResData.m_aAnimations[iAnim].m_pszSequence && m_BMPResData.m_aAnimations[iAnim].m_pszSequence[0] )
+	{
+		SetModelAnim( m_BMPResData.m_aAnimations[iAnim].m_pszSequence );
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CBaseModelPanel::SetModelAnim( const char *pszName )
+{
 	MDLCACHE_CRITICAL_SECTION();
 
 	// Get the studio header of the root model.
@@ -228,15 +246,13 @@ void CBaseModelPanel::SetModelAnim( int iAnim )
 
 	CStudioHdr studioHdr( pStudioHdr, g_pMDLCache );
 
-	// Do we have an activity or a sequence?
 	int iSequence = ACT_INVALID;
-	if ( m_BMPResData.m_aAnimations[iAnim].m_pszActivity && m_BMPResData.m_aAnimations[iAnim].m_pszActivity[0] )
+
+	iSequence = FindSequenceFromActivity( &studioHdr, pszName );
+
+	if ( iSequence == ACT_INVALID )
 	{
-		iSequence = FindSequenceFromActivity( &studioHdr, m_BMPResData.m_aAnimations[iAnim].m_pszActivity );
-	}
-	else if ( m_BMPResData.m_aAnimations[iAnim].m_pszSequence && m_BMPResData.m_aAnimations[iAnim].m_pszSequence[0] )
-	{
-		iSequence = LookupSequence( &studioHdr, m_BMPResData.m_aAnimations[iAnim].m_pszSequence );
+		iSequence = LookupSequence( &studioHdr, pszName );
 	}
 
 	if ( iSequence != ACT_INVALID )
@@ -250,24 +266,6 @@ void CBaseModelPanel::SetModelAnim( int iAnim )
 //-----------------------------------------------------------------------------
 void CBaseModelPanel::SetMDL( MDLHandle_t handle )
 {
-	MDLCACHE_CRITICAL_SECTION();
-	studiohdr_t *pHdr = g_pMDLCache->GetStudioHdr( handle );
-
-	if ( pHdr )
-	{
-		// SetMDL will cause the base CMdl code to set our localtoglobal indices if they aren't set.
-		// We set them up here so that they're left alone by that code.
-		CStudioHdr studioHdr( pHdr, g_pMDLCache );
-		if (studioHdr.numflexcontrollers() > 0 && studioHdr.pFlexcontroller( LocalFlexController_t(0) )->localToGlobal == -1)
-		{
-			for (LocalFlexController_t i = LocalFlexController_t(0); i < studioHdr.numflexcontrollers(); i++)
-			{
-				int j = C_BaseFlex::AddGlobalFlexController( studioHdr.pFlexcontroller( i )->pszName() );
-				studioHdr.pFlexcontroller( i )->localToGlobal = j;
-			}
-		}
-	}
-
 	BaseClass::SetMDL( handle );
 
 	SetupModelDefaults();
@@ -281,6 +279,8 @@ void CBaseModelPanel::SetMDL( MDLHandle_t handle )
 //-----------------------------------------------------------------------------
 void CBaseModelPanel::SetMDL( const char *pMDLName )
 {
+	SetSequence( 0 );
+
 	BaseClass::SetMDL( pMDLName );
 
 	// Need to invalidate the layout so the panel will adjust is LookAt for the new model.
@@ -465,8 +465,8 @@ void CBaseModelPanel::LookAtBounds( const Vector &vecBoundsMin, const Vector &ve
 		float flDistZ = fabs( aXFormPoints[iPoint].z / flTanFOVy ) - aXFormPoints[iPoint].x;
 		dist[iPoint].x = flDistY;
 		dist[iPoint].y = flDistZ;
-		float flTestDist = max( flDistZ, flDistY );
-		flDist = max( flDist, flTestDist );
+		float flTestDist = MAX( flDistZ, flDistY );
+		flDist = MAX( flDist, flTestDist );
 	}
 
 	// Screen space points.
@@ -488,10 +488,10 @@ void CBaseModelPanel::LookAtBounds( const Vector &vecBoundsMin, const Vector &ve
 	Vector2D vecScreenMin( 99999.0f, 99999.0f ), vecScreenMax( -99999.0f, -99999.0f );
 	for ( int iPoint = 0; iPoint < 8; ++iPoint )
 	{
-		vecScreenMin.x = min( vecScreenMin.x, aScreenPoints[iPoint].x );
-		vecScreenMin.y = min( vecScreenMin.y, aScreenPoints[iPoint].y );
-		vecScreenMax.x = max( vecScreenMax.x, aScreenPoints[iPoint].x );
-		vecScreenMax.y = max( vecScreenMax.y, aScreenPoints[iPoint].y );
+		vecScreenMin.x = MIN( vecScreenMin.x, aScreenPoints[iPoint].x );
+		vecScreenMin.y = MIN( vecScreenMin.y, aScreenPoints[iPoint].y );
+		vecScreenMax.x = MAX( vecScreenMax.x, aScreenPoints[iPoint].x );
+		vecScreenMax.y = MAX( vecScreenMax.y, aScreenPoints[iPoint].y );
 	}
 
 	// Offset the model to the be the correct distance away from the camera.

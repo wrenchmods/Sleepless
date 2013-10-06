@@ -31,10 +31,6 @@ class CTier2DmAppSystem : public CTier2AppSystem< IInterface, ConVarFlag >
 	typedef CTier2AppSystem< IInterface, ConVarFlag > BaseClass;
 
 public:
-	CTier2DmAppSystem( bool bIsPrimaryAppSystem = true ) : BaseClass( bIsPrimaryAppSystem )
-	{
-	}
-
 	virtual bool Connect( CreateInterfaceFn factory ) 
 	{
 		if ( !BaseClass::Connect( factory ) )

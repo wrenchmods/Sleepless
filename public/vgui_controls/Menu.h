@@ -188,6 +188,16 @@ public:
 	virtual void SetBorder(class IBorder *border);
 	virtual void ApplySchemeSettings(IScheme *pScheme);
 
+	// Set type ahead behaviour
+	enum MenuTypeAheadMode
+	{
+		COMPAT_MODE = 0,
+		HOT_KEY_MODE,
+		TYPE_AHEAD_MODE,
+	};
+	virtual void SetTypeAheadMode(MenuTypeAheadMode mode);
+	virtual int GetTypeAheadMode();
+
 	// Hotkey handling
 	virtual void OnKeyTyped(wchar_t unichar);
 	// Menu nagivation etc.
@@ -261,7 +271,10 @@ protected:
 	virtual void LayoutMenuBorder();
 	virtual void MakeItemsVisibleInScrollRange( int maxVisibleItems, int nNumPixelsAvailable );
 	virtual void OnMouseWheeled(int delta);
-	
+	// Alternate OnKeyTyped behaviors
+	virtual void OnHotKey(wchar_t unichar);
+	virtual void OnTypeAhead(wchar_t unichar);
+
 	int	CountVisibleItems();
 	void ComputeWorkspaceSize( int& workWide, int& workTall );
 	int ComputeFullMenuHeightWithInsets();
@@ -324,6 +337,13 @@ private:
 	int 			m_iActivatedItem;
 	HFont			m_hItemFont;
 	HFont			m_hFallbackItemFont;
+
+	// for managing type ahead
+	#define			TYPEAHEAD_BUFSIZE 256
+	MenuTypeAheadMode m_eTypeAheadMode;
+	wchar_t			m_szTypeAheadBuf[TYPEAHEAD_BUFSIZE];
+	int				m_iNumTypeAheadChars;
+	double			m_fLastTypeAheadTime;
 };
 
 } // namespace vgui

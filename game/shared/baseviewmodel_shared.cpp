@@ -11,6 +11,8 @@
 #if defined( CLIENT_DLL )
 #include "iprediction.h"
 #include "prediction.h"
+
+#include "sdk/c_sdk_player.h"
 #else
 #include "vguiscreen.h"
 #endif
@@ -21,6 +23,12 @@
 #define VIEWMODEL_ANIMATION_PARITY_BITS 3
 #define SCREEN_OVERLAY_MATERIAL "vgui/screens/vgui_overlay"
 
+#if defined( CLIENT_DLL )
+	ConVar viewmodel_offset_x( "viewmodel_offset_x", "0.0", FCVAR_ARCHIVE );	 // the viewmodel offset from default in X
+	ConVar viewmodel_offset_y( "viewmodel_offset_y", "0.0", FCVAR_ARCHIVE );	 // the viewmodel offset from default in Y
+	ConVar viewmodel_offset_z( "viewmodel_offset_z", "0.0", FCVAR_ARCHIVE );	 // the viewmodel offset from default in Z
+#endif
+
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
@@ -30,8 +38,11 @@ CBaseViewModel::CBaseViewModel()
 	// NOTE: We do this here because the color is never transmitted for the view model.
 	m_nOldAnimationParity = 0;
 	m_EntClientFlags |= ENTCLIENTFLAG_ALWAYS_INTERPOLATE;
+	RenderWithViewModels( true );
 #endif
-	SetRenderColor( 255, 255, 255, 255 );
+
+	SetRenderColor( 255, 255, 255 );
+	SetRenderAlpha( 255 );
 
 	// View model of this weapon
 	m_sVMName			= NULL_STRING;		
@@ -75,17 +86,9 @@ void CBaseViewModel::Spawn( void )
 }
 
 
-#if defined ( CSTRIKE_DLL ) && !defined ( CLIENT_DLL )
-#define VGUI_CONTROL_PANELS
-#endif
 
-#if defined ( TF_DLL )
-#define VGUI_CONTROL_PANELS
-#endif
 
-#ifdef INVASION_DLL
-#define VGUI_CONTROL_PANELS
-#endif
+
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -213,9 +216,6 @@ void CBaseViewModel::SpawnControlPanels()
 		pScreen->SetActive( false );
 		pScreen->MakeVisibleOnlyToTeammates( false );
 	
-#ifdef INVASION_DLL
-		pScreen->SetOverlayMaterial( SCREEN_OVERLAY_MATERIAL );
-#endif
 		pScreen->SetAttachedToViewModel( true );
 		int nScreen = m_hScreens.AddToTail( );
 		m_hScreens[nScreen].Set( pScreen );
@@ -378,6 +378,22 @@ void CBaseViewModel::CalcViewModelView( CBasePlayer *owner, const Vector& eyePos
 	QAngle vmangles = eyeAngles;
 	Vector vmorigin = eyePosition;
 
+	Vector vecRight;
+	Vector vecUp;
+	Vector vecForward;
+	AngleVectors( vmangoriginal, &vecForward, &vecRight, &vecUp );
+	//Vector vecOffset = Vector( viewmodel_offset_x.GetFloat(), viewmodel_offset_y.GetFloat(), viewmodel_offset_z.GetFloat() ); 
+	vmorigin += (vecForward * viewmodel_offset_y.GetFloat()) + (vecUp * viewmodel_offset_z.GetFloat()) + (vecRight * viewmodel_offset_x.GetFloat());
+
+	// TrackIR
+	if ( IsHeadTrackingEnabled() )
+	{
+		vmorigin = owner->EyePosition();
+		VectorAngles( owner->GetAutoaimVector( AUTOAIM_5DEGREES ), vmangoriginal );
+		vmangles = vmangoriginal;
+	}
+	// TrackIR
+
 	CBaseCombatWeapon *pWeapon = m_hWeapon.Get();
 	//Allow weapon lagging
 	if ( pWeapon != NULL )
@@ -399,7 +415,8 @@ void CBaseViewModel::CalcViewModelView( CBasePlayer *owner, const Vector& eyePos
 	if ( !prediction->InPrediction() )
 	{
 		// Let the viewmodel shake at about 10% of the amplitude of the player's view
-		vieweffects->ApplyShake( vmorigin, vmangles, 0.1 );	
+		ACTIVE_SPLITSCREEN_PLAYER_GUARD_ENT( GetOwner() );
+		GetViewEffects()->ApplyShake( vmorigin, vmangles, 0.1 );	
 	}
 #endif
 
@@ -412,8 +429,6 @@ void CBaseViewModel::CalcViewModelView( CBasePlayer *owner, const Vector& eyePos
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-float g_fMaxViewModelLag = 1.5f;
-
 void CBaseViewModel::CalcViewModelLag( Vector& origin, QAngle& angles, QAngle& original_angles )
 {
 	Vector vOriginalOrigin = origin;
@@ -433,9 +448,9 @@ void CBaseViewModel::CalcViewModelLag( Vector& origin, QAngle& angles, QAngle& o
 		// If we start to lag too far behind, we'll increase the "catch up" speed.  Solves the problem with fast cl_yawspeed, m_yaw or joysticks
 		//  rotating quickly.  The old code would slam lastfacing with origin causing the viewmodel to pop to a new position
 		float flDiff = vDifference.Length();
-		if ( (flDiff > g_fMaxViewModelLag) && (g_fMaxViewModelLag > 0.0f) )
+		if ( flDiff > 1.5f )
 		{
-			float flScale = flDiff / g_fMaxViewModelLag;
+			float flScale = flDiff / 1.5f;
 			flSpeed *= flScale;
 		}
 
@@ -448,6 +463,7 @@ void CBaseViewModel::CalcViewModelLag( Vector& origin, QAngle& angles, QAngle& o
 		Assert( m_vecLastFacing.IsValid() );
 	}
 
+
 	Vector right, up;
 	AngleVectors( original_angles, &forward, &right, &up );
 
@@ -457,16 +473,10 @@ void CBaseViewModel::CalcViewModelLag( Vector& origin, QAngle& angles, QAngle& o
 	else if ( pitch < -180.0f )
 		pitch += 360.0f;
 
-	if ( g_fMaxViewModelLag == 0.0f )
-	{
-		origin = vOriginalOrigin;
-		angles = vOriginalAngles;
-	}
-
 	//FIXME: These are the old settings that caused too many exposed polys on some models
-	VectorMA( origin, -pitch * 0.035f,	forward,	origin );
-	VectorMA( origin, -pitch * 0.03f,		right,	origin );
-	VectorMA( origin, -pitch * 0.02f,		up,		origin);
+	VectorMA( origin, -pitch * 0.02f,	forward,	origin );
+	VectorMA( origin, -pitch * 0.01f,		right,	origin );
+	VectorMA( origin, -pitch * 0.005f,		up,		origin);
 }
 
 //-----------------------------------------------------------------------------
@@ -474,7 +484,7 @@ void CBaseViewModel::CalcViewModelLag( Vector& origin, QAngle& angles, QAngle& o
 //-----------------------------------------------------------------------------
 #if defined( CLIENT_DLL )
   extern void RecvProxy_EffectFlags( const CRecvProxyData *pData, void *pStruct, void *pOut );
-  void RecvProxy_SequenceNum( const CRecvProxyData *pData, void *pStruct, void *pOut );
+ void RecvProxy_ViewmodelSequenceNum( const CRecvProxyData *pData, void *pStruct, void *pOut );
 #endif
 
 //-----------------------------------------------------------------------------
@@ -508,42 +518,36 @@ IMPLEMENT_NETWORKCLASS_ALIASED( BaseViewModel, DT_BaseViewModel )
 BEGIN_NETWORK_TABLE_NOBASE(CBaseViewModel, DT_BaseViewModel)
 #if !defined( CLIENT_DLL )
 	SendPropModelIndex(SENDINFO(m_nModelIndex)),
+	SendPropEHandle (SENDINFO(m_hWeapon)),
 	SendPropInt		(SENDINFO(m_nBody), 8),
 	SendPropInt		(SENDINFO(m_nSkin), 10),
 	SendPropInt		(SENDINFO(m_nSequence),	8, SPROP_UNSIGNED),
 	SendPropInt		(SENDINFO(m_nViewModelIndex), VIEWMODEL_INDEX_BITS, SPROP_UNSIGNED),
 	SendPropFloat	(SENDINFO(m_flPlaybackRate),	8,	SPROP_ROUNDUP,	-4.0,	12.0f),
-	SendPropInt		(SENDINFO(m_fEffects),		10, SPROP_UNSIGNED),
+	SendPropInt		(SENDINFO(m_fEffects),		EF_MAX_BITS, SPROP_UNSIGNED),
 	SendPropInt		(SENDINFO(m_nAnimationParity), 3, SPROP_UNSIGNED ),
-	SendPropEHandle (SENDINFO(m_hWeapon)),
 	SendPropEHandle (SENDINFO(m_hOwner)),
 
 	SendPropInt( SENDINFO( m_nNewSequenceParity ), EF_PARITY_BITS, SPROP_UNSIGNED ),
 	SendPropInt( SENDINFO( m_nResetEventsParity ), EF_PARITY_BITS, SPROP_UNSIGNED ),
 	SendPropInt( SENDINFO( m_nMuzzleFlashParity ), EF_MUZZLEFLASH_BITS, SPROP_UNSIGNED ),
 
-#if !defined( INVASION_DLL ) && !defined( INVASION_CLIENT_DLL )
-	SendPropArray	(SendPropFloat(SENDINFO_ARRAY(m_flPoseParameter),	8, 0, 0.0f, 1.0f), m_flPoseParameter),
-#endif
 #else
 	RecvPropInt		(RECVINFO(m_nModelIndex)),
+	RecvPropEHandle (RECVINFO(m_hWeapon), RecvProxy_Weapon ),
 	RecvPropInt		(RECVINFO(m_nSkin)),
 	RecvPropInt		(RECVINFO(m_nBody)),
-	RecvPropInt		(RECVINFO(m_nSequence), 0, RecvProxy_SequenceNum ),
+	RecvPropInt		(RECVINFO(m_nSequence) ),
 	RecvPropInt		(RECVINFO(m_nViewModelIndex)),
 	RecvPropFloat	(RECVINFO(m_flPlaybackRate)),
 	RecvPropInt		(RECVINFO(m_fEffects), 0, RecvProxy_EffectFlags ),
 	RecvPropInt		(RECVINFO(m_nAnimationParity)),
-	RecvPropEHandle (RECVINFO(m_hWeapon), RecvProxy_Weapon ),
 	RecvPropEHandle (RECVINFO(m_hOwner)),
 
 	RecvPropInt( RECVINFO( m_nNewSequenceParity )),
 	RecvPropInt( RECVINFO( m_nResetEventsParity )),
 	RecvPropInt( RECVINFO( m_nMuzzleFlashParity )),
 
-#if !defined( INVASION_DLL ) && !defined( INVASION_CLIENT_DLL )
-	RecvPropArray(RecvPropFloat(RECVINFO(m_flPoseParameter[0]) ), m_flPoseParameter ),
-#endif
 #endif
 END_NETWORK_TABLE()
 
@@ -570,7 +574,10 @@ BEGIN_PREDICTION_DATA( CBaseViewModel )
 
 END_PREDICTION_DATA()
 
-void RecvProxy_SequenceNum( const CRecvProxyData *pData, void *pStruct, void *pOut )
+// This needed to be done as a proxy for the surrounding box auto update when animations change.
+// This doesn't have to be done for view models as they don't affect the bounding box and it was
+// causing some timing problems with our world to view model under the covers swap.
+void RecvProxy_ViewmodelSequenceNum( const CRecvProxyData *pData, void *pStruct, void *pOut )
 {
 	CBaseViewModel *model = (CBaseViewModel *)pStruct;
 	if (pData->m_Value.m_Int != model->GetSequence())

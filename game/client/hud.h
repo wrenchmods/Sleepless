@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: CHud handles the message, calculation, and drawing the HUD
 //
@@ -20,6 +20,7 @@
 namespace vgui
 {
 	class IScheme;
+	class Panel;
 }
 
 // basic rectangle struct used for drawing
@@ -84,11 +85,12 @@ public:
 	int EffectiveWidth( float flScale ) const;
 	int EffectiveHeight( float flScale ) const;
 
-	void DrawSelf( int x, int y, Color& clr ) const;
-	void DrawSelf( int x, int y, int w, int h, Color& clr ) const;
-	void DrawSelfCropped( int x, int y, int cropx, int cropy, int cropw, int croph, Color& clr ) const;
+	void DrawSelf( int x, int y, const Color& clr ) const;
+	void DrawSelf( int x, int y, int w, int h, const Color& clr ) const;
+	void DrawSelfCropped( int x, int y, int cropx, int cropy, int cropw, int croph, Color clr ) const;
 	// new version to scale the texture over a finalWidth and finalHeight passed in
-	void DrawSelfCropped( int x, int y, int cropx, int cropy, int cropw, int croph, int finalWidth, int finalHeight, Color& clr ) const;
+	void DrawSelfCropped( int x, int y, int cropx, int cropy, int cropw, int croph, int finalWidth, int finalHeight, Color clr ) const;
+	void DrawSelfScalableCorners( int x, int y, int w, int h, int iSrcCornerW, int iSrcCornerH, int iDrawCornerW, int iDrawCornerH, Color clr ) const;
 
 	char		szShortName[ 64 ];
 	char		szTextureFile[ 64 ];
@@ -164,14 +166,6 @@ public:
 	void						DrawProgressBar( int x, int y, int width, int height, float percentage, Color& clr, unsigned char type );
 	void						DrawIconProgressBar( int x, int y, CHudTexture *icon, CHudTexture *icon2, float percentage, Color& clr, int type );
 
-	CHudTexture					*GetIcon( const char *szIcon );
-
-	// loads a new icon into the list, without duplicates
-	CHudTexture					*AddUnsearchableHudIconToList( CHudTexture& texture );
-	CHudTexture					*AddSearchableHudIconToList( CHudTexture& texture );
-
-	void						RefreshHudTextures();
-
 	// User messages
 	void						MsgFunc_ResetHUD(bf_read &msg);
 	void 						MsgFunc_SendAudio(bf_read &msg);
@@ -187,6 +181,12 @@ public:
 
 	void						SetScreenShotTime( float flTime ){ m_flScreenShotTime = flTime; }
 
+	CUtlVector< CHudElement * > &GetHudList();
+	const CUtlVector< CHudElement * > &GetHudList() const;
+	CUtlVector< vgui::Panel * > &GetHudPanelList();
+	const CUtlVector< vgui::Panel * > &GetHudPanelList() const;
+	void						OnSplitScreenStateChanged();
+
 public:
 
 	int							m_iKeyBits;
@@ -201,24 +201,50 @@ public:
 	Color						m_clrYellowish;
 
 	CUtlVector< CHudElement * >	m_HudList;
+	// Same list as above, but with vgui::Panel dynamic_cast precomputed.  These should all be non-NULL!!!
+	CUtlVector< vgui::Panel * >	m_HudPanelList; 
 
 private:
 	void						InitFonts();
 
-	void						SetupNewHudTexture( CHudTexture *t );
-
-	bool						m_bHudTexturesLoaded;
-
-	// Global list of known icons
-	CUtlDict< CHudTexture *, int >		m_Icons;
 
 	CUtlVector< const char * >				m_RenderGroupNames;
 	CUtlMap< int, CHudRenderGroup * >		m_RenderGroups;
 
 	float						m_flScreenShotTime; // used to take end-game screenshots
+	int							m_nSplitScreenSlot;
+	bool						m_bEngineIsInGame;
 };
 
-extern CHud gHUD;
+CHud &GetHud( int nSlot = -1 );
+
+class CHudIcons
+{
+public:
+	CHudIcons();
+	~CHudIcons();
+
+	void						Init();
+	void						Shutdown();
+
+	CHudTexture					*GetIcon( const char *szIcon );
+
+	// loads a new icon into the list, without duplicates
+	CHudTexture					*AddUnsearchableHudIconToList( CHudTexture& texture );
+	CHudTexture					*AddSearchableHudIconToList( CHudTexture& texture );
+
+	void						RefreshHudTextures();
+
+private:
+
+	void						SetupNewHudTexture( CHudTexture *t );
+	bool						m_bHudTexturesLoaded;
+	// Global list of known icons
+	CUtlDict< CHudTexture *, int >		m_Icons;
+
+};
+
+CHudIcons &HudIcons();
 
 //-----------------------------------------------------------------------------
 // Global fonts used in the client DLL

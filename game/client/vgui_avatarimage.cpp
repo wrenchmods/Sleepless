@@ -13,6 +13,11 @@
 #include "xbox/xbox_win32stubs.h"
 #endif
 #include "steam/steam_api.h"
+#include "hud.h"
+
+// NOTE: This has to be the last file included!
+#include "tier0/memdbgon.h"
+
 
 DECLARE_BUILD_FACTORY( CAvatarImagePanel );
 
@@ -21,7 +26,9 @@ DECLARE_BUILD_FACTORY( CAvatarImagePanel );
 //-----------------------------------------------------------------------------
 CAvatarImage::CAvatarImage( void )
 {
+	m_iTextureID = -1;
 	ClearAvatarSteamID();
+	m_SourceArtSize = k_EAvatarSize32x32;
 	m_pFriendIcon = NULL;
 	m_nX = 0;
 	m_nY = 0;
@@ -42,13 +49,17 @@ void CAvatarImage::ClearAvatarSteamID( void )
 //-----------------------------------------------------------------------------
 bool CAvatarImage::SetAvatarSteamID( CSteamID steamIDUser )
 {
+	if ( m_steamIDUser == steamIDUser && m_bValid )
+		return true;
+
 	ClearAvatarSteamID();
+	m_steamIDUser = steamIDUser;
 
 	if ( steamapicontext->SteamFriends() && steamapicontext->SteamUtils() )
 	{
 		m_SteamID = steamIDUser;
 
-		int iAvatar = steamapicontext->SteamFriends()->GetFriendAvatar( steamIDUser );
+		int iAvatar = steamapicontext->SteamFriends()->GetFriendAvatar( steamIDUser, m_SourceArtSize );
 
 		/*
 		// See if it's in our list already
@@ -89,7 +100,7 @@ void CAvatarImage::UpdateFriendStatus( void )
 		m_bFriend = steamapicontext->SteamFriends()->HasFriend( m_SteamID, k_EFriendFlagImmediate );
 		if ( m_bFriend && !m_pFriendIcon )
 		{
-			m_pFriendIcon = gHUD.GetIcon( "ico_friend_indicator_avatar" );
+			m_pFriendIcon = HudIcons().GetIcon( "ico_friend_indicator_avatar" );
 		}
 	}
 }
@@ -99,8 +110,12 @@ void CAvatarImage::UpdateFriendStatus( void )
 //-----------------------------------------------------------------------------
 void CAvatarImage::InitFromRGBA( const byte *rgba, int width, int height )
 {
-	m_iTextureID = vgui::surface()->CreateNewTextureID( true );
-	vgui::surface()->DrawSetTextureRGBA( m_iTextureID, rgba, width, height, false, false );
+	if ( m_iTextureID == -1 )
+	{
+		m_iTextureID = vgui::surface()->CreateNewTextureID( true );
+	}
+
+	vgui::surface()->DrawSetTextureRGBA( m_iTextureID, rgba, width, height );
 	m_nWide = XRES(width);
 	m_nTall = YRES(height);
 	m_Color = Color( 255, 255, 255, 255 );
@@ -138,34 +153,27 @@ CAvatarImagePanel::CAvatarImagePanel( vgui::Panel *parent, const char *name ) : 
 //-----------------------------------------------------------------------------
 void CAvatarImagePanel::SetPlayer( C_BasePlayer *pPlayer )
 {
-	if ( GetImage() )
-	{
-		((CAvatarImage*)GetImage())->ClearAvatarSteamID();
-	}
-
-	if ( pPlayer && steamapicontext->SteamUtils() )
+	if ( pPlayer )
 	{
 		int iIndex = pPlayer->entindex();
+		SetPlayerByIndex( iIndex );
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CAvatarImagePanel::SetPlayerByIndex( int iIndex )
+{
+	if ( iIndex && steamapicontext->SteamUtils() )
+	{
 		player_info_t pi;
 		if ( engine->GetPlayerInfo(iIndex, &pi) )
 		{
 			if ( pi.friendsID )
 			{
 				CSteamID steamIDForPlayer( pi.friendsID, 1, steamapicontext->SteamUtils()->GetConnectedUniverse(), k_EAccountTypeIndividual );
-
-				if ( !GetImage() )
-				{
-					CAvatarImage *pImage = new CAvatarImage();
-					SetImage( pImage );
-				}
-
-				CAvatarImage *pAvImage = ((CAvatarImage*)GetImage());
-				pAvImage->SetAvatarSteamID( steamIDForPlayer );
-
-				// Indent the image. These are deliberately non-resolution-scaling.
-				pAvImage->SetAvatarSize( 32, 32 );	// Deliberately non scaling
-
-				SetSize( pAvImage->GetWide(), GetTall() );
+				SetAvatarBySteamID( &steamIDForPlayer );
 			}
 		}
 	}
@@ -176,8 +184,29 @@ void CAvatarImagePanel::SetPlayer( C_BasePlayer *pPlayer )
 //-----------------------------------------------------------------------------
 void CAvatarImagePanel::PaintBackground( void )
 {
-	if ( GetImage() )
+	vgui::IImage *pImage = GetImage();
+	if ( pImage )
 	{
-		GetImage()->Paint();
+		pImage->SetColor( GetDrawColor() );
+		pImage->Paint();
 	}
+}
+
+void CAvatarImagePanel::SetAvatarBySteamID( CSteamID *friendsID )
+{
+	if ( !GetImage() )
+	{
+		CAvatarImage *pImage = new CAvatarImage();
+		SetImage( pImage );
+	}
+
+	// Indent the image. These are deliberately non-resolution-scaling.
+	int iIndent = 2;
+	GetImage()->SetPos( iIndent, iIndent );
+	int wide = GetWide() - (iIndent*2);
+
+	((CAvatarImage*)GetImage())->SetAvatarSize( ( wide > 32 ) ? k_EAvatarSize64x64 : k_EAvatarSize32x32 );
+	((CAvatarImage*)GetImage())->SetAvatarSteamID( *friendsID );
+
+	GetImage()->SetSize( wide, GetTall()-(iIndent*2) );
 }

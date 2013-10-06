@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -10,6 +10,7 @@
 #define WINLITE_H
 #pragma once
 
+#ifdef _WIN32
 // 
 // Prevent tons of unused windows definitions
 //
@@ -26,6 +27,5 @@
 #endif
 #undef PostMessage
 
-#pragma warning( disable: 4800 )	// forcing value to bool 'true' or 'false' (performance warning)
-
+#endif // WIN32
 #endif // WINLITE_H

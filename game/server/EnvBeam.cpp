@@ -67,6 +67,10 @@ public:
 
 	void	BeamUpdateVars( void );
 
+protected:
+	// true if the end point vecline was specified in hammer
+	inline bool HasEndPointHandle() { return !m_vEndPointRelative.IsZero();  }
+
 	int		m_active;
 	int		m_spriteTexture;
 
@@ -79,6 +83,16 @@ public:
 	float	m_restrike;
 	string_t m_iszSpriteName;
 	int		m_frameStart;
+
+	// endpoint may be optionally specified as a vecline instead of a target entity. 
+	// note: this mechanism seems rather roundabout, because the parent CBeam has
+	// the m_vecEndPos data member; however, the CEnvBeam is programmed to overwrite it 
+	// each frame with the position of a target entity, so the easiest way to 
+	// implement this behavior was to put this bit of redundant data in the child
+	// class and have it get written back every frame. If this bothers you, 
+	// please fix it.
+	Vector m_vEndPointWorld;  // this is the point as read from the level spec; however it's not used, because
+	Vector m_vEndPointRelative; // on spawn, endpoint is transformed into local space here.
 
 	float	m_radius;
 
@@ -100,6 +114,7 @@ BEGIN_DATADESC( CEnvBeam )
 
 	DEFINE_KEYFIELD( m_iszStartEntity, FIELD_STRING, "LightningStart" ),
 	DEFINE_KEYFIELD( m_iszEndEntity, FIELD_STRING, "LightningEnd" ),
+	DEFINE_KEYFIELD( m_vEndPointWorld, FIELD_VECTOR, "targetpoint" ),
 	DEFINE_KEYFIELD( m_life, FIELD_FLOAT, "life" ),
 	DEFINE_KEYFIELD( m_boltWidth, FIELD_FLOAT, "BoltWidth" ),
 	DEFINE_KEYFIELD( m_noiseAmplitude, FIELD_FLOAT, "NoiseAmplitude" ),
@@ -111,6 +126,7 @@ BEGIN_DATADESC( CEnvBeam )
 	DEFINE_KEYFIELD( m_TouchType, FIELD_INTEGER, "TouchType" ),
 	DEFINE_KEYFIELD( m_iFilterName,	FIELD_STRING,	"filtername" ),
 	DEFINE_KEYFIELD( m_iszDecal, FIELD_STRING, "decalname" ),
+	DEFINE_KEYFIELD( m_nClipStyle, FIELD_INTEGER, "ClipStyle" ),
 
 	DEFINE_FIELD( m_hFilter,	FIELD_EHANDLE ),
 
@@ -143,7 +159,7 @@ void CEnvBeam::Spawn( void )
 
 	BaseClass::Spawn();
 
-	m_noiseAmplitude = min(MAX_BEAM_NOISEAMPLITUDE, m_noiseAmplitude);
+	m_noiseAmplitude = MIN(MAX_BEAM_NOISEAMPLITUDE, m_noiseAmplitude);
 
 	// Check for tapering
 	if ( HasSpawnFlags( SF_BEAM_TAPEROUT ) )
@@ -156,6 +172,18 @@ void CEnvBeam::Spawn( void )
 		SetWidth( m_boltWidth );
 		SetEndWidth( GetWidth() );	// Note: EndWidth is not scaled
 	}
+
+	// if a non-targetentity endpoint was specified, transform it into local relative space
+	// so it can move along with the base
+	if (!m_vEndPointWorld.IsZero())
+	{
+		WorldToEntitySpace( m_vEndPointWorld, &m_vEndPointRelative );
+	}
+	else
+	{
+		m_vEndPointRelative.Zero();
+	}
+
 
 	if ( ServerSide() )
 	{
@@ -343,7 +371,7 @@ void CEnvBeam::StrikeThink( void )
 	}
 	m_active = 1;
 
-	if (!m_iszEndEntity)
+	if (!m_iszEndEntity && !HasEndPointHandle())
 	{
 		if (!m_iszStartEntity)
 		{
@@ -378,13 +406,26 @@ void CEnvBeam::Strike( void )
 	CBaseEntity *pStart = RandomTargetname( STRING(m_iszStartEntity) );
 	CBaseEntity *pEnd = RandomTargetname( STRING(m_iszEndEntity) );
 
-	if ( pStart == NULL || pEnd == NULL )
+	// if the end entity is missing, we use the Hammer-specified vector offset instead.
+	bool bEndPointFromEntity = pEnd != NULL;
+
+	if ( pStart == NULL || ( !bEndPointFromEntity && !HasEndPointHandle() ) )
 		return;
+
+	Vector vEndPointLocation;
+	if ( bEndPointFromEntity )
+	{
+		 vEndPointLocation = pEnd->GetAbsOrigin() ;
+	}
+	else
+	{
+		EntityToWorldSpace( m_vEndPointRelative, &vEndPointLocation );
+	}
 
 	m_speed = clamp( m_speed, 0, MAX_BEAM_SCROLLSPEED );
 	
-	int pointStart = IsStaticPointEntity( pStart );
-	int pointEnd = IsStaticPointEntity( pEnd );
+	bool pointStart = IsStaticPointEntity( pStart );
+	bool pointEnd = !bEndPointFromEntity || IsStaticPointEntity( pEnd );
 
 	if ( pointStart || pointEnd )
 	{
@@ -398,7 +439,7 @@ void CEnvBeam::Strike( void )
 			pointStart ? 0 : pStart->entindex(),
 			pointStart ? &pStart->GetAbsOrigin() : NULL,
 			pointEnd ? 0 : pEnd->entindex(),
-			pointEnd ? &pEnd->GetAbsOrigin() : NULL,
+			pointEnd ? &vEndPointLocation : NULL,
 			m_spriteTexture,
 			0,	// No halo
 			m_frameStart,
@@ -703,9 +744,22 @@ void CEnvBeam::BeamUpdateVars( void )
 	CBaseEntity *pStart = gEntList.FindEntityByName( NULL, m_iszStartEntity );
 	CBaseEntity *pEnd = gEntList.FindEntityByName( NULL, m_iszEndEntity );
 
-	if (( pStart == NULL ) || ( pEnd == NULL ))
+	// if the end entity is missing, we use the Hammer-specified vector offset instead.
+	bool bEndPointFromEntity = pEnd != NULL;
+
+	if (( pStart == NULL ) || ( !bEndPointFromEntity && !HasEndPointHandle() ))
 	{
 		return;
+	}
+
+	Vector vEndPointPos;
+	if ( bEndPointFromEntity )
+	{
+		vEndPointPos = pEnd->GetAbsOrigin();
+	}
+	else
+	{
+		EntityToWorldSpace( m_vEndPointRelative, &vEndPointPos );
 	}
 
 	m_nNumBeamEnts = 2;
@@ -736,9 +790,9 @@ void CEnvBeam::BeamUpdateVars( void )
 		SetStartEntity( pStart );
 	}
 
-	if ( IsStaticPointEntity( pEnd ) )
+	if ( !bEndPointFromEntity || IsStaticPointEntity( pEnd ) )
 	{
-		SetAbsEndPos( pEnd->GetAbsOrigin() );
+		SetAbsEndPos( vEndPointPos );
 	}
 	else
 	{
@@ -747,8 +801,8 @@ void CEnvBeam::BeamUpdateVars( void )
 
 	RelinkBeam();
 
-	SetWidth( min(MAX_BEAM_WIDTH, m_boltWidth) );
-	SetNoise( min(MAX_BEAM_NOISEAMPLITUDE, m_noiseAmplitude) );
+	SetWidth( MIN(MAX_BEAM_WIDTH, m_boltWidth) );
+	SetNoise( MIN(MAX_BEAM_NOISEAMPLITUDE, m_noiseAmplitude) );
 	SetFrame( m_frameStart );
 	SetScrollRate( m_speed );
 	if ( m_spawnflags & SF_BEAM_SHADEIN )

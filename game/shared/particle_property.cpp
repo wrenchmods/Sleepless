@@ -69,7 +69,7 @@ CParticleProperty::~CParticleProperty()
 {
 	// We're being removed. Call StopEmission() on any particle system
 	// that has an unlimited number of particles to emit.
-	StopEmission( NULL, false, true );
+	StopEmission( NULL, false, true, false, true );
 }
 
 //-----------------------------------------------------------------------------
@@ -100,6 +100,30 @@ int CParticleProperty::GetParticleAttachment( C_BaseEntity *pEntity, const char 
 }
 
 //-----------------------------------------------------------------------------
+// Purpose: Get's a list of all renderables used for this particle property
+//-----------------------------------------------------------------------------
+int CParticleProperty::GetAllParticleEffectRenderables( IClientRenderable **pOutput, int iMaxOutput )
+{
+	if( iMaxOutput == 0 )
+		return 0;
+
+	int iReturnedRenderables = 0;
+	int iParticleEffectListCount = m_ParticleEffects.Count();
+
+	for( int i = 0; i != iParticleEffectListCount; ++i )
+	{
+		if( m_ParticleEffects[i].pParticleEffect.IsValid() )
+		{
+			pOutput[iReturnedRenderables++] = m_ParticleEffects[i].pParticleEffect.GetObject();
+			if( iReturnedRenderables == iMaxOutput )
+				break;
+		}
+	}
+
+	return iReturnedRenderables;
+}
+
+//-----------------------------------------------------------------------------
 // Purpose: Create a new particle system and attach it to our owner
 //-----------------------------------------------------------------------------
 CNewParticleEffect *CParticleProperty::Create( const char *pszParticleName, ParticleAttachment_t iAttachType, const char *pszAttachmentName )
@@ -116,14 +140,14 @@ CNewParticleEffect *CParticleProperty::Create( const char *pszParticleName, Part
 // Purpose: Create a new particle system and attach it to our owner
 //-----------------------------------------------------------------------------
 static ConVar cl_particle_batch_mode( "cl_particle_batch_mode", "1" );
-CNewParticleEffect *CParticleProperty::Create( const char *pszParticleName, ParticleAttachment_t iAttachType, int iAttachmentPoint, Vector vecOriginOffset )
+
+CNewParticleEffect *CParticleProperty::Create( CParticleSystemDefinition *pDef, ParticleAttachment_t iAttachType, int iAttachmentPoint, Vector vecOriginOffset, matrix3x4_t *matOffset )
 {
 	int nBatchMode = cl_particle_batch_mode.GetInt();
-	CParticleSystemDefinition *pDef = g_pParticleSystemMgr->FindParticleSystem( pszParticleName );
 	bool bRequestedBatch = ( nBatchMode == 2 ) || ( ( nBatchMode == 1 ) && pDef && pDef->ShouldBatch() ); 
 	if ( ( iAttachType == PATTACH_CUSTOMORIGIN ) && bRequestedBatch )
 	{
-		int iIndex = FindEffect( pszParticleName );
+		int iIndex = FindEffect( pDef->GetName() );
 		if ( iIndex >= 0 )
 		{
 			CNewParticleEffect *pEffect = m_ParticleEffects[iIndex].pParticleEffect.GetObject();
@@ -132,16 +156,9 @@ CNewParticleEffect *CParticleProperty::Create( const char *pszParticleName, Part
 		}
 	}
 
-	if ( !pDef )
-	{
-		AssertMsg( 0, "Attempting to create unknown particle system" );
-		Warning( "Attempting to create unknown particle system '%s' \n", pszParticleName );
-		return NULL;
-	}
-
 	int iIndex = m_ParticleEffects.AddToTail();
 	ParticleEffectList_t *newEffect = &m_ParticleEffects[iIndex];
-	newEffect->pParticleEffect = CNewParticleEffect::Create( m_pOuter, pDef );
+	newEffect->pParticleEffect = CNewParticleEffect::Create( m_pOuter, pDef, pDef->GetName() );
 
 	if ( !newEffect->pParticleEffect->IsValid() )
 	{
@@ -150,20 +167,44 @@ CNewParticleEffect *CParticleProperty::Create( const char *pszParticleName, Part
 		return NULL;
 	}
 
-	AddControlPoint( iIndex, 0, GetOuter(), iAttachType, iAttachmentPoint, vecOriginOffset );
+	AddControlPoint( iIndex, 0, GetOuter(), iAttachType, iAttachmentPoint, vecOriginOffset, matOffset );
 
 	if ( m_pOuter )
 	{
-		m_pOuter->OnNewParticleEffect( pszParticleName, newEffect->pParticleEffect.GetObject() );
+		m_pOuter->OnNewParticleEffect( pDef->GetName(), newEffect->pParticleEffect.GetObject() );
 	}
-	
+
 	return newEffect->pParticleEffect.GetObject();
 }
+
+CNewParticleEffect *CParticleProperty::CreatePrecached( int nPrecacheIndex, ParticleAttachment_t iAttachType, int iAttachmentPoint, Vector vecOriginOffset, matrix3x4_t *matOffset )
+{
+	CParticleSystemDefinition *pDef = g_pParticleSystemMgr->FindPrecachedParticleSystem( nPrecacheIndex );
+	if ( !pDef )
+	{
+		AssertMsg( 0, "Attempting to create unknown particle system" );
+		return NULL;
+	}
+	return Create( pDef, iAttachType, iAttachmentPoint, vecOriginOffset, matOffset );
+}
+
+CNewParticleEffect *CParticleProperty::Create( const char *pszParticleName, ParticleAttachment_t iAttachType, int iAttachmentPoint, Vector vecOriginOffset, matrix3x4_t *matOffset )
+{
+	CParticleSystemDefinition *pDef = g_pParticleSystemMgr->FindParticleSystem( pszParticleName );
+	if ( !pDef )
+	{
+		AssertMsg( 0, "Attempting to create unknown particle system" );
+		Warning( "Attempting to create unknown particle system '%s' \n", pszParticleName );
+		return NULL;
+	}
+	return Create( pDef, iAttachType, iAttachmentPoint, vecOriginOffset, matOffset );
+}
+
 
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-void CParticleProperty::AddControlPoint( CNewParticleEffect *pEffect, int iPoint, C_BaseEntity *pEntity, ParticleAttachment_t iAttachType, const char *pszAttachmentName, Vector vecOriginOffset )
+void CParticleProperty::AddControlPoint( CNewParticleEffect *pEffect, int iPoint, C_BaseEntity *pEntity, ParticleAttachment_t iAttachType, const char *pszAttachmentName, Vector vecOriginOffset, matrix3x4_t *matOffset )
 {
 	int iAttachment = -1;
 	if ( pszAttachmentName )
@@ -175,7 +216,7 @@ void CParticleProperty::AddControlPoint( CNewParticleEffect *pEffect, int iPoint
 	{
 		if ( m_ParticleEffects[i].pParticleEffect == pEffect )
 		{
-			AddControlPoint( i, iPoint, pEntity, iAttachType, iAttachment, vecOriginOffset );
+			AddControlPoint( i, iPoint, pEntity, iAttachType, iAttachment, vecOriginOffset, matOffset );
 		}
 	}
 }
@@ -183,7 +224,7 @@ void CParticleProperty::AddControlPoint( CNewParticleEffect *pEffect, int iPoint
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-void CParticleProperty::AddControlPoint( int iEffectIndex, int iPoint, C_BaseEntity *pEntity, ParticleAttachment_t iAttachType, int iAttachmentPoint, Vector vecOriginOffset )
+void CParticleProperty::AddControlPoint( int iEffectIndex, int iPoint, C_BaseEntity *pEntity, ParticleAttachment_t iAttachType, int iAttachmentPoint, Vector vecOriginOffset, matrix3x4_t *matOffset )
 {
 	Assert( iEffectIndex >= 0 && iEffectIndex < m_ParticleEffects.Count() );
 	ParticleEffectList_t *pEffect = &m_ParticleEffects[iEffectIndex];
@@ -196,6 +237,10 @@ void CParticleProperty::AddControlPoint( int iEffectIndex, int iPoint, C_BaseEnt
 	pNewPoint->iAttachType = iAttachType;
 	pNewPoint->iAttachmentPoint = iAttachmentPoint;
 	pNewPoint->vecOriginOffset = vecOriginOffset;
+	if ( matOffset )
+		pNewPoint->matOffset = *matOffset;
+	else
+		pNewPoint->matOffset.Init( Vector(1,0,0), Vector(0,1,0), Vector(0,0,1), Vector(0,0,0) );
 
 	UpdateParticleEffect( pEffect, true, iIndex );
 }
@@ -231,17 +276,20 @@ void CParticleProperty::SetControlPointParent( int iEffectIndex, int whichContro
 // Purpose: Stop effects from emitting more particles. If no effect is 
 //			specified, all effects attached to this entity are stopped.
 //-----------------------------------------------------------------------------
-void CParticleProperty::StopEmission( CNewParticleEffect *pEffect, bool bWakeOnStop, bool bDestroyAsleepSystems )
+void CParticleProperty::StopEmission( CNewParticleEffect *pEffect, bool bWakeOnStop, bool bDestroyAsleepSystems, bool bForceRemoveInstantly, bool bPlayEndCap )
 {
 	// If we return from dormancy and are then told to stop emitting,
 	// we should have died while dormant. Remove ourselves immediately.
 	bool bRemoveInstantly = (m_iDormancyChangedAtFrame == gpGlobals->framecount);
 
+	// force remove particles instantly if caller specified
+	bRemoveInstantly |= bForceRemoveInstantly;
+
 	if ( pEffect )
 	{
 		if ( FindEffect( pEffect ) != -1 )
 		{
-			pEffect->StopEmission( false, bRemoveInstantly, bWakeOnStop );
+			pEffect->StopEmission( false, bRemoveInstantly, bWakeOnStop, bPlayEndCap );
 		}
 	}
 	else
@@ -258,7 +306,7 @@ void CParticleProperty::StopEmission( CNewParticleEffect *pEffect, bool bWakeOnS
 				m_ParticleEffects.Remove( i );
 				pTmp->SetOwner( NULL );
 			}
-			pTmp->StopEmission( false, bRemoveSystem, !bRemoveSystem && bWakeOnStop );
+			pTmp->StopEmission( false, bRemoveSystem, !bRemoveSystem && bWakeOnStop, bPlayEndCap );
 		}
 	}
 }
@@ -302,7 +350,7 @@ void CParticleProperty::StopEmissionAndDestroyImmediately( CNewParticleEffect *p
 // Purpose: Stop all effects that have  a control point associated with the given
 //          entity.
 //-----------------------------------------------------------------------------
-void CParticleProperty::StopParticlesInvolving( CBaseEntity *pEntity )
+void CParticleProperty::StopParticlesInvolving( CBaseEntity *pEntity, bool bForceRemoveInstantly /* =false */ )
 {
 	Assert( pEntity );
 
@@ -311,7 +359,9 @@ void CParticleProperty::StopParticlesInvolving( CBaseEntity *pEntity )
 	// If we return from dormancy and are then told to stop emitting,
 	// we should have died while dormant. Remove ourselves immediately.
 	bool bRemoveInstantly = (m_iDormancyChangedAtFrame == gpGlobals->framecount);
-	
+	// force remove particles instantly if caller specified
+	bRemoveInstantly |= bForceRemoveInstantly;
+
 	int nCount = m_ParticleEffects.Count();
 	for ( int i = 0; i < nCount; ++i )
 	{
@@ -332,13 +382,12 @@ void CParticleProperty::StopParticlesInvolving( CBaseEntity *pEntity )
 	}
 }
 
-//g_pParticleSystemMgr->FindParticleSystem( pParticleSystemName );
 
 //-----------------------------------------------------------------------------
 // Purpose: Stop all effects that were created using the given definition
 //			name.
 //-----------------------------------------------------------------------------
-void CParticleProperty::StopParticlesNamed( const char *pszEffectName, bool bForceRemoveInstantly /* =false */ )
+void CParticleProperty::StopParticlesNamed( const char *pszEffectName, bool bForceRemoveInstantly /* =false */, int nSplitScreenPlayerSlot /*= -1*/ )
 {
 	CParticleSystemDefinition *pDef = g_pParticleSystemMgr->FindParticleSystem( pszEffectName );
 	AssertMsg1(pDef, "Could not find particle definition %s", pszEffectName );
@@ -359,6 +408,11 @@ void CParticleProperty::StopParticlesNamed( const char *pszEffectName, bool bFor
 		CNewParticleEffect *pParticleEffect = m_ParticleEffects[i].pParticleEffect.GetObject();
 		if (pParticleEffect->m_pDef() == pDef)
 		{
+			if ( nSplitScreenPlayerSlot != -1 )
+			{
+				if ( !pParticleEffect->ShouldDrawForSplitScreenUser( nSplitScreenPlayerSlot ) )
+					continue;
+			}
 			pParticleEffect->StopEmission( false, bRemoveInstantly );
 		}
 	}
@@ -392,6 +446,11 @@ void CParticleProperty::OnParticleSystemDeleted( CNewParticleEffect *pEffect )
 	int iIndex = FindEffect( pEffect );
 	if ( iIndex == -1 )
 		return;
+
+	if ( m_pOuter )
+	{
+		m_pOuter->OnParticleEffectDeleted( pEffect );
+	}
 
 	m_ParticleEffects[iIndex].pParticleEffect.MarkDeleted();
 	m_ParticleEffects.Remove( iIndex );
@@ -458,14 +517,22 @@ void CParticleProperty::UpdateParticleEffect( ParticleEffectList_t *pEffect, boo
 	}
 }
 
-extern void FormatViewModelAttachment( Vector &vOrigin, bool bInverse );
+extern void FormatViewModelAttachment( C_BasePlayer *pPlayer, Vector &vOrigin, bool bInverse );
 
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
 void CParticleProperty::UpdateControlPoint( ParticleEffectList_t *pEffect, int iPoint, bool bInitializing )
 {
+
 	ParticleControlPoint_t *pPoint = &pEffect->pControlPoints[iPoint];
+
+	if ( pEffect->pParticleEffect->m_pDef->IsScreenSpaceEffect() && iPoint == 0 )
+	{
+		pEffect->pParticleEffect->SetControlPointOrientation( pPoint->iControlPoint, Vector(1,0,0), Vector(0,1,0), Vector(0,0,1) );
+		pEffect->pParticleEffect->SetControlPoint( pPoint->iControlPoint, vec3_origin );
+		return;
+	}
 
 	if ( !pPoint->hEntity.Get() )
 	{
@@ -481,8 +548,7 @@ void CParticleProperty::UpdateControlPoint( ParticleEffectList_t *pEffect, int i
 	}
 
 	// Only update non-follow particles when we're initializing, 
-	// unless we're parented to something, in which case we should always update
-	if ( !bInitializing && !pPoint->hEntity->GetMoveParent() && (pPoint->iAttachType == PATTACH_ABSORIGIN || pPoint->iAttachType == PATTACH_POINT ) )
+	if ( !bInitializing && (pPoint->iAttachType == PATTACH_ABSORIGIN || pPoint->iAttachType == PATTACH_POINT ) )
 		return;
 
 	if ( pPoint->iAttachType == PATTACH_CUSTOMORIGIN )
@@ -497,22 +563,68 @@ void CParticleProperty::UpdateControlPoint( ParticleEffectList_t *pEffect, int i
 		{
 			C_BaseAnimating *pAnimating = pPoint->hEntity->GetBaseAnimating();
 
+			bool bValid = false;
 			Assert( pAnimating );
 			if ( pAnimating )
 			{
 				matrix3x4_t attachmentToWorld;
 
-				pAnimating->GetAttachment( pPoint->iAttachmentPoint, attachmentToWorld );
-
-
-				MatrixVectors( attachmentToWorld, &vecForward, &vecRight, &vecUp );
-				MatrixPosition( attachmentToWorld, vecOrigin );
-
-				if ( pEffect->pParticleEffect->m_pDef->IsViewModelEffect() )
+				if ( pAnimating->IsViewModel() )
 				{
-					FormatViewModelAttachment( vecOrigin, true );
-				}
+					C_BasePlayer *pPlayer = ToBasePlayer( ((C_BaseViewModel *)pAnimating)->GetOwner() );
+					ACTIVE_SPLITSCREEN_PLAYER_GUARD( C_BasePlayer::GetSplitScreenSlotForPlayer( pPlayer ) );
 
+					if ( pAnimating->GetAttachment( pPoint->iAttachmentPoint, attachmentToWorld ) )
+					{
+						bValid = true;
+						MatrixVectors( attachmentToWorld, &vecForward, &vecRight, &vecUp );
+						MatrixPosition( attachmentToWorld, vecOrigin );
+
+						if ( pEffect->pParticleEffect->m_pDef->IsViewModelEffect() )
+						{
+							FormatViewModelAttachment( pPlayer, vecOrigin, true );
+						}
+					}
+				}
+				else
+				{
+					// HACK_GETLOCALPLAYER_GUARD( "CParticleProperty::UpdateControlPoint" );
+
+					if ( pAnimating->GetAttachment( pPoint->iAttachmentPoint, attachmentToWorld ) )
+					{
+						bValid = true;
+						MatrixVectors( attachmentToWorld, &vecForward, &vecRight, &vecUp );
+#ifdef _DEBUG
+						float flTests[3] = {vecForward.Dot( vecRight ), vecRight.Dot( vecUp ), vecUp.Dot( vecForward )};
+						static float s_flMaxTest = 0.001f;
+						Assert( fabs( flTests[0] ) + fabs( flTests[1] ) + fabs( flTests[2] ) < s_flMaxTest );
+#endif
+						MatrixPosition( attachmentToWorld, vecOrigin );
+
+						if ( pEffect->pParticleEffect->m_pDef->IsViewModelEffect() )
+						{
+							HACK_GETLOCALPLAYER_GUARD( "CParticleProperty::UpdateControlPoint" );
+
+							FormatViewModelAttachment( NULL, vecOrigin, true );
+						}
+					}
+				}
+			}
+
+			if ( !bValid )
+			{
+				static bool bWarned = false;
+				if ( !bWarned )
+				{
+					bWarned = true;
+					DevWarning( "Attempted to attach particle effect %s to an unknown attachment on entity %s\n",
+						pEffect->pParticleEffect->m_pDef->GetName(), pAnimating->GetClassname() );
+				}
+			}
+			if ( !bValid )
+			{
+				AssertOnce( 0 );
+				return;
 			}
 		}
 		break;
@@ -523,6 +635,40 @@ void CParticleProperty::UpdateControlPoint( ParticleEffectList_t *pEffect, int i
 		{
 			vecOrigin = pPoint->hEntity->GetAbsOrigin() + pPoint->vecOriginOffset;
 			pPoint->hEntity->GetVectors( &vecForward, &vecRight, &vecUp );
+		}
+		break;
+
+	case PATTACH_EYES_FOLLOW:
+		{
+			C_BaseEntity *pEnt = pPoint->hEntity;
+
+			if ( !pEnt->IsPlayer() )
+				return;
+
+			C_BasePlayer *pPlayer = assert_cast< C_BasePlayer* >( pEnt );
+
+			bool bValid = false;
+			Assert( pPlayer );
+			if ( pPlayer )
+			{
+				bValid = true;
+				vecOrigin = pPlayer->EyePosition() + pPoint->vecOriginOffset;
+				pPlayer->EyeVectors( &vecForward, &vecRight, &vecUp );
+			}
+			if ( !bValid )
+			{
+				AssertOnce( 0 );
+				return;
+			}
+		}
+		break;
+
+	case PATTACH_CUSTOMORIGIN_FOLLOW:
+		{
+			matrix3x4_t mat;
+			MatrixMultiply( pPoint->hEntity->RenderableToWorldTransform(), pPoint->matOffset, mat );
+			MatrixVectors( mat, &vecForward, &vecRight, &vecUp );
+			vecOrigin = pPoint->hEntity->GetAbsOrigin() + pPoint->vecOriginOffset;
 		}
 		break;
 	}
@@ -552,4 +698,19 @@ void CParticleProperty::DebugPrintEffects( void )
 			( pParticleEffect->m_bDormant ) ? "yes" : "no",
 			( pParticleEffect->m_bEmissionStopped ) ? "yes" : "no" );
 	}
+}
+
+bool CParticleProperty::IsValidEffect( const CNewParticleEffect *pEffect )
+{
+	if( pEffect == NULL )
+		return false;
+
+	int nCount = m_ParticleEffects.Count();
+	for ( int i = 0; i < nCount; ++i )
+	{
+		if( pEffect == m_ParticleEffects[i].pParticleEffect.GetObject() )
+			return true;
+	}
+
+	return false;
 }

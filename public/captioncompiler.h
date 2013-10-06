@@ -43,7 +43,7 @@ struct CaptionLookup_t
 	void SetHash( char const *string )
 	{
 		int len = Q_strlen( string );
-		char *tempstr = (char *)_alloca( len + 1 );
+		char *tempstr = (char *)stackalloc( len + 1 );
 		Q_strncpy( tempstr, string, len + 1 );
 		Q_strlower( tempstr );
 		CRC32_t temp;

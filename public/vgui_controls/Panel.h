@@ -1,4 +1,4 @@
-//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
+//===== Copyright 1996-2005, Valve Corporation, All rights reserved. ======//
 //
 // Purpose: 
 //
@@ -28,6 +28,7 @@
 #include "vstdlib/IKeyValuesSystem.h"
 #include "tier1/utlsymbol.h"
 #include "vgui_controls/BuildGroup.h"
+#include "dmxloader/dmxelement.h"
 
 // undefine windows function macros that overlap 
 #ifdef PostMessage
@@ -38,7 +39,11 @@
 #undef SetCursor
 #endif
 
+//-----------------------------------------------------------------------------
+// Forward declarations
+//-----------------------------------------------------------------------------
 class CUtlBuffer;
+struct DmxElementUnpackStructure_t;
 
 namespace vgui
 {
@@ -77,6 +82,156 @@ struct DragDrop_t;
 class Menu;
 #endif
 
+
+
+class Panel;
+
+struct SizerAddArgs_t
+{
+	SizerAddArgs_t()
+	{
+		m_flExpandFactor = 0.0f;
+		m_nPadding = 5;
+		m_bMinorExpand = true;
+		m_nMinX = -1;
+		m_nMinY = -1;
+		m_bIgnoreMemberMin = false;
+	}
+
+	SizerAddArgs_t& Expand( float flExpandFactor ) { m_flExpandFactor = flExpandFactor; return *this; }
+	SizerAddArgs_t& Padding( int nPadding ) { m_nPadding = nPadding; return *this; }
+	SizerAddArgs_t& MinorExpand( bool bMinorExpand ) { m_bMinorExpand = bMinorExpand; return *this; }
+	SizerAddArgs_t& MinSize( int nMinX, int nMinY ) { m_nMinX = nMinX; m_nMinY = nMinY; return *this; }
+	SizerAddArgs_t& MinX( int nMinX ) { m_nMinX = nMinX; return *this; }
+	SizerAddArgs_t& MinY( int nMinY ) { m_nMinY = nMinY; return *this; }
+
+	// IgnoreMemberMin --> MinX and MinY (when set) are the only criteria for minimum size; member-requested min size is ignored
+	SizerAddArgs_t& IgnoreMemberMin( bool bIgnoreMemberMin = true ) { m_bIgnoreMemberMin = bIgnoreMemberMin; return *this; }
+
+	SizerAddArgs_t& FixedSize( int nX, int nY )
+	{
+		IgnoreMemberMin( true );
+		MinSize( nX, nY );
+		Expand( 0.f );
+		MinorExpand( false );
+		return *this;
+	}
+
+	float m_flExpandFactor;
+	int m_nPadding;
+	bool m_bMinorExpand;
+	int m_nMinX;
+	int m_nMinY;
+	bool m_bIgnoreMemberMin;
+};
+
+
+enum SizerLayoutDirection_t
+{
+	ESLD_HORIZONTAL, // major axis = X
+	ESLD_VERTICAL	 // major axis = Y
+};
+
+enum SizerElementType_t
+{
+	ESET_SIZER,
+	ESET_PANEL,
+	ESET_SPACER,
+};
+
+class CSizerBase
+{
+public:
+	CSizerBase( );
+	virtual ~CSizerBase( );
+
+	int GetElementCount() { return m_Members.Count(); }
+	SizerElementType_t GetElementType( int i );
+	Panel *GetPanel( int i );
+
+	void SetElementArgs( int nIndex, const SizerAddArgs_t& args ) { m_Members[nIndex].Fill( args ); }
+
+	// The containing panel's layout should be invalidated if members are added to this sizer.
+
+	// Inserts a panel/sizer/spacer at the specified index and shifts remaining elements down
+	void InsertPanel( int nIndex, Panel *pPanel, const SizerAddArgs_t& args );
+	void InsertSizer( int nIndex, CSizerBase *pSizer, const SizerAddArgs_t& args );
+	void InsertSpacer( int nIndex, const SizerAddArgs_t& args );
+
+	void AddPanel( Panel *pPanel, const SizerAddArgs_t& args ) { InsertPanel( GetElementCount(), pPanel, args ); }
+	void AddSizer( CSizerBase *pSizer, const SizerAddArgs_t& args ) { InsertSizer( GetElementCount(), pSizer, args ); }
+	void AddSpacer( const SizerAddArgs_t& args ) { InsertSpacer( GetElementCount(), args ); }
+
+	void RemoveElement( int i, bool bDelete );
+	void RemoveAllMembers( bool bDelete );
+
+	void GetMinSize( int &OutX, int &OutY );
+
+	// Called by Panel on PerformLayout() so that sizer client size computations are up-to-date
+	void RecursiveInvalidateCachedSize();
+
+	virtual void DoLayout( int BaseX, int BaseY, int SizeX, int SizeY ) = 0;
+	virtual void CalculateSize() = 0;
+	
+protected:
+	class CSizerMember
+	{
+		friend class CSizerBase; // allow CSizerBase to populate the private members directly
+
+	public:
+		SizerElementType_t GetElementType() const;
+		Panel *GetPanel() const;
+
+		void GetMemberMinSize( int &OutX, int &OutY );
+		void RecursiveInvalidateCachedSize();
+		void Place( int BaseX, int BaseY, int SizeX, int SizeY );
+
+		float GetExpandFactor() { return m_flExpandFactor; }
+		bool GetMinorExpand() { return m_bMinorExpand; }
+
+		void DiscardOwnedSizer();
+
+		bool IsVisible();
+
+		void Fill( const SizerAddArgs_t& args );
+
+	private:
+		void RecursiveRemove( bool bDelete );
+
+		Panel *m_pPanel;
+		CSizerBase *m_pSizer;
+		
+		int m_nPadding; // if m_pPanel and m_pSizer are both NULL, this is the spacer min size
+		float m_flExpandFactor;
+		bool m_bMinorExpand;
+		bool m_bIgnoreMemberMin;
+		int m_nMinX;
+		int m_nMinY;
+	};
+
+	CUtlVector<CSizerMember> m_Members;
+	int m_nMinXSize;
+	int m_nMinYSize;
+};
+
+inline int SizerMajorAxis( SizerLayoutDirection_t Dir, int X, int Y ) { return (Dir == ESLD_HORIZONTAL) ? X : Y; }
+inline int SizerMinorAxis( SizerLayoutDirection_t Dir, int X, int Y ) {	return (Dir == ESLD_VERTICAL) ? X : Y; }
+inline int SizerXAxis( SizerLayoutDirection_t Dir, int MajorAxis, int MinorAxis ) { return (Dir == ESLD_HORIZONTAL) ? MajorAxis : MinorAxis; }
+inline int SizerYAxis( SizerLayoutDirection_t Dir, int MajorAxis, int MinorAxis ) { return (Dir == ESLD_VERTICAL) ? MajorAxis : MinorAxis; }
+
+class CBoxSizer: public CSizerBase
+{
+public:
+	CBoxSizer( SizerLayoutDirection_t LayoutDirection );
+
+	virtual void CalculateSize();
+	virtual void DoLayout( int BaseX, int BaseY, int SizeX, int SizeY );
+
+protected:
+	SizerLayoutDirection_t m_LayoutDirection;
+};
+
+
 //-----------------------------------------------------------------------------
 // Purpose: Macro to handle Colors that can be overridden in .res files
 //-----------------------------------------------------------------------------
@@ -87,12 +242,40 @@ struct OverridableColorEntry
 	char const	*m_pszScriptName;
 	Color		*m_pColor;
 	Color		m_colFromScript;
+	UtlSymId_t	m_sColorNameFromScript;
 	bool		m_bOverridden;
 };
 
 #define REGISTER_COLOR_AS_OVERRIDABLE( name, scriptname )			\
 	AddToOverridableColors( &name, scriptname );
 
+
+//-----------------------------------------------------------------------------
+// Macros for unpacking vgui panels
+//-----------------------------------------------------------------------------
+#define DECLARE_VGUI_UNPACK()	\
+	DECLARE_DMXELEMENT_UNPACK()	\
+	private: \
+		static DmxElementUnpackStructure_t *s_pUnpackParams; \
+	public:	 \
+		virtual const DmxElementUnpackStructure_t* GetUnpackStructure() const { return s_pUnpackParams; }
+
+#define DECLARE_VGUI_UNPACK_NAMESPACE( _namespace ) \
+	template <typename T> friend DmxElementUnpackStructure_t *DmxElementUnpackInit##_namespace(T *); \
+	private: \
+		static DmxElementUnpackStructure_t *s_pUnpackParams; \
+	public:	 \
+		virtual const DmxElementUnpackStructure_t* GetUnpackStructure() const { return s_pUnpackParams; }
+
+#define BEGIN_VGUI_UNPACK( _structName ) BEGIN_DMXELEMENT_UNPACK( _structName )
+#define END_VGUI_UNPACK( _structName ) \
+	END_DMXELEMENT_UNPACK( _structName, s_pUnpackParams ) \
+ 	DmxElementUnpackStructure_t *_structName::s_pUnpackParams = _structName##_UnpackInit::s_pUnpack; 
+
+#define BEGIN_VGUI_UNPACK_NAMESPACE( _nameSpace, _structName ) BEGIN_DMXELEMENT_UNPACK_NAMESPACE( _nameSpace, _structName )
+#define END_VGUI_UNPACK_NAMESPACE( _nameSpace, _structName ) \
+	END_DMXELEMENT_UNPACK_NAMESPACE( _nameSpace, _structName, s_pUnpackParams ) \
+ 	DmxElementUnpackStructure_t *_structName::s_pUnpackParams = _namespace##_structName##_UnpackInit::s_pUnpack; 
 
 
 //-----------------------------------------------------------------------------
@@ -122,6 +305,7 @@ enum KeyBindingContextHandle_t
 class Panel : public IClientPanel
 {
 	DECLARE_CLASS_SIMPLE_NOBASE( Panel );
+	DECLARE_DMXELEMENT_UNPACK_NAMESPACE(vgui);
 
 public:
 	// For property mapping
@@ -143,6 +327,7 @@ public:
 	// returns pointer to Panel's vgui VPanel interface handle
 	virtual VPANEL GetVPanel() { return _vpanel; }
 	HPanel ToHandle() const;
+
 
 	//-----------------------------------------------------------------------------
 	// PANEL METHODS
@@ -182,6 +367,7 @@ public:
 	// invisible panels and their children do not drawn, updated, or receive input messages
 	virtual void SetVisible(bool state);
 	virtual bool IsVisible();
+	virtual bool IsFullyVisible();		// checks parent panels are IsVisible too
 
 	// painting
 	virtual VPANEL IsWithinTraverse(int x, int y, bool traversePopups);	// recursive; returns a pointer to the panel at those coordinates
@@ -208,6 +394,8 @@ public:
 	Panel *FindChildByName(const char *childName, bool recurseDown = false);
 	Panel *FindSiblingByName(const char *siblingName);
 	void CallParentFunction(KeyValues *message);
+
+	virtual bool LookupElementBounds( const char *elementName, int &x, int &y, int &wide, int &tall ) { return false; }
 
 	virtual void SetAutoDelete(bool state);		// if set to true, panel automatically frees itself when parent is deleted
 	virtual bool IsAutoDeleteSet();
@@ -239,6 +427,13 @@ public:
 		PIN_TOPRIGHT,
 		PIN_BOTTOMLEFT,
 		PIN_BOTTOMRIGHT,
+		PIN_NO,
+
+		// For sibling pinning
+		PIN_CENTER_TOP,
+		PIN_CENTER_RIGHT,
+		PIN_CENTER_BOTTOM,
+		PIN_CENTER_LEFT,
 	};
 
 	// specifies the auto-resize directions for the panel
@@ -262,6 +457,9 @@ public:
 	// Gets the relative offset of the control from the pinned + non-pinned corner (for resizing)
 	void GetPinOffset( int &dx, int &dy );
 	void GetResizeOffset( int &dx, int &dy );
+
+	void PinToSibling( const char *pszSibling, PinCorner_e pinOurCorner, PinCorner_e pinSibling );
+	void UpdateSiblingPin( void );
 
 	// colors
 	virtual void SetBgColor(Color color);
@@ -299,6 +497,7 @@ public:
 	virtual bool IsOpaque();
 	bool IsRightAligned();		// returns true if the settings are aligned to the right of the screen
 	bool IsBottomAligned();		// returns true if the settings are aligned to the bottom of the screen
+	bool IsPercentage();		// returns true if the settings are a percentage of screen size
 
 	// scheme access functions
 	virtual HScheme GetScheme();
@@ -313,6 +512,7 @@ public:
 	// interface to build settings
 	// takes a group of settings and applies them to the control
 	virtual void ApplySettings(KeyValues *inResourceData);
+	virtual void OnUnserialized( CDmxElement *pElement );
 
 	// records the settings into the resource data
 	virtual void GetSettings(KeyValues *outResourceData);
@@ -350,7 +550,7 @@ public:
 	virtual void OnSizeChanged(int newWide, int newTall);	// called after the size of a panel has been changed
 	
 	// called every frame if ivgui()->AddTickSignal() is called
-	MESSAGE_FUNC( OnTick, "Tick" );
+	virtual void OnTick();
 
 	// input messages
 	MESSAGE_FUNC_INT_INT( OnCursorMoved, "OnCursorMoved", x, y );
@@ -459,6 +659,11 @@ public:
 	virtual void SetKeyBoardInputEnabled( bool state );
 	virtual bool IsMouseInputEnabled();
 	virtual bool IsKeyBoardInputEnabled();
+	virtual bool HandleMouseCode( MouseCode code );
+
+	// allows you to disable for this panel but not children
+	void		DisableMouseInputForThisPanel( bool bDisable );
+	bool		IsMouseInputDisabledForThisPanel() const;
 
 	virtual void DrawTexturedBox( int x, int y, int wide, int tall, Color color, float normalizedAlpha );
 	virtual void DrawBox(int x, int y, int wide, int tall, Color color, float normalizedAlpha, bool hollow = false );
@@ -469,6 +674,8 @@ public:
 
 	virtual void SetDragEnabled( bool enabled );
 	virtual bool IsDragEnabled() const;
+
+	virtual void SetShowDragHelper( bool enabled );
 
 	// Called if drag drop is started but not dropped on top of droppable panel...
 	virtual void OnDragFailed( CUtlVector< KeyValues * >& msglist );
@@ -519,6 +726,7 @@ public:
 	virtual Panel *GetDragPanel();
 	virtual bool	IsBeingDragged();
 	virtual HCursor GetDropCursor( CUtlVector< KeyValues * >& msglist );
+	virtual HCursor GetDragFailCursor( CUtlVector< KeyValues * >& msglist ) { return dc_no; }
 
 	Color GetDropFrameColor();
 	Color GetDragFrameColor();
@@ -527,7 +735,7 @@ public:
 	virtual bool	CanStartDragging( int startx, int starty, int mx, int my );
 
 	// Draws a filled rect of specified bounds, but omits the bounds of the skip panel from those bounds
-	virtual void FillRectSkippingPanel( Color& clr, int x, int y, int w, int h, Panel *skipPanel );
+	virtual void FillRectSkippingPanel( const Color clr, int x, int y, int w, int h, Panel *skipPanel );
 
 	virtual int	GetPaintBackgroundType();
 	virtual void GetCornerTextureSize( int& w, int& h );
@@ -543,8 +751,33 @@ public:
 	void		SetStartDragWhenMouseExitsPanel( bool state );
 	bool		IsStartDragWhenMouseExitsPanel() const;
 
-	void		DisableMouseInputForThisPanel( bool bDisable );
-	bool		IsMouseInputDisabledForThisPanel() const;
+	// Forces context ID for this panel and all children below it
+	void		SetMessageContextId_R( int nContextID );
+
+	void		PostMessageToAllSiblings( KeyValues *msg, float delaySeconds = 0.0f );
+	template< class S >
+	void		PostMessageToAllSiblingsOfType( KeyValues *msg, float delaySeconds = 0.0f );
+
+	void		SetConsoleStylePanel( bool bConsoleStyle );
+	bool		IsConsoleStylePanel() const;
+
+	// For 360: support directional navigation between UI controls via dpad
+	enum NAV_DIRECTION { ND_UP, ND_DOWN, ND_LEFT, ND_RIGHT, ND_BACK, ND_NONE };
+	virtual Panel* NavigateUp();
+	virtual Panel* NavigateDown();
+	virtual Panel* NavigateLeft();
+	virtual Panel* NavigateRight();
+	virtual void NavigateTo();
+	virtual void NavigateFrom();
+	virtual void NavigateToChild( Panel *pNavigateTo ); //mouse support
+
+	Panel* SetNavUp( Panel* navUp );
+	Panel* SetNavDown( Panel* navDown );
+	Panel* SetNavLeft( Panel* navLeft );
+	Panel* SetNavRight( Panel* navRight );
+	NAV_DIRECTION GetLastNavDirection();
+	MESSAGE_FUNC_CHARPTR( OnNavigateTo, "OnNavigateTo", panelName );
+	MESSAGE_FUNC_CHARPTR( OnNavigateFrom, "OnNavigateFrom", panelName );
 
 // Drag Drop protected/internal interface
 protected:
@@ -573,8 +806,41 @@ protected:
 		m_OverridableColorEntries[iIdx].m_bOverridden = false;
 	}
 
-	void ApplyOverridableColors( void );
-	void SetOverridableColor( Color *pColor, Color &newColor );
+	void ApplyOverridableColors( IScheme *pScheme );
+	void SetOverridableColor( Color *pColor, const Color &newColor );
+
+protected:
+	void SetNavUp( const char* controlName );
+	void SetNavDown( const char* controlName );
+	void SetNavLeft( const char* controlName );
+	void SetNavRight( const char* controlName );
+
+public:
+	/*
+	Will recursively look for the next visible panel in the navigation chain, parameters are for internal use.
+	It will stop looking if first == nextpanel (to prevent infinite looping).
+	*/
+	Panel* GetNavUp( Panel *first = NULL ); 
+	Panel* GetNavDown( Panel *first = NULL );
+	Panel* GetNavLeft( Panel *first = NULL );
+	Panel* GetNavRight( Panel *first = NULL );
+
+	// if set, Panel gets PerformLayout called after the camera and the renderer's m_matrixWorldToScreen has been setup, so panels can be correctly attached to entities in the world
+	inline void SetWorldPositionCurrentFrame( bool bWorldPositionCurrentFrame ) { m_bWorldPositionCurrentFrame = bWorldPositionCurrentFrame; }
+	inline bool GetWorldPositionCurrentFrame() { return m_bWorldPositionCurrentFrame; }
+
+protected:
+	//this will return m_NavDown and will not look for the next visible panel
+	Panel* GetNavUpPanel();
+	Panel* GetNavDownPanel();
+	Panel* GetNavLeftPanel();
+	Panel* GetNavRightPanel();
+
+	bool m_PassUnhandledInput;
+	NAV_DIRECTION m_LastNavDirection;
+
+	void InternalInitDefaultValues( PanelAnimationMap *map );
+
 
 private:
 	enum BuildModeFlags_t
@@ -586,6 +852,9 @@ private:
 		BUILDMODE_SAVE_YPOS_BOTTOMALIGNED	= 0x10,
 		BUILDMODE_SAVE_YPOS_CENTERALIGNED	= 0x20,
 		BUILDMODE_SAVE_WIDE_FULL			= 0x40,
+		BUILDMODE_SAVE_TALL_FULL			= 0x80,
+		BUILDMODE_SAVE_PROPORTIONAL_TO_PARENT = 0x100,
+		BUILDMODE_SAVE_PERCENTAGE			= 0x200,
 	};
 
 	enum PanelFlags_t
@@ -654,13 +923,14 @@ private:
 
 	// Recursively invoke settings for PanelAnimationVars
 	void InternalApplySettings( PanelAnimationMap *map, KeyValues *inResourceData);
-	void InternalInitDefaultValues( PanelAnimationMap *map );
 
 	// Purpose: Loads panel details related to autoresize from the resource info
 	void ApplyAutoResizeSettings(KeyValues *inResourceData);
 
 	void FindDropTargetPanel_R( CUtlVector< VPANEL >& panelList, int x, int y, VPANEL check );
 	Panel *FindDropTargetPanel();
+
+	int GetProportionalScaledValue( int rootTall, int normalizedValue );
 
 #if defined( VGUI_USEDRAGDROP )
 	DragDrop_t		*m_pDragDrop;
@@ -672,7 +942,7 @@ private:
 
 	PHandle			m_SkipChild;
 	long			m_lLastDoublePressTime;
-	HFont			m_infoFont;
+	HFont			m_infoFont;	 // this is used exclusively by drag drop panels
 
 #if defined( VGUI_USEKEYBINDINGMAPS )
 	KeyBindingContextHandle_t m_hKeyBindingsContext;
@@ -680,7 +950,7 @@ private:
 
 	// data
 	VPANEL			_vpanel;	// handle to a vgui panel
-	char			*_panelName;		// string name of the panel - only unique within the current context
+	CUtlString		_panelName;		// string name of the panel - only unique within the current context
 	IBorder			*_border;
 
 	CUtlFlags< unsigned short > _flags;	// see PanelFlags_t
@@ -703,12 +973,46 @@ private:
 
 	byte			_pinCorner : 4;	// the corner of the dialog this panel is pinned to
 	byte			_autoResizeDirection : 4; // the directions in which the panel will auto-resize to
+	
+	DECLARE_DMXELEMENT_BITFIELD( _pinCorner, byte, Panel )
+	DECLARE_DMXELEMENT_BITFIELD( _autoResizeDirection, byte, Panel )
+
 
 	unsigned char	_tabPosition;		// the panel's place in the tab ordering
 	HScheme			 m_iScheme; // handle to the scheme to use
 
-	bool			m_bIsSilent; // should this panel PostActionSignals?
+	bool			m_bIsDMXSerialized : 1; // Is this a DMX panel?
+	bool			m_bUseSchemeColors : 1; // Should we use colors from the scheme?
+	bool			m_bIsSilent : 1; // should this panel PostActionSignals?
+	bool			m_bIsConsoleStylePanel : 1;
 
+	DECLARE_DMXELEMENT_BITFIELD( m_bUseSchemeColors, bool, Panel )
+	DECLARE_DMXELEMENT_BITFIELD( m_bIsSilent, bool, Panel )
+
+	// Sibling pinning
+	char			*_pinToSibling;				// string name of the sibling panel we're pinned to
+	byte			_pinToSiblingCorner;		// the corner of the sibling panel we're pinned to
+	byte			_pinCornerToSibling;		// the corner of our panel that we're pinning to our sibling
+	PHandle			m_pinSibling;
+
+	bool			m_bWorldPositionCurrentFrame;		// if set, Panel gets PerformLayout called after the camera and the renderer's m_matrixWorldToScreen has been setup, so panels can be correctly attached to entities in the world
+
+	CUtlString	m_sNavUpName;
+	PHandle		m_NavUp;
+
+	CUtlString m_sNavDownName;
+	PHandle m_NavDown;
+
+	CUtlString m_sNavLeftName;
+	PHandle m_NavLeft;
+
+	CUtlString m_sNavRightName;
+	PHandle m_NavRight;
+protected:
+	static int s_NavLock; 
+
+private:
+	
 	CPanelAnimationVar( float, m_flAlpha, "alpha", "255" );
 
 	// 1 == Textured (TextureId1 only)
@@ -719,13 +1023,23 @@ private:
 	CPanelAnimationVarAliasType( int, m_nBgTextureId3, "Texture3", "vgui/hud/800corner3", "textureid" );
 	CPanelAnimationVarAliasType( int, m_nBgTextureId4, "Texture4", "vgui/hud/800corner4", "textureid" );
 	
-	friend class Panel;
 	friend class BuildGroup;
 	friend class BuildModeDialog;
 	friend class PHandle;
 
 	// obselete, remove soon
 	void OnOldMessage(KeyValues *params, VPANEL ifromPanel);
+
+public:
+
+	virtual void GetSizerMinimumSize(int &wide, int &tall);
+	virtual void GetSizerClientArea(int &x, int &y, int &wide, int &tall);
+	CSizerBase *GetSizer();
+	void SetSizer( CSizerBase* pSizer );
+
+protected:
+
+	CSizerBase *m_pSizer;
 };
 
 inline void Panel::DisableMouseInputForThisPanel( bool bDisable )
@@ -738,6 +1052,27 @@ inline bool	Panel::IsMouseInputDisabledForThisPanel() const
 	return _flags.IsFlagSet( IS_MOUSE_DISABLED_FOR_THIS_PANEL_ONLY );
 }
 
+	template< class S >
+	inline void Panel::PostMessageToAllSiblingsOfType( KeyValues *msg, float delaySeconds /*= 0.0f*/ )
+	{
+		Panel *parent = GetParent();
+		if ( parent )
+		{
+			int nChildCount = parent->GetChildCount();
+			for ( int i = 0; i < nChildCount; ++i )
+			{
+				Panel *sibling = parent->GetChild( i );
+				if ( sibling == this )
+					continue;
+				if ( dynamic_cast< S * >( sibling ) )
+				{
+					PostMessage( sibling->GetVPanel(), msg->MakeCopy(), delaySeconds );
+				}
+			}
+		}
+
+		msg->deleteThis();
+	}
 
 } // namespace vgui
 

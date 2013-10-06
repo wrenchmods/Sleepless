@@ -7,7 +7,6 @@
 #include "cbase.h"
 #include "proxyentity.h"
 #include "IClientRenderable.h"
-#include "toolframework_client.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -33,9 +32,5 @@ void CEntityMaterialProxy::OnBind( void *pRenderable )
 	if ( pEnt )
 	{
 		OnBind( pEnt );
-		if ( ToolsEnabled() )
-		{
-			ToolFramework_RecordMaterialParams( GetMaterial() );
-		}
 	}
 }

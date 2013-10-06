@@ -1,4 +1,4 @@
-//====== Copyright © 1996-2004, Valve Corporation, All rights reserved. =======
+//====== Copyright © 1996-2008, Valve Corporation, All rights reserved. =======
 //
 // Purpose: interface to utility functions in Steam
 //
@@ -11,6 +11,25 @@
 #endif
 
 #include "isteamclient.h"
+
+
+// Steam API call failure results
+enum ESteamAPICallFailure
+{
+	k_ESteamAPICallFailureNone = -1,			// no failure
+	k_ESteamAPICallFailureSteamGone = 0,		// the local Steam process has gone away
+	k_ESteamAPICallFailureNetworkFailure = 1,	// the network connection to Steam has been broken, or was already broken
+	// SteamServersDisconnected_t callback will be sent around the same time
+	// SteamServersConnected_t will be sent when the client is able to talk to the Steam servers again
+	k_ESteamAPICallFailureInvalidHandle = 2,	// the SteamAPICall_t handle passed in no longer exists
+	k_ESteamAPICallFailureMismatchedCallback = 3,// GetAPICallResult() was called with the wrong callback type for this API call
+};
+
+// function prototype for warning message hook
+#if defined( POSIX )
+#define __cdecl
+#endif
+extern "C" typedef void (__cdecl *SteamAPIWarningMessageHook_t)(int, const char *);
 
 //-----------------------------------------------------------------------------
 // Purpose: interface to user independent utility functions
@@ -45,13 +64,60 @@ public:
 
 	// return the amount of battery power left in the current system in % [0..100], 255 for being on AC power
 	virtual uint8 GetCurrentBatteryPower() = 0;
+
+	// returns the appID of the current process
+	virtual uint32 GetAppID() = 0;
+
+	// Sets the position where the overlay instance for the currently calling game should show notifications.
+	// This position is per-game and if this function is called from outside of a game context it will do nothing.
+	virtual void SetOverlayNotificationPosition( ENotificationPosition eNotificationPosition ) = 0;
+
+	// API asynchronous call results
+	// can be used directly, but more commonly used via the callback dispatch API (see steam_api.h)
+	virtual bool IsAPICallCompleted( SteamAPICall_t hSteamAPICall, bool *pbFailed ) = 0;
+	virtual ESteamAPICallFailure GetAPICallFailureReason( SteamAPICall_t hSteamAPICall ) = 0;
+	virtual bool GetAPICallResult( SteamAPICall_t hSteamAPICall, void *pCallback, int cubCallback, int iCallbackExpected, bool *pbFailed ) = 0;
+
+	// this needs to be called every frame to process matchmaking results
+	// redundant if you're already calling SteamAPI_RunCallbacks()
+	virtual void RunFrame() = 0;
+
+	// returns the number of IPC calls made since the last time this function was called
+	// Used for perf debugging so you can understand how many IPC calls your game makes per frame
+	// Every IPC call is at minimum a thread context switch if not a process one so you want to rate
+	// control how often you do them.
+	virtual uint32 GetIPCCallCount() = 0;
+
+	// API warning handling
+	// 'int' is the severity; 0 for msg, 1 for warning
+	// 'const char *' is the text of the message
+	// callbacks will occur directly after the API function is called that generated the warning or message
+	virtual void SetWarningMessageHook( SteamAPIWarningMessageHook_t pFunction ) = 0;
+
+	// Returns true if the overlay is running & the user can access it. The overlay process could take a few seconds to
+	// start & hook the game process, so this function will initially return false while the overlay is loading.
+	virtual bool IsOverlayEnabled() = 0;
+
+	// Normally this call is unneeded if your game has a constantly running frame loop that calls the 
+	// D3D Present API, or OGL SwapBuffers API every frame.
+	//
+	// However, if you have a game that only refreshes the screen on an event driven basis then that can break 
+	// the overlay, as it uses your Present/SwapBuffers calls to drive it's internal frame loop and it may also
+	// need to Present() to the screen any time an even needing a notification happens or when the overlay is
+	// brought up over the game by a user.  You can use this API to ask the overlay if it currently need a present
+	// in that case, and then you can check for this periodically (roughly 33hz is desirable) and make sure you
+	// refresh the screen with Present or SwapBuffers to allow the overlay to do it's work.
+	virtual bool BOverlayNeedsPresent() = 0;
+
+	// Asynchronous call to check if file is signed, result is returned in CheckFileSignature_t
+	virtual SteamAPICall_t CheckFileSignature( const char *szFileName ) = 0;
 };
 
-#define STEAMUTILS_INTERFACE_VERSION "SteamUtils002"
+#define STEAMUTILS_INTERFACE_VERSION "SteamUtils005"
 
 
 // callbacks
-
+#pragma pack( push, 8 )
 
 //-----------------------------------------------------------------------------
 // Purpose: The country of the user changed
@@ -70,5 +136,47 @@ struct LowBatteryPower_t
 	enum { k_iCallback = k_iSteamUtilsCallbacks + 2 };
 	uint8 m_nMinutesBatteryLeft;
 };
+
+
+//-----------------------------------------------------------------------------
+// Purpose: called when a SteamAsyncCall_t has completed (or failed)
+//-----------------------------------------------------------------------------
+struct SteamAPICallCompleted_t
+{
+	enum { k_iCallback = k_iSteamUtilsCallbacks + 3 };
+	SteamAPICall_t m_hAsyncCall;
+};
+
+
+//-----------------------------------------------------------------------------
+// called when Steam wants to shutdown
+//-----------------------------------------------------------------------------
+struct SteamShutdown_t
+{
+	enum { k_iCallback = k_iSteamUtilsCallbacks + 4 };
+};
+
+//-----------------------------------------------------------------------------
+// results for CheckFileSignature
+//-----------------------------------------------------------------------------
+enum ECheckFileSignature
+{
+	k_ECheckFileSignatureInvalidSignature = 0,
+	k_ECheckFileSignatureValidSignature = 1,
+	k_ECheckFileSignatureFileNotFound = 2,
+	k_ECheckFileSignatureNoSignaturesFoundForThisApp = 3,
+	k_ECheckFileSignatureNoSignaturesFoundForThisFile = 4,
+};
+
+//-----------------------------------------------------------------------------
+// callback for CheckFileSignature
+//-----------------------------------------------------------------------------
+struct CheckFileSignature_t
+{
+	enum { k_iCallback = k_iSteamUtilsCallbacks + 5 };
+	ECheckFileSignature m_eCheckFileSignature;
+};
+
+#pragma pack( pop )
 
 #endif // ISTEAMUTILS_H

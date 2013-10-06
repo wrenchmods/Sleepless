@@ -7,6 +7,7 @@
 #include "cbase.h"
 #include "BaseAnimatedTextureProxy.h"
 
+#include "imaterialproxydict.h"
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
@@ -21,7 +22,7 @@ public:
 
 };
 
-EXPOSE_INTERFACE( CAnimatedEntityTextureProxy, IMaterialProxy, "AnimatedEntityTexture" IMATERIAL_PROXY_INTERFACE_VERSION );
+EXPOSE_MATERIAL_PROXY( CAnimatedEntityTextureProxy, AnimatedEntityTexture );
 
 float CAnimatedEntityTextureProxy::GetAnimationStartTime( void* pArg )
 {

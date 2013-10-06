@@ -39,6 +39,8 @@ public:
 
 	vgui::ScrollBar	*GetScrollbar( void ) { return m_pScrollBar; }
 
+	virtual void OnMouseWheeled(int delta);
+
 	MESSAGE_FUNC( OnScrollBarSliderMoved, "ScrollBarSliderMoved" );
 
 private:

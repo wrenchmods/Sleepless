@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -96,21 +96,44 @@
 #if defined( PROTECTED_THINGS_ENABLE )
 #undef PROTECTED_THINGS_ENABLE // from protected_things.h
 #endif
-
 #include "tier0/platform.h"
-
 #ifdef IS_WINDOWS_PC
 #define STRICT
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#elif !defined(_X360)
+#define far
+#define near
+#define INVALID_HANDLE_VALUE (void*)-1
+#define _tzset tzset
 #endif
-#include <time.h>
-#include "zip/XZip.h"
+
 #if defined( _X360 )
 #include "xbox/xbox_win32stubs.h"
 #endif
 
-#include "tier1/strtools.h"
+#include <time.h>
+#include "zip/XZip.h"
+
+#ifdef POSIX
+#include <sys/mman.h>
+#define _stricmp strcasecmp
+#endif
+
+#ifdef OSX
+#define MAP_ANONYMOUS MAP_ANON
+#endif
+
+#ifdef XZIP_NOT_THREAD_SAFE
+static ZRESULT lasterrorZ=ZR_OK;
+#else
+#include "tier0/threadtools.h"
+static GenericThreadLocals::CThreadLocalInt<ZRESULT> lasterrorZ;
+#endif
+
+// NOTE: This has to be the last file included!
+#include "tier0/memdbgon.h"
+
 
 typedef unsigned char uch;      // unsigned 8-bit value
 typedef unsigned short ush;     // unsigned 16-bit value
@@ -301,15 +324,19 @@ typedef unsigned IPos; // A Pos is an index in the character window. Pos is used
 // Output a 16 bit value to the bit stream, lower (oldest) byte first
 #define PUTSHORT(state,w) \
 { if (state.bs.out_offset >= state.bs.out_size-1) \
-    state.flush_outbuf(state.param,state.bs.out_buf, &state.bs.out_offset); \
-  state.bs.out_buf[state.bs.out_offset++] = (char) ((w) & 0xff); \
-  state.bs.out_buf[state.bs.out_offset++] = (char) ((ush)(w) >> 8); \
+	state.flush_outbuf(state.param,state.bs.out_buf, &state.bs.out_offset); \
+  /* flush may fail, so only write into the buffer if there's actually room (same below) */ \
+  if (state.bs.out_offset < state.bs.out_size-1) { \
+    state.bs.out_buf[state.bs.out_offset++] = (char) ((w) & 0xff); \
+    state.bs.out_buf[state.bs.out_offset++] = (char) ((ush)(w) >> 8); \
+  } \
 }
 
 #define PUTBYTE(state,b) \
 { if (state.bs.out_offset >= state.bs.out_size) \
     state.flush_outbuf(state.param,state.bs.out_buf, &state.bs.out_offset); \
-  state.bs.out_buf[state.bs.out_offset++] = (char) (b); \
+  if (state.bs.out_offset < state.bs.out_size) \
+	state.bs.out_buf[state.bs.out_offset++] = (char) (b); \
 }
 
 // DEFLATE.CPP HEADER
@@ -639,10 +666,11 @@ class TState
 
 
 
-
-void Assert(TState &state,bool cond, const char *msg)
-{ if (cond) return;
-  state.err=msg;
+#undef Assert
+void AssertXZip(TState &state,bool cond, const char *msg)
+{ 
+	if (cond) return;
+	state.err=msg;
 }
 void __cdecl Trace(const char *x, ...) {va_list paramList; va_start(paramList, x); paramList; va_end(paramList);}
 void __cdecl Tracec(bool ,const char *x, ...) {va_list paramList; va_start(paramList, x); paramList; va_end(paramList);}
@@ -713,7 +741,7 @@ void ct_init(TState &state, ush *attr)
             state.ts.length_code[length++] = (uch)code;
         }
     }
-    Assert(state,length == 256, "ct_init: length != 256");
+    AssertXZip(state,length == 256, "ct_init: length != 256");
     /* Note that the length 255 (match length 258) can be represented
      * in two different ways: code 284 + 5 bits or code 285, so we
      * overwrite length_code[255] to use the best encoding:
@@ -728,7 +756,7 @@ void ct_init(TState &state, ush *attr)
             state.ts.dist_code[dist++] = (uch)code;
         }
     }
-    Assert(state,dist == 256, "ct_init: dist != 256");
+    AssertXZip(state,dist == 256, "ct_init: dist != 256");
     dist >>= 7; /* from now on, all distances are divided by 128 */
     for ( ; code < D_CODES; code++) {
         state.ts.base_dist[code] = dist << 7;
@@ -736,7 +764,7 @@ void ct_init(TState &state, ush *attr)
             state.ts.dist_code[256 + dist++] = (uch)code;
         }
     }
-    Assert(state,dist == 256, "ct_init: 256+dist != 512");
+    AssertXZip(state,dist == 256, "ct_init: 256+dist != 512");
 
     /* Construct the codes of the static literal tree */
     for (bits = 0; bits <= MAX_BITS; bits++) state.ts.bl_count[bits] = 0;
@@ -942,7 +970,7 @@ void gen_codes (TState &state, ct_data *tree, int max_code)
     /* Check that the bit counts in bl_count are consistent. The last code
      * must be all ones.
      */
-    Assert(state,code + state.ts.bl_count[MAX_BITS]-1 == (1<< ((ush) MAX_BITS)) - 1,
+    AssertXZip(state,code + state.ts.bl_count[MAX_BITS]-1 == (1<< ((ush) MAX_BITS)) - 1,
             "inconsistent bit counts");
     Trace("\ngen_codes: max_code %d ", max_code);
 
@@ -1110,7 +1138,7 @@ void send_tree (TState &state, ct_data *tree, int max_code)
             if (curlen != prevlen) {
                 send_code(state, curlen, state.ts.bl_tree); count--;
             }
-            Assert(state,count >= 3 && count <= 6, " 3_6?");
+            AssertXZip(state,count >= 3 && count <= 6, " 3_6?");
             send_code(state,REP_3_6, state.ts.bl_tree); send_bits(state,count-3, 2);
 
         } else if (count <= 10) {
@@ -1171,8 +1199,8 @@ void send_all_trees(TState &state,int lcodes, int dcodes, int blcodes)
 {
     int rank;                    /* index in bl_order */
 
-    Assert(state,lcodes >= 257 && dcodes >= 1 && blcodes >= 4, "not enough codes");
-    Assert(state,lcodes <= L_CODES && dcodes <= D_CODES && blcodes <= BL_CODES,
+    AssertXZip(state,lcodes >= 257 && dcodes >= 1 && blcodes >= 4, "not enough codes");
+    AssertXZip(state,lcodes <= L_CODES && dcodes <= D_CODES && blcodes <= BL_CODES,
             "too many codes");
     Trace("\nbl counts: ");
     send_bits(state,lcodes-257, 5);
@@ -1241,10 +1269,10 @@ ulg flush_block(TState &state,char *buf, ulg stored_len, int eof)
     //   && state.ts.cmpr_len_bits == 0L && state.seekable)
     //{   // && state.ts.file_method != NULL
     //    // Since LIT_BUFSIZE <= 2*WSIZE, the input data must be there:
-    //    Assert(state,buf!=NULL,"block vanished");
+    //    AssertXZip(state,buf!=NULL,"block vanished");
     //    copy_block(state,buf, (unsigned)stored_len, 0); // without header
     //    state.ts.cmpr_bytelen = stored_len;
-    //    Assert(state,false,"unimplemented *state.ts.file_method = STORE;");
+    //    AssertXZip(state,false,"unimplemented *state.ts.file_method = STORE;");
     //    //*state.ts.file_method = STORE;
     //}
     //else
@@ -1277,11 +1305,11 @@ ulg flush_block(TState &state,char *buf, ulg stored_len, int eof)
         state.ts.cmpr_bytelen += state.ts.cmpr_len_bits >> 3;
         state.ts.cmpr_len_bits &= 7L;
     }
-    Assert(state,((state.ts.cmpr_bytelen << 3) + state.ts.cmpr_len_bits) == state.bs.bits_sent, "bad compressed size");
+    AssertXZip(state,((state.ts.cmpr_bytelen << 3) + state.ts.cmpr_len_bits) == state.bs.bits_sent, "bad compressed size");
     init_block(state);
 
     if (eof) {
-        // Assert(state,input_len == isize, "bad input size");
+        // AssertXZip(state,input_len == isize, "bad input size");
         bi_windup(state);
         state.ts.cmpr_len_bits += 7;  /* align on byte boundary */
     }
@@ -1303,7 +1331,7 @@ int ct_tally (TState &state,int dist, int lc)
     } else {
         /* Here, lc is the match length - MIN_MATCH */
         dist--;             /* dist = match distance - 1 */
-        Assert(state,(ush)dist < (ush)MAX_DIST &&
+        AssertXZip(state,(ush)dist < (ush)MAX_DIST &&
                (ush)lc <= (ush)(MAX_MATCH-MIN_MATCH) &&
                (ush)d_code(dist) < (ush)D_CODES,  "ct_tally: bad match");
 
@@ -1373,7 +1401,7 @@ void compress_block(TState &state,ct_data *ltree, ct_data *dtree)
             dist = state.ts.d_buf[dx++];
             /* Here, dist is the match distance - 1 */
             code = d_code(dist);
-            Assert(state,code < D_CODES, "bad d_code");
+            AssertXZip(state,code < D_CODES, "bad d_code");
 
             send_code(state,code, dtree);       /* send the distance code */
             extra = extra_dbits[code];
@@ -1427,7 +1455,7 @@ void bi_init (TState &state,char *tgt_buf, unsigned tgt_size, int flsh_allowed)
  */
 void send_bits(TState &state,int value, int length)
 {
-    Assert(state,length > 0 && length <= 15, "invalid length");
+    AssertXZip(state,length > 0 && length <= 15, "invalid length");
     state.bs.bits_sent += (ulg)length;
     /* If not enough room in bi_buf, use (bi_valid) bits from bi_buf and
      * (Buf_size - bi_valid) bits from value to flush the filled bi_buf,
@@ -1469,7 +1497,7 @@ void bi_windup(TState &state)
         PUTBYTE(state,state.bs.bi_buf);
     }
     if (state.bs.flush_flg) {
-        state.flush_outbuf(state.param,state.bs.out_buf, &state.bs.out_offset);
+        state.flush_outbuf(state.param, state.bs.out_buf, &state.bs.out_offset);
     }
     state.bs.bi_buf = 0;
     state.bs.bi_valid = 0;
@@ -1490,11 +1518,11 @@ void copy_block(TState &state, char *block, unsigned len, int header)
         state.bs.bits_sent += 2*16;
     }
     if (state.bs.flush_flg) {
-        state.flush_outbuf(state.param,state.bs.out_buf, &state.bs.out_offset);
+        state.flush_outbuf(state.param, state.bs.out_buf, &state.bs.out_offset);
         state.bs.out_offset = len;
-        state.flush_outbuf(state.param,block, &state.bs.out_offset);
+        state.flush_outbuf(state.param, block, &state.bs.out_offset);
     } else if (state.bs.out_offset + len > state.bs.out_size) {
-        Assert(state,false,"output buffer too small for in-memory compression");
+        AssertXZip(state,false,"output buffer too small for in-memory compression");
     } else {
         memcpy(state.bs.out_buf + state.bs.out_offset, block, len);
         state.bs.out_offset += len;
@@ -1553,7 +1581,7 @@ void lm_init (TState &state, int pack_level, ush *flags)
 {
     register unsigned j;
 
-    Assert(state,pack_level>=1 && pack_level<=8,"bad pack level");
+    AssertXZip(state,pack_level>=1 && pack_level<=8,"bad pack level");
 
     /* Do not slide the window if the whole input is already in memory
      * (window_size > 0)
@@ -1633,7 +1661,7 @@ int longest_match(TState &state,IPos cur_match)
 
   // The code is optimized for HASH_BITS >= 8 and MAX_MATCH-2 multiple of 16.
   // It is easy to get rid of this optimization if necessary.
-    Assert(state,HASH_BITS>=8 && MAX_MATCH==258,"Code too clever");
+    AssertXZip(state,HASH_BITS>=8 && MAX_MATCH==258,"Code too clever");
 
 
 
@@ -1646,10 +1674,10 @@ int longest_match(TState &state,IPos cur_match)
         chain_length >>= 2;
     }
 
-    Assert(state,state.ds.strstart <= state.ds.window_size-MIN_LOOKAHEAD, "insufficient lookahead");
+    AssertXZip(state,state.ds.strstart <= state.ds.window_size-MIN_LOOKAHEAD, "insufficient lookahead");
 
     do {
-        Assert(state,cur_match < state.ds.strstart, "no future");
+        AssertXZip(state,cur_match < state.ds.strstart, "no future");
         match = state.ds.window + cur_match;
 
         /* Skip to next match if the match length cannot increase
@@ -1678,7 +1706,7 @@ int longest_match(TState &state,IPos cur_match)
                  *++scan == *++match && *++scan == *++match &&
                  scan < strend);
 
-        Assert(state,scan <= state.ds.window+(unsigned)(state.ds.window_size-1), "wild scan");
+        AssertXZip(state,scan <= state.ds.window+(unsigned)(state.ds.window_size-1), "wild scan");
                           
         len = MAX_MATCH - (int)(strend - scan);
         scan = strend - MAX_MATCH;
@@ -1783,7 +1811,7 @@ void fill_window(TState &state)
          * Otherwise, window_size == 2*WSIZE so more >= 2.
          * If there was sliding, more >= WSIZE. So in all cases, more >= 2.
          */
-        Assert(state,more >= 2, "more < 2");
+        AssertXZip(state,more >= 2, "more < 2");
 
         n = state.readfunc(state, (char*)state.ds.window+state.ds.strstart+state.ds.lookahead, more);
 
@@ -1865,7 +1893,7 @@ ulg deflate_fast(TState &state)
                 match_length = 0;
                 state.ds.ins_h = state.ds.window[state.ds.strstart];
                 UPDATE_HASH(state.ds.ins_h, state.ds.window[state.ds.strstart+1]);
-                Assert(state,MIN_MATCH==3,"Call UPDATE_HASH() MIN_MATCH-3 more times");
+                AssertXZip(state,MIN_MATCH==3,"Call UPDATE_HASH() MIN_MATCH-3 more times");
             }
         } else {
             /* No match, output a literal byte */
@@ -1980,7 +2008,7 @@ ulg deflate(TState &state)
             state.ds.strstart++;
             state.ds.lookahead--;
         }
-//        Assert(state,strstart <= isize && lookahead <= isize, "a bit too far");
+//        AssertXZip(state,strstart <= isize && lookahead <= isize, "a bit too far");
 
         /* Make sure that we always have enough lookahead, except
          * at the end of the input file. We need MAX_MATCH bytes
@@ -2158,28 +2186,23 @@ ulg crc32(ulg crc, const uch *buf, extent len)
 
 
 bool HasZipSuffix(const char *fn)
-{ 
-	const char *ext = fn+strlen(fn);
-	while (ext>fn && *ext!='.') 
-	{
-		ext--;
-	}
-	if (ext==fn && *ext!='.') return false;
-	if (Q_stricmp(ext,".Z")==0) return true;
-	if (Q_stricmp(ext,".zip")==0) return true;
-	if (Q_stricmp(ext,".zoo")==0) return true;
-	if (Q_stricmp(ext,".arc")==0) return true;
-	if (Q_stricmp(ext,".lzh")==0) return true;
-	if (Q_stricmp(ext,".arj")==0) return true;
-	if (Q_stricmp(ext,".gz")==0) return true;
-	if (Q_stricmp(ext,".tgz")==0) return true;
-	return false;
+{ const char *ext = fn+strlen(fn);
+  while (ext>fn && *ext!='.') ext--;
+  if (ext==fn && *ext!='.') return false;
+  if (_stricmp(ext,".Z")==0) return true;
+  if (_stricmp(ext,".zip")==0) return true;
+  if (_stricmp(ext,".zoo")==0) return true;
+  if (_stricmp(ext,".arc")==0) return true;
+  if (_stricmp(ext,".lzh")==0) return true;
+  if (_stricmp(ext,".arj")==0) return true;
+  if (_stricmp(ext,".gz")==0) return true;
+  if (_stricmp(ext,".tgz")==0) return true;
+  return false;
 }
 
-
+#ifdef _WIN32
 time_t filetime2timet(const FILETIME ft)
-{ 
-	SYSTEMTIME st; FileTimeToSystemTime(&ft,&st);
+{ SYSTEMTIME st; FileTimeToSystemTime(&ft,&st);
   if (st.wYear<1970) {st.wYear=1970; st.wMonth=1; st.wDay=1;}
   if (st.wYear>=2038) {st.wYear=2037; st.wMonth=12; st.wDay=31;}
   struct tm tm;
@@ -2194,10 +2217,9 @@ time_t filetime2timet(const FILETIME ft)
   return t;
 }
 
-
 ZRESULT GetFileInfo(HANDLE hf, ulg *attr, long *size, iztimes *times, ulg *timestamp)
 { 
-	DWORD type=GetFileType(hf);
+  DWORD type=GetFileType(hf);
   if (type!=FILE_TYPE_DISK) 
 	  return ZR_NOTINITED;
   // The handle must be a handle to a file
@@ -2210,6 +2232,9 @@ ZRESULT GetFileInfo(HANDLE hf, ulg *attr, long *size, iztimes *times, ulg *times
   BOOL res=GetFileInformationByHandle(hf,&bhi);
   if (!res) 
 	  return ZR_NOFILE;
+  FileTimeToLocalFileTime( &bhi.ftLastAccessTime, &bhi.ftLastAccessTime );
+  FileTimeToLocalFileTime( &bhi.ftLastWriteTime, &bhi.ftLastWriteTime );
+  FileTimeToLocalFileTime( &bhi.ftCreationTime, &bhi.ftCreationTime );
   DWORD fa=bhi.dwFileAttributes; 
   ulg a=0;
   // Zip uses the lower word for its interpretation of windows stuff
@@ -2253,8 +2278,7 @@ ZRESULT GetFileInfo(HANDLE hf, ulg *attr, long *size, iztimes *times, ulg *times
   }
   return ZR_OK;
 }
-
-
+#endif
 
 
 
@@ -2276,6 +2300,7 @@ class TZip
   unsigned writ;            // how far have we written. This is maintained by Add, not write(), to avoid confusion over seeks
   bool ocanseek;            // can we seek?
   char *obuf;               // this is where we've locked mmap to view.
+  unsigned int size;        // how big is the buffer (needed for munmap on *nix)
   unsigned int opos;        // current pos in the mmap
   unsigned int mapsize;     // the size of the map we created
   bool hasputcen;           // have we yet placed the central directory?
@@ -2325,7 +2350,40 @@ ZRESULT TZip::Create(void *z,unsigned int len,DWORD flags)
 	if (hfout!=0 || hmapout!=0 || obuf!=0 || writ!=0 || oerr!=ZR_OK || hasputcen) 
 		return ZR_NOTINITED;
 	//
-	if (flags==ZIP_HANDLE)
+	if (flags==ZIP_MEMORY)
+	{ 
+	        size = len;
+		if (size==0) 
+			return ZR_MEMSIZE;
+		if (z!=0) 
+			obuf=(char*)z;
+		else
+		{ 
+#ifdef _WIN32
+			hmapout = CreateFileMapping(INVALID_HANDLE_VALUE,NULL,PAGE_READWRITE,0,size,NULL);
+			if (hmapout==NULL) 
+				return ZR_NOALLOC;
+			obuf = (char*)MapViewOfFile(hmapout,FILE_MAP_ALL_ACCESS,0,0,size);
+			if (obuf==0) 
+			{
+				CloseHandle(hmapout); 
+				hmapout=0; 
+				return ZR_NOALLOC;
+			}
+#endif
+#ifdef POSIX
+			obuf = (char*) mmap( NULL, size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS, -1, 0 );
+			if (obuf==NULL)
+			  return ZR_NOALLOC;
+#endif
+		}
+		ocanseek=true;
+		opos=0; 
+		mapsize=size;
+		return ZR_OK;
+	}
+#ifdef _WIN32
+	else if (flags==ZIP_HANDLE)
 	{ 
 		HANDLE hf = (HANDLE)z;
 		BOOL res = DuplicateHandle(GetCurrentProcess(),hf,GetCurrentProcess(),&hfout,0,FALSE,DUPLICATE_SAME_ACCESS);
@@ -2359,32 +2417,6 @@ ZRESULT TZip::Create(void *z,unsigned int len,DWORD flags)
 		ooffset=0;
 		return ZR_OK;
 	}
-#ifndef _XBOX
-	else if (flags==ZIP_MEMORY)
-	{ 
-		unsigned int size = len;
-		if (size==0) 
-			return ZR_MEMSIZE;
-		if (z!=0) 
-			obuf=(char*)z;
-		else
-		{ 
-			hmapout = CreateFileMapping(INVALID_HANDLE_VALUE,NULL,PAGE_READWRITE,0,size,NULL);
-			if (hmapout==NULL) 
-				return ZR_NOALLOC;
-			obuf = (char*)MapViewOfFile(hmapout,FILE_MAP_ALL_ACCESS,0,0,size);
-			if (obuf==0) 
-			{
-				CloseHandle(hmapout); 
-				hmapout=0; 
-				return ZR_NOALLOC;
-			}
-		}
-		ocanseek=true;
-		opos=0; 
-		mapsize=size;
-		return ZR_OK;
-	}
 #endif
 	else 
 		return ZR_ARGS;
@@ -2411,10 +2443,12 @@ unsigned int TZip::write(const char *buf,unsigned int size)
     opos+=size;
     return size;
   }
+#ifdef _WIN32
   else if (hfout!=0)
   { DWORD writ; WriteFile(hfout,buf,size,&writ,NULL);
     return writ;
   }
+#endif
   oerr=ZR_NOTINITED; return 0;
 }
 
@@ -2425,10 +2459,12 @@ bool TZip::oseek(unsigned int pos)
     opos=pos;
     return true;
   }
+#ifdef _WIN32
   else if (hfout!=0)
   { SetFilePointer(hfout,pos+ooffset,NULL,FILE_BEGIN);
     return true;
   }
+#endif
   oerr=ZR_NOTINITED; return 0;
 }
 
@@ -2447,11 +2483,19 @@ ZRESULT TZip::Close()
 { // if the directory hadn't already been added through a call to GetMemory,
   // then we do it now
   ZRESULT res=ZR_OK; if (!hasputcen) res=AddCentral(); hasputcen=true;
-#ifndef _XBOX
-  if (obuf!=0 && hmapout!=0) UnmapViewOfFile(obuf); obuf=0;
+  if (obuf!=0 && hmapout!=0) 
+#ifdef _WIN32
+    UnmapViewOfFile(obuf); 
 #endif
+#ifdef POSIX
+  munmap(obuf, size);
+#endif
+  size=0;
+  obuf=0;
+#ifdef _WIN32
   if (hmapout!=0) CloseHandle(hmapout); hmapout=0;
   if (hfout!=0) CloseHandle(hfout); hfout=0;
+#endif
   return res;
 }
 
@@ -2461,16 +2505,25 @@ ZRESULT TZip::Close()
 ZRESULT TZip::open_file(const TCHAR *fn)
 { hfin=0; bufin=0; selfclosehf=false; crc=CRCVAL_INITIAL; isize=0; csize=0; ired=0;
   if (fn==0) return ZR_ARGS;
-  HANDLE hf = CreateFile(fn,GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,0,NULL);
+  HANDLE hf = INVALID_HANDLE_VALUE;
+#ifdef _WIN32
+  hf = CreateFile(fn,GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,0,NULL);
+#endif
   if (hf==INVALID_HANDLE_VALUE) return ZR_NOFILE;
   ZRESULT res = open_handle(hf,0);
-  if (res!=ZR_OK) {CloseHandle(hf); return res;}
+  if (res!=ZR_OK) {
+#ifdef _WIN32
+    CloseHandle(hf); 
+#endif
+    return res;
+  }
   selfclosehf=true;
   return ZR_OK;
 }
 ZRESULT TZip::open_handle(HANDLE hf,unsigned int len)
 { hfin=0; bufin=0; selfclosehf=false; crc=CRCVAL_INITIAL; isize=0; csize=0; ired=0;
   if (hf==0 || hf==INVALID_HANDLE_VALUE) return ZR_ARGS;
+#ifdef _WIN32
   DWORD type = GetFileType(hf);
   if (type==FILE_TYPE_DISK)
   { ZRESULT res = GetFileInfo(hf,&attr,&isize,&times,&timestamp);
@@ -2494,11 +2547,16 @@ ZRESULT TZip::open_handle(HANDLE hf,unsigned int len)
     hfin=hf;
     return ZR_OK;
   }
+#else
+  return ZR_FAILED;
+#endif
 }
+
 ZRESULT TZip::open_mem(void *src,unsigned int len)
 { hfin=0; bufin=(const char*)src; selfclosehf=false; crc=CRCVAL_INITIAL; ired=0; csize=0; ired=0;
   lenin=len; posin=0;
   if (src==0 || len==0) return ZR_ARGS;
+#ifdef _WIN32
   attr= 0x80000000; // just a normal file
   isize = len;
   iseekable=true;
@@ -2510,9 +2568,14 @@ ZRESULT TZip::open_mem(void *src,unsigned int len)
   times.ctime = times.atime;
   timestamp = (WORD)dostime | (((DWORD)dosdate)<<16);
   return ZR_OK;
+#else
+  return ZR_FAILED;
+#endif
 }
+
 ZRESULT TZip::open_dir()
 { hfin=0; bufin=0; selfclosehf=false; crc=CRCVAL_INITIAL; isize=0; csize=0; ired=0;
+#ifdef _WIN32
   attr= 0x41C00010; // a readable writable directory, and again directory
   isize = 0;
   iseekable=false;
@@ -2524,6 +2587,9 @@ ZRESULT TZip::open_dir()
   times.ctime = times.atime;
   timestamp = (WORD)dostime | (((DWORD)dosdate)<<16);
   return ZR_OK;
+#else
+  return ZR_FAILED;
+#endif
 }
 
 unsigned TZip::sread(TState &s,char *buf,unsigned size)
@@ -2543,6 +2609,7 @@ unsigned TZip::read(char *buf, unsigned size)
     crc = crc32(crc, (uch*)buf, red);
     return red;
   }
+#ifdef _WIN32
   else if (hfin!=0)
   { DWORD red;
     BOOL ok = ReadFile(hfin,buf,size,&red,NULL);
@@ -2551,11 +2618,16 @@ unsigned TZip::read(char *buf, unsigned size)
     crc = crc32(crc, (uch*)buf, red);
     return red;
   }
+#endif
   else {oerr=ZR_NOTINITED; return 0;}
 }
 
 ZRESULT TZip::iclose()
-{ if (selfclosehf && hfin!=0) CloseHandle(hfin); hfin=0;
+{ 
+#ifdef _WIN32
+  if (selfclosehf && hfin!=0) CloseHandle(hfin); 
+#endif
+  hfin=0;
   bool mismatch = (isize!=-1 && isize!=ired);
   isize=ired; // and crc has been being updated anyway
   if (mismatch) return ZR_MISSIZE;
@@ -2606,7 +2678,7 @@ ZRESULT TZip::Add(const char *odstzn, void *src,unsigned int len, DWORD flags)
 
 	// zip has its own notion of what its names should look like: i.e. dir/file.stuff
 	char dstzn[MAX_PATH]; 
-	Q_strncpy(dstzn, odstzn, sizeof(dstzn));
+	strcpy(dstzn, odstzn);
 	if (*dstzn == 0) 
 		return ZR_ARGS;
 	char *d=dstzn; 
@@ -2640,15 +2712,15 @@ ZRESULT TZip::Add(const char *odstzn, void *src,unsigned int len, DWORD flags)
 
 	// Initialize the local header
 	TZipFileInfo zfi; zfi.nxt=NULL;
-	Q_strncpy(zfi.name, "",sizeof(zfi.name));
-	Q_strncpy(zfi.iname, dstzn,sizeof(zfi.iname)); 
+	strcpy(zfi.name,"");
+	strcpy(zfi.iname,dstzn); 
 	zfi.nam=strlen(zfi.iname);
 	if (needs_trailing_slash) 
 	{
-		Q_strncat(zfi.iname, "/",sizeof(zfi.iname)); 
+		strcat(zfi.iname,"/"); 
 		zfi.nam++;
 	}
-	Q_strncpy(zfi.zname,"",sizeof(zfi.zname));
+	strcpy(zfi.zname,"");
 	zfi.extra=NULL; zfi.ext=0;   // extra header to go after this compressed data, and its length
 	zfi.cextra=NULL; zfi.cext=0; // extra header to go in the central end-of-zip directory, and its length
 	zfi.comment=NULL; zfi.com=0; // comment, and its length
@@ -2808,11 +2880,6 @@ ZRESULT TZip::AddCentral()
 }
 
 
-
-
-
-ZRESULT lasterrorZ=ZR_OK;
-
 unsigned int FormatZipMessageZ(ZRESULT code, char *buf,unsigned int len)
 { if (code==ZR_RECENT) code=lasterrorZ;
   const char *msg="unknown zip result code";
@@ -2842,7 +2909,7 @@ unsigned int FormatZipMessageZ(ZRESULT code, char *buf,unsigned int len)
   unsigned int mlen=(unsigned int)strlen(msg);
   if (buf==0 || len==0) return mlen;
   unsigned int n=mlen; if (n+1>len) n=len-1;
-  Q_strncpy(buf, msg,n); buf[n]=0;
+  strncpy(buf,msg,n); buf[n]=0;
   return mlen;
 }
 
@@ -2904,7 +2971,7 @@ ZRESULT ZipAdd(HZIP hz, const TCHAR *dstzn, void *src, unsigned int len, DWORD f
 		if (nActualChars == 0)
 			return ZR_ARGS; 
 #else
-		Q_strncpy(szDest, dstzn, sizeof(szDest));
+		strcpy(szDest, dstzn);
 #endif
 
 		lasterrorZ = zip->Add(szDest, src, len, flags);
@@ -2942,4 +3009,5 @@ bool IsZipHandleZ(HZIP hz)
   TZipHandleData *han = (TZipHandleData*)hz;
   return (han->flag==2);
 }
+
 

@@ -14,7 +14,7 @@
 #pragma once
 #endif
 
-#include "appframework/IAppSystem.h"
+#include "appframework/iappsystem.h"
 
 //-----------------------------------------------------------------------------
 // Forward declarations
@@ -79,8 +79,6 @@ enum
 //-----------------------------------------------------------------------------
 // Main AVI interface
 //-----------------------------------------------------------------------------
-#define AVI_INTERFACE_VERSION "VAvi001"
-
 class IAvi : public IAppSystem
 {
 public:
@@ -121,6 +119,6 @@ public:
 	virtual void SetFrame( AVIMaterial_t hMaterial, float flFrame ) = 0;
 };
 
-
+extern IAvi *g_pAVI;
 
 #endif // IAVI_H

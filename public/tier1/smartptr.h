@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright ï¿½ 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -111,10 +111,10 @@ public:
 	~CArrayAutoPtr( void )						{ Delete(); }
 
 public:
-	void Delete( void )							{ delete [] Detach(); }
+	void Delete( void )							{ delete [] this->Detach(); }
 
 public:
-	T & operator [] ( int k ) const				{ return Get()[ k ]; }
+	T & operator [] ( int k ) const				{ return this->Get()[ k ]; }
 };
 
 

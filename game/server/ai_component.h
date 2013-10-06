@@ -46,6 +46,7 @@ public:
 	float 				GetHullHeight() const;
 	const Vector &		GetHullMins() const;
 	const Vector &		GetHullMaxs() const;
+	int					GetHullTraceMask() const;
 
 protected:
 	//
@@ -124,7 +125,7 @@ public:
 	void *operator new( size_t nBytes )
 	{
 		MEM_ALLOC_CREDIT();
-		void *pResult = g_pMemAlloc->Alloc( nBytes );
+		void *pResult = MemAlloc_Alloc( nBytes );
 		memset( pResult, 0, nBytes );
 		return pResult;
 	};
@@ -132,7 +133,7 @@ public:
 	void *operator new( size_t nBytes, int nBlockUse, const char *pFileName, int nLine )
 	{
 		MEM_ALLOC_CREDIT();
-		void *pResult = g_pMemAlloc->Alloc( nBytes, pFileName, nLine );
+		void *pResult = MemAlloc_Alloc( nBytes, pFileName, nLine );
 		memset( pResult, 0, nBytes );
 		return pResult;
 	}

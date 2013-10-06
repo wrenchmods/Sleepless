@@ -116,14 +116,6 @@ void CEnvSpark::Spawn(void)
 		m_flDelay = 0;
 	}
 
-#ifdef HL1_DLL
-	// Don't allow 0 delays in HL1 Port. Enforce a default
-	if( m_flDelay == 0 )
-	{
-		m_flDelay = 1.0f;
-	}
-#endif//HL1_DLL
-	
 	Precache( );
 }
 
@@ -133,9 +125,15 @@ void CEnvSpark::Spawn(void)
 //-----------------------------------------------------------------------------
 void CEnvSpark::Precache(void)
 {
+	// Unlock string tables to avoid an engine warning
+	bool oldLock = engine->LockNetworkStringTables( false );
 	m_nGlowSpriteIndex = PrecacheModel("sprites/glow01.vmt");
+	engine->LockNetworkStringTables( oldLock );
 
-	PrecacheScriptSound( "DoSpark" );
+	if ( IsPrecacheAllowed() )
+	{
+		PrecacheScriptSound( "DoSpark" );
+	}
 }
 
 extern ConVar phys_pushscale;

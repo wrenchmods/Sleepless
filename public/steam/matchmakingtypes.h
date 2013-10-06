@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2001, Valve LLC, All rights reserved. ============
+//========= Copyright ï¿½ 1996-2008, Valve LLC, All rights reserved. ============
 //
 // Purpose: 
 //
@@ -10,6 +10,12 @@
 
 #ifdef _WIN32
 #pragma once
+#endif
+
+#ifdef POSIX
+#ifndef _snprintf
+#define _snprintf snprintf
+#endif
 #endif
 
 #include <stdio.h>
@@ -34,18 +40,6 @@ enum EMatchMakingServerResponse
 	eServerFailedToRespond,
 	eNoServersListedOnMasterServer // for the Internet query type, returned in response callback if no servers of this type match
 };
-
-enum EMatchMakingType
-{
-	eInternetServer = 0,
-	eLANServer,
-	eFriendsServer,
-	eFavoritesServer,
-	eHistoryServer,
-	eSpectatorServer,
-	eInvalidServer 
-};
-
 
 // servernetadr_t is all the addressing info the serverbrowser needs to know about a game server,
 // namely: its IP, its connection port, and its query port.
@@ -191,7 +185,7 @@ public:
 	char m_szGameDir[32];			// current game directory
 	char m_szMap[32];				// current map
 	char m_szGameDescription[64];	// game description
-	int m_nAppID;					// Steam App ID of this server
+	uint32 m_nAppID;				// Steam App ID of this server
 	int m_nPlayers;					// current number of players on the server
 	int m_nMaxPlayers;				// Maximum players that can join this server
 	int m_nBotPlayers;				// Number of bots (i.e simulated players) on this server
@@ -206,6 +200,7 @@ private:
 	// For data added after SteamMatchMaking001 add it here
 public:
 	char m_szGameTags[128];			// the tags this server exposes
+	CSteamID m_steamID;				// steamID of the game server - invalid if it's doesn't have one (old server, or not connected to Steam)
 };
 
 

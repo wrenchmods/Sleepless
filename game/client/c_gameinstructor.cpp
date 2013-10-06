@@ -1311,3 +1311,32 @@ void C_GameInstructor::InitLessonPrerequisites( void )
 		m_Lessons[ i ]->InitPrerequisites();
 	}
 }
+
+
+CON_COMMAND_F( gameinstructor_reload_lessons, "Shuts down all open lessons and reloads them from the script file.", FCVAR_CHEAT )
+{
+	for ( int i = 0 ; i < MAX_SPLITSCREEN_PLAYERS; ++i )
+	{
+		ACTIVE_SPLITSCREEN_PLAYER_GUARD( i );
+		GetGameInstructor().Shutdown();
+		GetGameInstructor().Init();
+	}
+}
+
+CON_COMMAND_F( gameinstructor_reset_counts, "Resets all display and success counts to zero.", FCVAR_NONE )
+{
+	for ( int i = 0 ; i < MAX_SPLITSCREEN_PLAYERS; ++i )
+	{
+		ACTIVE_SPLITSCREEN_PLAYER_GUARD( i );
+		GetGameInstructor().ResetDisplaysAndSuccesses();
+	}
+}
+
+CON_COMMAND_F( gameinstructor_dump_open_lessons, "Gives a list of all currently open lessons.", FCVAR_CHEAT )
+{
+	for ( int i = 0 ; i < MAX_SPLITSCREEN_PLAYERS; ++i )
+	{
+		ACTIVE_SPLITSCREEN_PLAYER_GUARD( i );
+		GetGameInstructor().DumpOpenOpportunities();
+	}
+}

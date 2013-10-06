@@ -51,7 +51,7 @@ void CTargetCDAudioRep::InputChangeCDTrack( inputdata_t &inputdata )
 	edict_t *pClient = NULL;
 	if ( gpGlobals->maxClients == 1 )
 	{
-		pClient = engine->PEntityOfEntIndex( 1 );
+		pClient = INDEXENT( 1 );
 	}
 	else
 	{
@@ -69,7 +69,7 @@ void CTargetCDAudioRep::InputChangeCDTrack( inputdata_t &inputdata )
 
 	if ( iTrack < -1 || iTrack > 30 )
 	{
-		Warning( "TargetCDAudio - Track %d out of range\n" );
+		Warning( "TargetCDAudio - Track %d out of range\n", iTrack );
 		return;
 	}
 

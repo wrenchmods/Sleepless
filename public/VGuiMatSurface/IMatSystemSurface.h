@@ -24,6 +24,7 @@
 class VMatrix;
 class IMaterial;
 struct InputEvent_t;
+FORWARD_DECLARE_HANDLE( InputContextHandle_t );
 
 
 //-----------------------------------------------------------------------------
@@ -43,14 +44,13 @@ typedef void (*PlaySoundFunc_t)(const char *pFileName);
 // An extra interface implemented by the material system implementation of vgui::ISurface
 //
 //-----------------------------------------------------------------------------
-#define MAT_SYSTEM_SURFACE_INTERFACE_VERSION "MatSystemSurface006"
 class IMatSystemSurface : public vgui::ISurface
 {
 public:
-	// Hook needed to get input to work.
 	// If the app drives the input (like the engine needs to do for VCR mode), 
-	// it can set bLetAppDriveInput to true and call HandleInputEvent for the input events.
-	virtual void AttachToWindow( void *hwnd, bool bLetAppDriveInput=false ) = 0;
+	// it can call this, setting bLetAppDriveInput to true and call 
+	// HandleInputEvent for the input events.
+	virtual void SetAppDrivesInput( bool bLetAppDriveInput ) = 0;
 
 	// Tells the surface to ignore windows messages
 	virtual void EnableWindowsMessages( bool bEnable ) = 0;
@@ -77,7 +77,7 @@ public:
 
 	// Some drawing methods that cannot be accomplished under Win32
 	virtual void DrawColoredCircle( int centerx, int centery, float radius, int r, int g, int b, int a ) = 0;
-	virtual int DrawColoredText( vgui::HFont font, int x, int y, int r, int g, int b, int a, char *fmt, ... ) = 0;
+	virtual void DrawColoredText( vgui::HFont font, int x, int y, int r, int g, int b, int a, char *fmt, ... ) = 0;
 
 	// Draws text with current font at position and wordwrapped to the rect using color values specified
 	virtual void DrawColoredTextRect( vgui::HFont font, int x, int y, int w, int h, int r, int g, int b, int a, char *fmt, ... ) = 0;
@@ -100,6 +100,12 @@ public:
 
 	virtual void Set3DPaintTempRenderTarget( const char *pRenderTargetName ) = 0;
 	virtual void Reset3DPaintTempRenderTarget( void ) = 0;
+
+	// Gets a material bound to a surface texture ID
+	virtual IMaterial *DrawGetTextureMaterial( int id ) = 0;
+
+	// Sets the VGui input context
+	virtual void SetInputContext( InputContextHandle_t hContext ) = 0;
 };
 
 

@@ -68,6 +68,7 @@ typedef int __cdecl SortFunc(
 class ListPanel : public Panel
 {
 	DECLARE_CLASS_SIMPLE( ListPanel, Panel );
+
 public:
 	ListPanel(Panel *parent, const char *panelName);
 	~ListPanel();
@@ -114,8 +115,10 @@ public:
 	// DATA HANDLING
 	// data->GetName() is used to uniquely identify an item
 	// data sub items are matched against column header name to be used in the table
-	virtual int AddItem(const KeyValues *data, unsigned int userData, bool bScrollToItem, bool bSortOnAdd); // Takes a copy of the data for use in the table. Returns the index the item is at.
-	void SetItemDragData( int itemID, const KeyValues *data ); // Makes a copy of the keyvalues to store in the table. Used when dragging from the table. Only used if the caller enables drag support
+	// Makes a copy of the data for use in the table. Returns the index the item is at.
+	virtual int AddItem(const KeyValues *data, unsigned int userData, bool bScrollToItem, bool bSortOnAdd); 
+	// Unlike AddItem, this takes ownership of the KeyValues * and stores it in the list. Used when dragging from the table. Only used if the caller enables drag support
+	void SetItemDragData( int itemID, const KeyValues *data ); 
 	virtual int	GetItemCount( void );			// returns the number of VISIBLE items
 	virtual int GetItem(const char *itemName);	// gets the row index of an item by name (data->GetName())
 	virtual KeyValues *GetItem(int itemID); // returns pointer to data the row holds
@@ -148,6 +151,7 @@ public:
 	virtual void SetItemVisible(int itemID, bool state);
 	virtual void SetItemDisabled(int itemID, bool state );
 	bool IsItemVisible( int itemID );
+	void SetAllVisible( bool state );
 
 	virtual void SetFont(HFont font);
 
@@ -193,6 +197,9 @@ public:
 	virtual void SetEmptyListText(const char *text);
 	virtual void SetEmptyListText(const wchar_t *text);
 
+	// Move the scroll bar to a point where this item is visible
+	void ScrollToItem( int itemID );
+
 	// relayout the scroll bar in response to changing the items in the list panel
 	// do this if you RemoveAll()
 	void ResetScrollBar();
@@ -213,6 +220,10 @@ public:
 
 	MESSAGE_FUNC_INT( ResizeColumnToContents, "ResizeColumnToContents", column );
 
+#ifdef _X360
+	virtual void NavigateTo();
+#endif
+
 protected:
 	// PAINTING
 	virtual Panel *GetCellRenderer(int row, int column);
@@ -226,6 +237,9 @@ protected:
 	virtual void ApplySchemeSettings(IScheme *pScheme);
 	virtual void OnMousePressed( MouseCode code );
 	virtual void OnMouseDoublePressed( MouseCode code );
+#ifdef _X360
+	virtual void OnKeyCodePressed(KeyCode code);
+#endif
 	virtual void OnKeyCodeTyped( KeyCode code );
 	MESSAGE_FUNC( OnSliderMoved, "ScrollBarSliderMoved" );
 	MESSAGE_FUNC_INT_INT( OnColumnResized, "ColumnResized", column, delta );
@@ -249,6 +263,8 @@ public:
 	virtual void SetSortColumnEx( int iPrimarySortColumn, int iSecondarySortColumn, bool bSortAscending );
 	void GetSortColumnEx( int &iPrimarySortColumn, int &iSecondarySortColumn, bool &bSortAscending ) const;
 
+	void SetVScrollBarTextures( const char *pszUpArrow, const char *pszDownArrow, const char *pszLine, const char *pszBox );
+	void SetHScrollBarTextures( const char *pszUpArrow, const char *pszDownArrow, const char *pszLine, const char *pszBox );
 private:
 	// Cleans up allocations associated with a particular item
 	void CleanupItem( FastSortListPanelItem *data );

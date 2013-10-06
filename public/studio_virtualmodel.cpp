@@ -348,6 +348,15 @@ void virtualmodel_t::AppendBonemap( int group, const studiohdr_t *pStudioHdr )
 				{
 					Warning( "%s/%s : missmatched parent bones on \"%s\"\n", pBaseStudioHdr->pszName(), pStudioHdr->pszName(), pStudioHdr->pBone( j )->pszName() );
 				}
+
+				// merge the bone use flags and pass up the chain
+				int flags = (pStudioHdr->pBone( j )->flags | pBaseStudioHdr->pBone( k )->flags) & BONE_USED_MASK;
+				int n = k;
+				while (n != -1 && flags != pBaseStudioHdr->pBone( n )->flags)
+				{
+					pBaseStudioHdr->pBone( n )->flags |= flags;
+					n = pBaseStudioHdr->pBone( n )->parent;
+				}
 			}
 			else
 			{
@@ -405,23 +414,6 @@ void virtualmodel_t::AppendAttachments( int group, const studiohdr_t *pStudioHdr
 			tmp.group = group;
 			tmp.index = j;
 			k = attachment.AddToTail( tmp );
-
-			// make sure bone flags are set so attachment calculates
-			if ((m_group[ 0 ].GetStudioHdr()->pBone( n )->flags & BONE_USED_BY_ATTACHMENT) == 0)
-			{
-				while (n != -1)
-				{
-					m_group[ 0 ].GetStudioHdr()->pBone( n )->flags |= BONE_USED_BY_ATTACHMENT;
-
-					if (m_group[ 0 ].GetStudioHdr()->pLinearBones())
-					{
-						*m_group[ 0 ].GetStudioHdr()->pLinearBones()->pflags(n) |= BONE_USED_BY_ATTACHMENT;
-					}
-
-					n = m_group[ 0 ].GetStudioHdr()->pBone( n )->parent;
-				}
-				continue;
-			}
 		}
 
 		m_group[ group ].masterAttachment[ j ] = k;
@@ -474,8 +466,8 @@ void virtualmodel_t::AppendPoseParameters( int group, const studiohdr_t *pStudio
 			// duplicate, reset start and end to fit full dynamic range
 			mstudioposeparamdesc_t *pPose1 = pStudioHdr->pLocalPoseParameter( j );
 			mstudioposeparamdesc_t *pPose2 = m_group[ pose[k].group ].GetStudioHdr()->pLocalPoseParameter( pose[k].index );
-			float start =  min( pPose2->end, min( pPose1->end, min( pPose2->start, pPose1->start ) ) );
-			float end =  max( pPose2->end, max( pPose1->end, max( pPose2->start, pPose1->start ) ) );
+			float start =  MIN( pPose2->end, MIN( pPose1->end, MIN( pPose2->start, pPose1->start ) ) );
+			float end =  MAX( pPose2->end, MAX( pPose1->end, MAX( pPose2->start, pPose1->start ) ) );
 			pPose2->start = start;
 			pPose2->end = end;
 		}

@@ -19,16 +19,14 @@
 #include "utlmultilist.h"
 #include "tier1/callqueue.h"
 
-#ifdef PORTAL
-	#include "portal_util_shared.h"
-#endif
+
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
 // memory pool for storing links between entities
-static CMemoryPool g_EdictTouchLinks( sizeof(touchlink_t), MAX_EDICTS, CMemoryPool::GROW_NONE, "g_EdictTouchLinks");
-static CMemoryPool g_EntityGroundLinks( sizeof( groundlink_t ), MAX_EDICTS, CMemoryPool::GROW_NONE, "g_EntityGroundLinks");
+static CUtlMemoryPool g_EdictTouchLinks( sizeof(touchlink_t), MAX_EDICTS, CUtlMemoryPool::GROW_NONE, "g_EdictTouchLinks");
+static CUtlMemoryPool g_EntityGroundLinks( sizeof( groundlink_t ), MAX_EDICTS, CUtlMemoryPool::GROW_NONE, "g_EntityGroundLinks");
 
 struct watcher_t
 {
@@ -67,7 +65,7 @@ int groundlinksallocated = 0;
 #define DEF_THINK_LIMIT "10"
 #endif
 
-ConVar think_limit( "think_limit", DEF_THINK_LIMIT, FCVAR_REPLICATED, "Maximum think time in milliseconds, warning is printed if this is exceeded." );
+ConVar think_limit( "think_limit", DEF_THINK_LIMIT, FCVAR_REPLICATED | FCVAR_RELEASE, "Maximum think time in milliseconds, warning is printed if this is exceeded." );
 #ifndef CLIENT_DLL
 ConVar debug_touchlinks( "debug_touchlinks", "0", 0, "Spew touch link activity" );
 #define DebugTouchlinks() debug_touchlinks.GetBool()
@@ -129,7 +127,7 @@ public:
 
 	CDataObjectAccessSystem()
 	{
-		COMPILE_TIME_ASSERT( NUM_DATAOBJECT_TYPES <= MAX_ACCESSORS );
+    	COMPILE_TIME_ASSERT( (int)NUM_DATAOBJECT_TYPES <= (int)MAX_ACCESSORS );
 
 		Q_memset( m_Accessors, 0, sizeof( m_Accessors ) );
 	}
@@ -139,7 +137,7 @@ public:
 		AddDataAccessor( TOUCHLINK, new CEntityDataInstantiator< touchlink_t > );
 		AddDataAccessor( GROUNDLINK, new CEntityDataInstantiator< groundlink_t > );
 		AddDataAccessor( STEPSIMULATION, new CEntityDataInstantiator< StepSimulationData > );
-		AddDataAccessor( MODELWIDTHSCALE, new CEntityDataInstantiator< ModelWidthScale > );
+		AddDataAccessor( MODELSCALE, new CEntityDataInstantiator< ModelScale > );
 		AddDataAccessor( POSITIONWATCHER, new CEntityDataInstantiator< CWatcherList > );
 		AddDataAccessor( PHYSICSPUSHLIST, new CEntityDataInstantiator< physicspushlist_t > );
 		AddDataAccessor( VPHYSICSUPDATEAI, new CEntityDataInstantiator< vphysicsupdateai_t > );
@@ -600,9 +598,7 @@ void CBaseEntity::PhysicsCheckForEntityUntouch( void )
 	touchlink_t *root = ( touchlink_t * )GetDataObject( TOUCHLINK );
 	if ( root )
 	{
-#ifdef PORTAL
-		CPortalTouchScope scope;
-#endif
+
 		bool saveCleanup = g_bCleanupDatObject;
 		g_bCleanupDatObject = false;
 
@@ -713,9 +709,7 @@ void CBaseEntity::PhysicsRemoveToucher( CBaseEntity *otherEntity, touchlink_t *l
 //-----------------------------------------------------------------------------
 void CBaseEntity::PhysicsRemoveTouchedList( CBaseEntity *ent )
 {
-#ifdef PORTAL
-	CPortalTouchScope scope;
-#endif
+
 
 	touchlink_t *link, *nextLink;
 
@@ -757,6 +751,11 @@ groundlink_t *CBaseEntity::AddEntityToGroundList( CBaseEntity *other )
 
 	if ( this == other )
 		return NULL;
+
+	if ( other->IsMarkedForDeletion() )
+	{
+		return NULL;
+	}
 
 	// check if the edict is already in the list
 	groundlink_t *root = ( groundlink_t * )GetDataObject( GROUNDLINK );
@@ -970,9 +969,7 @@ touchlink_t *CBaseEntity::PhysicsMarkEntityAsTouched( CBaseEntity *other )
 		return NULL;
 	}
 
-#ifdef PORTAL
-	CPortalTouchScope scope;
-#endif
+
 
 	// check if the edict is already in the list
 	touchlink_t *root = ( touchlink_t * )GetDataObject( TOUCHLINK );
@@ -1049,8 +1046,18 @@ const trace_t &CBaseEntity::GetTouchTrace( void )
 void CBaseEntity::PhysicsMarkEntitiesAsTouching( CBaseEntity *other, trace_t &trace )
 {
 	g_TouchTrace = trace;
-	PhysicsMarkEntityAsTouched( other );
-	other->PhysicsMarkEntityAsTouched( this );
+	touchlink_t *pLink0 = PhysicsMarkEntityAsTouched( other );
+	touchlink_t *pLInk1 = other->PhysicsMarkEntityAsTouched( this );
+
+	if ( pLink0 && !pLInk1 )
+	{
+		PhysicsNotifyOtherOfUntouch( other, this );
+	}
+	if ( pLInk1 && !pLink0 )
+	{
+		PhysicsNotifyOtherOfUntouch( this, other );
+	}
+	UTIL_ClearTrace( g_TouchTrace );
 }
 
 void CBaseEntity::PhysicsMarkEntitiesAsTouchingEventDriven( CBaseEntity *other, trace_t &trace )
@@ -1072,6 +1079,7 @@ void CBaseEntity::PhysicsMarkEntitiesAsTouchingEventDriven( CBaseEntity *other, 
 	{
 		link->touchStamp = TOUCHSTAMP_EVENT_DRIVEN;
 	}
+	UTIL_ClearTrace( g_TouchTrace );
 }
 
 //-----------------------------------------------------------------------------
@@ -1105,7 +1113,15 @@ unsigned int CBaseEntity::PhysicsSolidMaskForEntity( void ) const
 	return MASK_SOLID;
 }
 
-
+static inline int GetWaterContents( const Vector &point )
+{
+#ifdef HL2_DLL
+	return UTIL_PointContents(point, MASK_WATER);
+#else
+	// left 4 dead doesn't support moveable water brushes, only world water
+	return enginetrace->GetPointContents_WorldOnly(point, MASK_WATER);
+#endif
+}
 //-----------------------------------------------------------------------------
 // Computes the water level + type
 //-----------------------------------------------------------------------------
@@ -1121,7 +1137,7 @@ void CBaseEntity::UpdateWaterState()
 
 	SetWaterLevel( 0 );
 	SetWaterType( CONTENTS_EMPTY );
-	int cont = UTIL_PointContents (point);
+	int cont = GetWaterContents(point);
 
 	if (( cont & MASK_WATER ) == 0)
 		return;
@@ -1139,14 +1155,14 @@ void CBaseEntity::UpdateWaterState()
 		// Check the exact center of the box
 		point[2] = WorldSpaceCenter().z;
 
-		int midcont = UTIL_PointContents (point);
+		int midcont = GetWaterContents(point);
 		if ( midcont & MASK_WATER )
 		{
 			// Now check where the eyes are...
 			SetWaterLevel( 2 );
 			point[2] = EyePosition().z;
 
-			int eyecont = UTIL_PointContents (point);
+			int eyecont = GetWaterContents(point);
 			if ( eyecont & MASK_WATER )
 			{
 				SetWaterLevel( 3 );
@@ -1340,10 +1356,6 @@ int CBaseEntity::PhysicsClipVelocity( const Vector& in, const Vector& normal, Ve
 //-----------------------------------------------------------------------------
 void CBaseEntity::ResolveFlyCollisionBounce( trace_t &trace, Vector &vecVelocity, float flMinTotalElasticity )
 {
-#ifdef HL1_DLL
-	flMinTotalElasticity = 0.3f;
-#endif//HL1_DLL
-
 	// Get the impact surface's elasticity.
 	float flSurfaceElasticity;
 	physprops->GetPhysicsProperties( trace.surface.surfaceProps, NULL, NULL, NULL, &flSurfaceElasticity );
@@ -1765,8 +1777,10 @@ void CBaseEntity::PhysicsSimulate( void )
 	// NOTE:  Players override PhysicsSimulate and drive through their CUserCmds at that point instead of
 	//  processng through this function call!!!  They shouldn't chain to here ever.
 	// Make sure not to simulate this guy twice per frame
-	if (m_nSimulationTick == gpGlobals->tickcount)
+	if ( !IsPlayerSimulated() && m_nSimulationTick == gpGlobals->tickcount )
+	{
 		return;
+	}
 
 	m_nSimulationTick = gpGlobals->tickcount;
 

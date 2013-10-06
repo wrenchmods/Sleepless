@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -36,9 +36,13 @@ public:
 	// Check the button
 	virtual void SetSelected(bool state );
 
+	// Left4Dead:
+	void SetCheckDrawMode( int mode );
+
 	// sets whether or not the state of the check can be changed
 	// if this is set to false, then no input in the code or by the user can change it's state
 	virtual void SetCheckButtonCheckable(bool state);
+	virtual bool IsCheckButtonCheckable() const { return m_bCheckButtonCheckable; }
 
 	Color GetDisabledFgColor() { return _disabledFgColor; }
 	Color GetDisabledBgColor() { return _disabledBgColor; }
@@ -55,14 +59,14 @@ protected:
 			"state"	- button state: 1 is checked, 0 is unchecked
 	*/
 
+
 private:
 	enum { CHECK_INSET = 6 };
-	CheckImage *_checkBoxImage;
 	bool m_bCheckButtonCheckable;
+	CheckImage *_checkBoxImage;
 	Color _selectedFgColor;
 	Color _disabledFgColor;
 	Color _disabledBgColor;
-	friend class CheckImage;
 };
 
 } // namespace vgui

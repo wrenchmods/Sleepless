@@ -12,7 +12,7 @@
 #include "dlight.h"
 #include "iefx.h"
 #include "clientsideeffects.h"
-#include "ClientEffectPrecacheSystem.h"
+#include "precache_register.h"
 #include "glow_overlay.h"
 #include "effect_dispatch_data.h"
 #include "c_te_effect_dispatch.h"
@@ -30,22 +30,22 @@
 #include "tier0/memdbgon.h"
 
 //Precahce the effects
-#ifndef TF_CLIENT_DLL
-CLIENTEFFECT_REGISTER_BEGIN( PrecacheMuzzleFlash )
-CLIENTEFFECT_MATERIAL( "effects/muzzleflash1" )
-CLIENTEFFECT_MATERIAL( "effects/muzzleflash2" )
-CLIENTEFFECT_MATERIAL( "effects/muzzleflash3" )
-CLIENTEFFECT_MATERIAL( "effects/muzzleflash4" )
-CLIENTEFFECT_MATERIAL( "effects/bluemuzzle" )
-CLIENTEFFECT_MATERIAL( "effects/gunshipmuzzle" )
-CLIENTEFFECT_MATERIAL( "effects/gunshiptracer" )
-CLIENTEFFECT_MATERIAL( "effects/huntertracer" )
-CLIENTEFFECT_MATERIAL( "sprites/physcannon_bluelight2" )
-CLIENTEFFECT_MATERIAL( "effects/combinemuzzle1" )
-CLIENTEFFECT_MATERIAL( "effects/combinemuzzle2" )
-CLIENTEFFECT_MATERIAL( "effects/combinemuzzle2_nocull" )
-CLIENTEFFECT_REGISTER_END()
-#endif
+
+PRECACHE_REGISTER_BEGIN( GLOBAL, PrecacheMuzzleFlash )
+PRECACHE( MATERIAL, "effects/muzzleflash1" )
+PRECACHE( MATERIAL, "effects/muzzleflash2" )
+PRECACHE( MATERIAL, "effects/muzzleflash3" )
+PRECACHE( MATERIAL, "effects/muzzleflash4" )
+PRECACHE( MATERIAL, "effects/bluemuzzle" )
+PRECACHE( MATERIAL, "effects/gunshipmuzzle" )
+PRECACHE( MATERIAL, "effects/gunshiptracer" )
+PRECACHE( MATERIAL, "effects/huntertracer" )
+PRECACHE( MATERIAL, "sprites/physcannon_bluelight2" )
+PRECACHE( MATERIAL, "effects/combinemuzzle1" )
+PRECACHE( MATERIAL, "effects/combinemuzzle2" )
+PRECACHE( MATERIAL, "effects/combinemuzzle2_nocull" )
+PRECACHE_REGISTER_END()
+
 
 //Whether or not we should emit a dynamic light
 ConVar muzzleflash_light( "muzzleflash_light", "1", FCVAR_ARCHIVE );
@@ -477,7 +477,7 @@ void MuzzleFlashCallback( const CEffectData &data )
 	tempents->MuzzleFlash( vecOrigin, vecAngles, data.m_fFlags & (~MUZZLEFLASH_FIRSTPERSON), data.m_hEntity, (data.m_fFlags & MUZZLEFLASH_FIRSTPERSON) != 0 );	
 }
 
-DECLARE_CLIENT_EFFECT( "MuzzleFlash", MuzzleFlashCallback );
+DECLARE_CLIENT_EFFECT( MuzzleFlash, MuzzleFlashCallback );
  
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -665,8 +665,8 @@ public:
 			int color[3][2];
 			for( int i = 0; i < 3; ++i )
 			{
-				color[i][0] = max( 0, m_SpurtColor[i] - 64 );
-				color[i][1] = min( 255, m_SpurtColor[i] + 64 );
+				color[i][0] = MAX( 0, m_SpurtColor[i] - 64 );
+				color[i][1] = MIN( 255, m_SpurtColor[i] + 64 );
 			}
 			pParticle->m_uchColor[0] = random->RandomInt( color[0][0], color[0][1] );
 			pParticle->m_uchColor[1] = random->RandomInt( color[1][0], color[1][1] );
@@ -742,7 +742,7 @@ void SmokeCallback( const CEffectData &data )
 	FX_BuildSmoke( vecOrigin, vecAngles, data.m_hEntity, data.m_nAttachmentIndex, 100.0, color ); 
 }
 
-DECLARE_CLIENT_EFFECT( "Smoke", SmokeCallback );
+DECLARE_CLIENT_EFFECT( Smoke, SmokeCallback );
 
 
 //-----------------------------------------------------------------------------
@@ -781,7 +781,7 @@ void GunshipImpactCallback( const CEffectData & data )
 
 	FX_GunshipImpact( vecPosition, Vector( 0, 0, 1 ), 100, 0, 200 );
 }
-DECLARE_CLIENT_EFFECT( "GunshipImpact", GunshipImpactCallback );
+DECLARE_CLIENT_EFFECT( GunshipImpact, GunshipImpactCallback );
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
@@ -799,7 +799,7 @@ void CommandPointerCallback( const CEffectData & data )
 	}
 }
 
-DECLARE_CLIENT_EFFECT( "CommandPointer", CommandPointerCallback );
+DECLARE_CLIENT_EFFECT( CommandPointer, CommandPointerCallback );
 
 
 //-----------------------------------------------------------------------------
@@ -947,8 +947,8 @@ void FX_HunterTracer( Vector& start, Vector& end, int velocity, bool makeWhiz )
 	totalDist = VectorNormalize( shotDir );
 
 	// Make short tracers in close quarters
-	// float flMinLength = min( totalDist, 128.0f );
-	// float flMaxLength = min( totalDist, 128.0f );
+	// float flMinLength = MIN( totalDist, 128.0f );
+	// float flMaxLength = MIN( totalDist, 128.0f );
 
 	float length = 128.0f;//random->RandomFloat( flMinLength, flMaxLength );
 	float life = ( totalDist + length ) / velocity;	// NOTENOTE: We want the tail to finish its run as well
@@ -1075,10 +1075,11 @@ void FX_Tesla( const CTeslaInfo &teslaInfo )
 		{
 			if ( !EffectOccluded( tr.endpos, 0 ) )
 			{
+				int nSlot = GET_ACTIVE_SPLITSCREEN_SLOT();
 				// Move it towards the camera
 				Vector vecFlash = tr.endpos;
 				Vector vecForward;
-				AngleVectors( MainViewAngles(), &vecForward );
+				AngleVectors( MainViewAngles(nSlot), &vecForward );
 				vecFlash -= (vecForward * 8);
 
 				g_pEffects->EnergySplash( vecFlash, -vecForward, false );
@@ -1095,9 +1096,9 @@ void FX_Tesla( const CTeslaInfo &teslaInfo )
 					pParticle->m_vecVelocity = vec3_origin;
 					Vector color( 1,1,1 );
 					float  colorRamp = RandomFloat( 0.75f, 1.25f );
-					pParticle->m_uchColor[0]	= min( 1.0f, color[0] * colorRamp ) * 255.0f;
-					pParticle->m_uchColor[1]	= min( 1.0f, color[1] * colorRamp ) * 255.0f;
-					pParticle->m_uchColor[2]	= min( 1.0f, color[2] * colorRamp ) * 255.0f;
+					pParticle->m_uchColor[0]	= MIN( 1.0f, color[0] * colorRamp ) * 255.0f;
+					pParticle->m_uchColor[1]	= MIN( 1.0f, color[1] * colorRamp ) * 255.0f;
+					pParticle->m_uchColor[2]	= MIN( 1.0f, color[2] * colorRamp ) * 255.0f;
 					pParticle->m_uchStartSize	= RandomFloat( 6,13 );
 					pParticle->m_uchEndSize		= pParticle->m_uchStartSize - 2;
 					pParticle->m_uchStartAlpha	= 255;
@@ -1272,7 +1273,7 @@ void FX_BuildTeslaHitbox( const CEffectData &data )
 	}
 }
 
-DECLARE_CLIENT_EFFECT( "TeslaHitboxes", FX_BuildTeslaHitbox );
+DECLARE_CLIENT_EFFECT( TeslaHitboxes, FX_BuildTeslaHitbox );
 
 
 //-----------------------------------------------------------------------------
@@ -1314,5 +1315,5 @@ void FX_BuildTeslaZap( const CEffectData &data )
 	beams->CreateBeamEntPoint( beamInfo );
 }
 
-DECLARE_CLIENT_EFFECT( "TeslaZap", FX_BuildTeslaZap );
+DECLARE_CLIENT_EFFECT( TeslaZap, FX_BuildTeslaZap );
 

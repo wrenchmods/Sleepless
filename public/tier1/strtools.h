@@ -1,4 +1,4 @@
-//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
+//===== Copyright 1996-2005, Valve Corporation, All rights reserved. ======//
 //
 // Purpose: 
 //
@@ -9,17 +9,30 @@
 #ifndef TIER1_STRTOOLS_H
 #define TIER1_STRTOOLS_H
 
-#include "tier0/platform.h"
+#include "tier0/basetypes.h"
 
 #ifdef _WIN32
 #pragma once
-#elif _LINUX
+#elif POSIX
 #include <ctype.h>
 #include <wchar.h>
+#include <math.h>
 #endif
 
 #include <string.h>
 #include <stdlib.h>
+
+
+// 3d memcpy. Copy (up-to) 3 dimensional data with arbitrary source and destination
+// strides. Optimizes to just a single memcpy when possible. For 2d data, set numslices to 1.
+void CopyMemory3D( void *pDestAdr, void const *pSrcAdr,		
+				   int nNumCols, int nNumRows, int nNumSlices, // dimensions of copy
+				   int nSrcBytesPerRow, int nSrcBytesPerSlice, // strides for source.
+				   int nDestBytesPerRow, int nDestBytesPerSlice // strides for dest
+	);
+
+	
+
 
 template< class T, class I > class CUtlMemory;
 template< class T, class A > class CUtlVector;
@@ -28,42 +41,22 @@ template< class T, class A > class CUtlVector;
 //-----------------------------------------------------------------------------
 // Portable versions of standard string functions
 //-----------------------------------------------------------------------------
-void	_V_memset	( const char* file, int line, void *dest, int fill, int count );
-void	_V_memcpy	( const char* file, int line, void *dest, const void *src, int count );
-void	_V_memmove	( const char* file, int line, void *dest, const void *src, int count );
-int		_V_memcmp	( const char* file, int line, const void *m1, const void *m2, int count );
-int		_V_strlen	( const char* file, int line, const char *str );
-void	_V_strcpy	( const char* file, int line, char *dest, const char *src );
-char*	_V_strrchr	( const char* file, int line, const char *s, char c );
-int		_V_strcmp	( const char* file, int line, const char *s1, const char *s2 );
-int		_V_wcscmp	( const char* file, int line, const wchar_t *s1, const wchar_t *s2 );
-int		_V_stricmp	( const char* file, int line, const char *s1, const char *s2 );
-char*	_V_strstr	( const char* file, int line, const char *s1, const char *search );
-char*	_V_strupr	( const char* file, int line, char *start );
-char*	_V_strlower	( const char* file, int line, char *start );
-int		_V_wcslen	( const char* file, int line, const wchar_t *pwch );
+void	_V_memset	( void *dest, int fill, int count );
+void	_V_memcpy	( void *dest, const void *src, int count );
+void	_V_memmove	( void *dest, const void *src, int count );
+int		_V_memcmp	( const void *m1, const void *m2, int count );
+int		_V_strlen	( const char *str );
+void	_V_strcpy	( char *dest, const char *src );
+char*	_V_strrchr	( const char *s, char c );
+int		_V_strcmp	( const char *s1, const char *s2 );
+int		_V_wcscmp	( const wchar_t *s1, const wchar_t *s2 );
+int		_V_stricmp	( const char *s1, const char *s2 );
+char*	_V_strstr	( const char *s1, const char *search );
+char*	_V_strupr	( char *start );
+char*	_V_strlower	( char *start );
+int		_V_wcslen	( const wchar_t *pwch );
 
-
-#ifdef _DEBUG
-
-#define V_memset(dest, fill, count)		_V_memset   (__FILE__, __LINE__, (dest), (fill), (count))	
-#define V_memcpy(dest, src, count)		_V_memcpy	(__FILE__, __LINE__, (dest), (src), (count))	
-#define V_memmove(dest, src, count)		_V_memmove	(__FILE__, __LINE__, (dest), (src), (count))	
-#define V_memcmp(m1, m2, count)			_V_memcmp	(__FILE__, __LINE__, (m1), (m2), (count))		
-#define V_strlen(str)					_V_strlen	(__FILE__, __LINE__, (str))				
-#define V_strcpy(dest, src)				_V_strcpy	(__FILE__, __LINE__, (dest), (src))			
-#define V_strrchr(s, c)					_V_strrchr	(__FILE__, __LINE__, (s), (c))				
-#define V_strcmp(s1, s2)				_V_strcmp	(__FILE__, __LINE__, (s1), (s2))			
-#define V_wcscmp(s1, s2)				_V_wcscmp	(__FILE__, __LINE__, (s1), (s2))			
-#define V_stricmp(s1, s2 )				_V_stricmp	(__FILE__, __LINE__, (s1), (s2) )			
-#define V_strstr(s1, search )			_V_strstr	(__FILE__, __LINE__, (s1), (search) )		
-#define V_strupr(start)					_V_strupr	(__FILE__, __LINE__, (start))				
-#define V_strlower(start)				_V_strlower (__FILE__, __LINE__, (start))		
-#define V_wcslen(pwch)					_V_wcslen	(__FILE__, __LINE__, (pwch))		
-
-#else
-
-#ifdef _LINUX
+#ifdef POSIX
 inline char *strupr( char *start )
 {
       char *str = start;
@@ -86,7 +79,27 @@ inline char *strlwr( char *start )
       return start;
 }
 
-#endif // _LINUX
+#endif // POSIX
+
+// there are some users of these via tier1 templates in used in tier0. but tier0 can't depend on vstdlib which means in tier0 we always need the inlined ones
+#if ( !defined( TIER0_DLL_EXPORT ) )
+
+#define V_memset(dest, fill, count)		_V_memset   ((dest), (fill), (count))	
+#define V_memcpy(dest, src, count)		_V_memcpy	((dest), (src), (count))	
+#define V_memmove(dest, src, count)		_V_memmove	((dest), (src), (count))	
+#define V_memcmp(m1, m2, count)			_V_memcmp	((m1), (m2), (count))		
+#define V_strlen(str)					_V_strlen	((str))				
+#define V_strcpy(dest, src)				_V_strcpy	((dest), (src))			
+#define V_strrchr(s, c)					_V_strrchr	((s), (c))				
+#define V_strcmp(s1, s2)				_V_strcmp	((s1), (s2))			
+#define V_wcscmp(s1, s2)				_V_wcscmp	((s1), (s2))			
+#define V_stricmp(s1, s2 )				_V_stricmp	((s1), (s2) )			
+#define V_strstr(s1, search )			_V_strstr	((s1), (search) )		
+#define V_strupr(start)					_V_strupr	((start))				
+#define V_strlower(start)				_V_strlower ((start))		
+#define V_wcslen(pwch)					_V_wcslen	((pwch))		
+
+#else
 
 inline void		V_memset (void *dest, int fill, int count)			{ memset( dest, fill, count ); }
 inline void		V_memcpy (void *dest, const void *src, int count)	{ memcpy( dest, src, count ); }
@@ -105,11 +118,14 @@ inline char*	V_strlower (char *start)							{ return strlwr( start ); }
 
 #endif
 
+
 int			V_strncmp (const char *s1, const char *s2, int count);
 int			V_strcasecmp (const char *s1, const char *s2);
 int			V_strncasecmp (const char *s1, const char *s2, int n);
 int			V_strnicmp (const char *s1, const char *s2, int n);
 int			V_atoi (const char *str);
+int64 		V_atoi64(const char *str);
+uint64 		V_atoui64(const char *str);
 float		V_atof (const char *str);
 char*		V_stristr( char* pStr, const char* pSearch );
 const char*	V_stristr( const char* pStr, const char* pSearch );
@@ -127,6 +143,34 @@ inline bool	StringHasPrefixCaseSensitive( const char *str, const char *prefix ) 
 // (removes leading zeros, trailing zeros after the decimal point, and the decimal point itself where possible)
 void			V_normalizeFloatString( char* pFloat );
 
+inline bool V_isspace(int c)
+{
+	// The standard white-space characters are the following: space, tab, carriage-return, newline, vertical tab, and form-feed. In the C locale, V_isspace() returns true only for the standard white-space characters. 
+	//return c == ' ' || c == 9 /*horizontal tab*/ || c == '\r' || c == '\n' || c == 11 /*vertical tab*/ || c == '\f';
+	// codes of whitespace symbols: 9 HT, 10 \n, 11 VT, 12 form feed, 13 \r, 32 space
+	
+	// easy to understand version, validated:
+	// return ((1 << (c-1)) & 0x80001F00) != 0 && ((c-1)&0xE0) == 0;
+	
+	// 5% faster on Core i7, 35% faster on Xbox360, no branches, validated:
+	#ifdef _X360
+	return ((1 << (c-1)) & 0x80001F00 & ~(-int((c-1)&0xE0))) != 0;
+	#else
+	// this is 11% faster on Core i7 than the previous, VC2005 compiler generates a seemingly unbalanced search tree that's faster
+	switch(c)
+	{
+	case ' ':
+	case 9:
+	case '\r':
+	case '\n':
+	case 11:
+	case '\f':
+		return true;
+	default:
+		return false;
+	}
+	#endif
+}
 
 
 // These are versions of functions that guarantee NULL termination.
@@ -136,7 +180,7 @@ void			V_normalizeFloatString( char* pFloat );
 //
 // This means the last parameter can usually be a sizeof() of a string.
 void V_strncpy( char *pDest, const char *pSrc, int maxLen );
-int V_snprintf( char *pDest, int destLen, const char *pFormat, ... );
+int V_snprintf( char *pDest, int destLen, const char *pFormat, ... ) FMTFUNCTION( 3, 4 );
 void V_wcsncpy( wchar_t *pDest, wchar_t const *pSrc, int maxLenInBytes );
 int V_snwprintf( wchar_t *pDest, int destLen, const wchar_t *pFormat, ... );
 
@@ -167,14 +211,14 @@ typedef char *  va_list;
 
 #endif   // _VA_LIST_DEFINED
 
-#elif _LINUX
+#elif POSIX
 #include <stdarg.h>
 #endif
 
 #ifdef _WIN32
 #define CORRECT_PATH_SEPARATOR '\\'
 #define INCORRECT_PATH_SEPARATOR '/'
-#elif _LINUX
+#elif POSIX
 #define CORRECT_PATH_SEPARATOR '/'
 #define INCORRECT_PATH_SEPARATOR '\\'
 #endif
@@ -190,6 +234,8 @@ char *V_pretifynum( int64 value );
 // conversion functions wchar_t <-> char, returning the number of characters converted
 int V_UTF8ToUnicode( const char *pUTF8, wchar_t *pwchDest, int cubDestSizeInBytes );
 int V_UnicodeToUTF8( const wchar_t *pUnicode, char *pUTF8, int cubDestSizeInBytes );
+int V_UCS2ToUnicode( const ucs2 *pUCS2, wchar_t *pUnicode, int cubDestSizeInBytes );
+int V_UCS2ToUTF8( const ucs2 *pUCS2, char *pUTF8, int cubDestSizeInBytes );
 
 // Functions for converting hexidecimal character strings back into binary data etc.
 //
@@ -213,7 +259,8 @@ void V_StripTrailingSlash( char *ppath );
 void V_StripExtension( const char *in, char *out, int outLen );
 // Make path end with extension if it doesn't already have an extension
 void V_DefaultExtension( char *path, const char *extension, int pathStringLength );
-// Strips any current extension from path and ensures that extension is the new extension
+// Strips any current extension from path and ensures that extension is the new extension.
+// NOTE: extension string MUST include the . character
 void V_SetExtension( char *path, const char *extension, int pathStringLength );
 // Removes any filename from path ( strips back to previous / or \ character )
 void V_StripFilename( char *path );
@@ -263,6 +310,7 @@ bool V_IsAbsolutePath( const char *pPath );
 bool V_StrSubst( const char *pIn, const char *pMatch, const char *pReplaceWith,
 	char *pOut, int outLen, bool bCaseSensitive=false );
 
+
 // Split the specified string on the specified separator.
 // Returns a list of strings separated by pSeparator.
 // You are responsible for freeing the contents of outStrings (call outStrings.PurgeAndDeleteElements).
@@ -311,16 +359,40 @@ inline void V_strcat( char *dest, const char *src, int cchDest )
 	V_strncat( dest, src, cchDest, COPY_ALL_CHARACTERS );
 }
 
+// Convert from a string to an array of integers.
+void V_StringToIntArray( int *pVector, int count, const char *pString );
+
+// Convert from a string to a 4 byte color value.
+void V_StringToColor32( color32 *color, const char *pString );
+
+// Convert \r\n (Windows linefeeds) to \n (Unix linefeeds).
+void V_TranslateLineFeedsToUnix( char *pStr );
 
 //-----------------------------------------------------------------------------
 // generic unique name helper functions
 //-----------------------------------------------------------------------------
 
+// returns -1 if no match, nDefault if pName==prefix, and N if pName==prefix+N
+inline int V_IndexAfterPrefix( const char *pName, const char *prefix, int nDefault = 0 )
+{
+	if ( !pName || !prefix )
+		return -1;
+
+	const char *pIndexStr = StringAfterPrefix( pName, prefix );
+	if ( !pIndexStr )
+		return -1;
+
+	if ( !*pIndexStr )
+		return nDefault;
+
+	return atoi( pIndexStr );
+}
+
 // returns startindex if none found, 2 if "prefix" found, and n+1 if "prefixn" found
 template < class NameArray >
 int V_GenerateUniqueNameIndex( const char *prefix, const NameArray &nameArray, int startindex = 0 )
 {
-	if ( prefix == NULL )
+	if ( !prefix )
 		return 0;
 
 	int freeindex = startindex;
@@ -328,19 +400,11 @@ int V_GenerateUniqueNameIndex( const char *prefix, const NameArray &nameArray, i
 	int nNames = nameArray.Count();
 	for ( int i = 0; i < nNames; ++i )
 	{
-		const char *pName = nameArray[ i ];
-		if ( !pName )
-			continue;
-
-		const char *pIndexStr = StringAfterPrefix( pName, prefix );
-		if ( pIndexStr )
+		int index = V_IndexAfterPrefix( nameArray[ i ], prefix, 1 ); // returns -1 if no match, 0 for exact match, N for 
+		if ( index >= freeindex )
 		{
-			int index = *pIndexStr ? atoi( pIndexStr ) : 1;
-			if ( index >= freeindex )
-			{
-				// TODO - check that there isn't more junk after the index in pElementName
-				freeindex = index + 1;
-			}
+			// TODO - check that there isn't more junk after the index in pElementName
+			freeindex = index + 1;
 		}
 	}
 
@@ -385,6 +449,42 @@ bool V_GenerateUniqueName( char *name, int memsize, const char *prefix, const Na
 }
 
 
+extern bool V_StringToBin( const char*pString, void *pBin, uint nBinSize );
+extern bool V_BinToString( char*pString, void *pBin, uint nBinSize );
+
+template<typename T>
+struct BinString_t
+{
+	BinString_t(){}
+	BinString_t( const char *pStr )
+	{
+		V_strncpy( m_string, pStr, sizeof(m_string) );
+		ToBin();
+	}
+	BinString_t( const T & that )
+	{
+		m_bin = that;
+		ToString();
+	}
+	bool ToBin()
+	{
+		return V_StringToBin( m_string, &m_bin, sizeof( m_bin ) );
+	}
+	void ToString()
+	{
+		V_BinToString( m_string, &m_bin, sizeof( m_bin ) );
+	}
+	T m_bin;
+	char m_string[sizeof(T)*2+2]; // 0-terminated string representing the binary data in hex
+};
+
+template <typename T>
+inline BinString_t<T> MakeBinString( const T& that )
+{
+	return BinString_t<T>( that );
+}
+
+
 
 // NOTE: This is for backward compatability!
 // We need to DLL-export the Q methods in vstdlib but not link to them in other projects
@@ -409,13 +509,17 @@ bool V_GenerateUniqueName( char *name, int memsize, const char *prefix, const Na
 #define	Q_strncasecmp			V_strncasecmp
 #define	Q_strnicmp				V_strnicmp
 #define	Q_atoi					V_atoi
+#define	Q_atoi64				V_atoi64
+#define Q_atoui64				V_atoui64
 #define	Q_atof					V_atof
 #define	Q_stristr				V_stristr
 #define	Q_strnistr				V_strnistr
 #define	Q_strnchr				V_strnchr
 #define Q_normalizeFloatString	V_normalizeFloatString
 #define Q_strncpy				V_strncpy
+#define Q_wcsncpy				V_wcsncpy
 #define Q_snprintf				V_snprintf
+#define Q_snwprintf				V_snwprintf
 #define Q_wcsncpy				V_wcsncpy
 #define Q_strncat				V_strncat
 #define Q_strnlwr				V_strnlwr
@@ -452,9 +556,8 @@ bool V_GenerateUniqueName( char *name, int memsize, const char *prefix, const Na
 #define Q_strtowcs				V_strtowcs
 #define Q_wcstostr				V_wcstostr
 #define Q_strcat				V_strcat
-#define Q_GenerateUniqueNameIndex	V_GenerateUniqueNameIndex
-#define Q_GenerateUniqueName		V_GenerateUniqueName
 #define Q_MakeRelativePath		V_MakeRelativePath
+#define Q_FixupPathName			V_FixupPathName
 
 #endif // !defined( VSTDLIB_DLL_EXPORT )
 

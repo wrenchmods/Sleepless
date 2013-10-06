@@ -12,10 +12,13 @@
 #pragma once
 #endif
 
-#include <vgui/VGUI.h>
+#include "vgui/vgui.h"
 #include "tier1/interface.h"
+#include "tier1/utlsymbol.h"
 
 class Color;
+class KeyValues;
+class ISchemeSurface;
 
 namespace vgui
 {
@@ -26,6 +29,7 @@ typedef unsigned long HTexture;
 class IBorder;
 class IImage;
 
+
 //-----------------------------------------------------------------------------
 // Purpose: Holds all panel rendering data
 //			This functionality is all wrapped in the Panel::GetScheme*() functions
@@ -33,6 +37,23 @@ class IImage;
 class IScheme : public IBaseInterface
 {
 public:
+#pragma pack(1)
+	struct fontalias_t
+	{
+		CUtlSymbol _fontName;
+		CUtlSymbol _trueFontName;
+		unsigned short _font : 15;
+		unsigned short m_bProportional : 1;
+	};
+#pragma pack()
+
+	struct fontrange_t
+	{
+		CUtlSymbol _fontName;
+		int _min;
+		int _max;
+	};
+
 	// gets a string from the default settings section
 	virtual const char *GetResourceString(const char *stringName) = 0;
 
@@ -47,6 +68,11 @@ public:
 
 	// colors
 	virtual Color GetColor(const char *colorName, Color defaultColor) = 0;
+
+	// Gets at the scheme's short name
+	virtual const char *GetName() const = 0;
+	// Gets at the scheme's resource file name
+	virtual const char *GetFileName() const = 0;
 };
 
 
@@ -62,7 +88,7 @@ public:
 	virtual void ReloadSchemes() = 0;
 
 	// reloads scheme fonts
-	virtual void ReloadFonts() = 0;
+	virtual void ReloadFonts( int inScreenTall = -1 ) = 0;
 
 	// returns a handle to the default (first loaded) scheme
 	virtual HScheme GetDefaultScheme() = 0;
@@ -98,12 +124,14 @@ public:
 	virtual int GetProportionalScaledValueEx( HScheme scheme, int normalizedValue ) = 0;
 	virtual int GetProportionalNormalizedValueEx( HScheme scheme, int scaledValue ) = 0;
 
-#ifdef _XBOX
-	virtual void DeleteImage( const char *pImageName ) = 0;
-#endif
-};
+	// Returns true if image evicted, false otherwise
+	virtual bool DeleteImage( const char *pImageName ) = 0;
 
-#define VGUI_SCHEME_INTERFACE_VERSION "VGUI_Scheme010"
+	virtual ISchemeSurface *GetSurface() = 0;
+
+	virtual void SetLanguage( const char *pLanguage ) = 0;
+	virtual const char *GetLanguage() = 0;
+};
 
 
 } // namespace vgui

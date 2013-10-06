@@ -13,8 +13,6 @@
 #include "c_breakableprop.h"
 #include "props_shared.h"
 
-class C_FuncPhysicsRespawnZone;
-
 class C_PhysPropClientside : public C_BreakableProp, public IBreakableWithPropData, public IMultiplayerPhysics
 {
 	
@@ -48,17 +46,17 @@ public:
 	virtual int				GetHealth() const { return m_iHealth; }
 			int				GetNumBreakableChunks( void ) { return m_iNumBreakableChunks; }
 	
-			void			SetRespawnZone( C_FuncPhysicsRespawnZone *pZone );
-
 // IBreakableWithPropData interface:
 public:
 // IBreakableWithPropData
 	void			SetDmgModBullet( float flDmgMod ) { m_flDmgModBullet = flDmgMod; }
 	void			SetDmgModClub( float flDmgMod ) { m_flDmgModClub = flDmgMod; }
 	void			SetDmgModExplosive( float flDmgMod ) { m_flDmgModExplosive = flDmgMod; }
+	void			SetDmgModFire( float flDmgMod ) { m_flDmgModFire = flDmgMod; }
 	float			GetDmgModBullet( void ) { return m_flDmgModBullet; }
 	float			GetDmgModClub( void ) { return m_flDmgModClub; }
 	float			GetDmgModExplosive( void ) { return m_flDmgModExplosive; }
+	float			GetDmgModFire( void ) { return m_flDmgModFire; }
 	void			SetExplosiveRadius( float flRadius ) { m_explodeRadius = flRadius; }
 	void			SetExplosiveDamage( float flDamage ) { m_explodeDamage = flDamage; }
 	float			GetExplosiveRadius( void ) { return m_explodeRadius; }
@@ -94,7 +92,6 @@ protected:
 	
 	static void ParseAllEntities(const char *pMapData);
 	static const char *ParseEntity( const char *pEntData );
-	static void InitializePropRespawnZones(void);
 		
 public:
 	
@@ -113,6 +110,7 @@ protected:
 	float			m_flDmgModBullet;
 	float			m_flDmgModClub;
 	float			m_flDmgModExplosive;
+	float			m_flDmgModFire;
 	string_t		m_iszPhysicsDamageTableName;
 	string_t		m_iszBreakableModel;
 	int				m_iBreakableSkin;
@@ -120,48 +118,13 @@ protected:
 	int				m_iMaxBreakableSize;
 	string_t		m_iszBasePropData;	
 	int				m_iInteractions;
+	// Count of how many pieces we'll break into, custom or generic
+	int				m_iNumBreakableChunks;
+
 	float			m_explodeDamage;
 	float			m_explodeRadius;
 	bool			m_bBlockLOSSetByPropData;
 	bool			m_bIsWalkableSetByPropData;
-
-	// Count of how many pieces we'll break into, custom or generic
-	int				m_iNumBreakableChunks;
-
-	C_FuncPhysicsRespawnZone	*m_pRespawnZone;
-};
-
-//-----------------------------------------------------------------------------
-// Purpose: A clientside zone that respawns physics props in it when the player leaves the PVS
-//-----------------------------------------------------------------------------
-class C_FuncPhysicsRespawnZone : public C_BaseEntity
-{
-	DECLARE_CLASS( C_FuncPhysicsRespawnZone, C_BaseEntity );
-public:
-
-	C_FuncPhysicsRespawnZone( void );
-	~C_FuncPhysicsRespawnZone( void );
-
-	bool KeyValue( const char *szKeyName, const char *szValue );
-	bool Initialize( void );
-	void InitializePropsWithin( void );
-	void PropDestroyed( C_PhysPropClientside *pProp );
-	bool CanMovePropAt( Vector vecOrigin, const Vector &vecMins, const Vector &vecMaxs );
-	void RespawnProps( void );
-	void ClientThink( void );
-
-private:
-	struct clientsideproprespawn_t
-	{
-		string_t				iszModelName;
-		Vector					vecOrigin;
-		QAngle					vecAngles;
-		int						iSkin;
-		int						iHealth;
-		int						iSpawnFlags;
-		ClientEntityHandle_t	hClientEntity;
-	};
-	CUtlVector<clientsideproprespawn_t> m_PropList;
 };
 
 #endif // PHYSPROPCLIENTSIDE_H

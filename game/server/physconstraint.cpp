@@ -138,6 +138,7 @@ class CPhysConstraintSystem : public CLogicalEntity
 public:
 
 	void Spawn();
+	~CPhysConstraintSystem();
 	IPhysicsConstraintGroup *GetVPhysicsGroup() { return m_pMachine; }
 
 	DECLARE_DATADESC();
@@ -159,6 +160,11 @@ void CPhysConstraintSystem::Spawn()
 	group.Defaults();
 	group.additionalIterations = m_additionalIterations;
 	m_pMachine = physenv->CreateConstraintGroup( group );
+}
+
+CPhysConstraintSystem::~CPhysConstraintSystem()
+{
+	physenv->DestroyConstraintGroup( m_pMachine );
 }
 
 LINK_ENTITY_TO_CLASS( phys_constraintsystem, CPhysConstraintSystem );
@@ -1280,7 +1286,7 @@ IPhysicsConstraint *CPhysSlideConstraint::CreateConstraint( IPhysicsConstraintGr
 		sliding.limitMax = DotProduct( axisDirection, m_axisEnd );
 		if ( sliding.limitMax < sliding.limitMin )
 		{
-			swap( sliding.limitMin, sliding.limitMax );
+			V_swap( sliding.limitMin, sliding.limitMax );
 		}
 
 		// expand limits to make initial position of the attached object valid
@@ -1335,13 +1341,17 @@ void CPhysSlideConstraint::Activate( void )
 	Vector axisDirection = m_axisEnd - GetAbsOrigin();
 	VectorNormalize( axisDirection );
 	UTIL_SnapDirectionToAxis( axisDirection );
-	m_soundInfo.StartThinking(this, 
-		VelocitySampler::GetRelativeVelocity(m_pConstraint->GetAttachedObject(), m_pConstraint->GetReferenceObject()),
-		axisDirection
-		);
-
-	SetThink(&CPhysSlideConstraint::SoundThink);
-	SetNextThink(gpGlobals->curtime + m_soundInfo.getThinkRate());
+	
+	if ( m_pConstraint )
+	{
+		m_soundInfo.StartThinking(this, 
+			VelocitySampler::GetRelativeVelocity(m_pConstraint->GetAttachedObject(), m_pConstraint->GetReferenceObject()),
+			axisDirection
+			);
+	
+		SetThink(&CPhysSlideConstraint::SoundThink);
+		SetNextThink(gpGlobals->curtime + m_soundInfo.getThinkRate());
+	}
 }
 
 void CPhysSlideConstraint::Precache()

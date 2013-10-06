@@ -10,7 +10,7 @@
 #include "materialsystem/IMaterial.h"
 #include "materialsystem/IMesh.h"
 #include "view.h"
-#include "ClientEffectPrecacheSystem.h"
+#include "precache_register.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -21,9 +21,9 @@ static IMaterial *g_pSmokeFogMaterial = NULL;
 float		g_SmokeFogOverlayAlpha;
 Vector		g_SmokeFogOverlayColor;
 
-CLIENTEFFECT_REGISTER_BEGIN( PrecacheSmokeFogOverlay )
-CLIENTEFFECT_MATERIAL( "particle/screenspace_fog" )
-CLIENTEFFECT_REGISTER_END()
+PRECACHE_REGISTER_BEGIN( GLOBAL, PrecacheSmokeFogOverlay )
+PRECACHE( MATERIAL, "particle/screenspace_fog" )
+PRECACHE_REGISTER_END()
 
 void InitSmokeFogOverlay()
 {
@@ -59,6 +59,7 @@ void DrawSmokeFogOverlay()
 	g_SmokeFogOverlayColor.Init( 0.3, 0.3, 0.3 );
 	
 	CMatRenderContextPtr pRenderContext( materials );
+	PIXEVENT( pRenderContext, "DrawSmokeFogOverlay()" );
 
 	pRenderContext->MatrixMode( MATERIAL_PROJECTION );
 	pRenderContext->LoadIdentity();
@@ -76,10 +77,10 @@ void DrawSmokeFogOverlay()
 	static float dist = 10;
 
 	Vector vColor = g_SmokeFogOverlayColor;
-	vColor.x = min(max(vColor.x, 0), 1);
-	vColor.y = min(max(vColor.y, 0), 1);
-	vColor.z = min(max(vColor.z, 0), 1);
-	float alpha = min(max(g_SmokeFogOverlayAlpha, 0), 1);
+	vColor.x = MIN(MAX(vColor.x, 0), 1);
+	vColor.y = MIN(MAX(vColor.y, 0), 1);
+	vColor.z = MIN(MAX(vColor.z, 0), 1);
+	float alpha = MIN(MAX(g_SmokeFogOverlayAlpha, 0), 1);
 
 	meshBuilder.Begin( pMesh, MATERIAL_QUADS, 1 );
 

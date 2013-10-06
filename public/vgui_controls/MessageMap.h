@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -12,7 +12,8 @@
 #pragma once
 #endif
 
-#include "tier1/utlvector.h"
+//#include "tier1/utlvector.h"
+#include "dmxloader/dmxelement.h"
 
 // more flexible than default pointers to members code required for casting member function pointers
 #pragma pointers_to_members( full_generality, virtual_inheritance )
@@ -22,9 +23,6 @@ namespace vgui
 
 ////////////// MESSAGEMAP DEFINITIONS //////////////
 
-#ifndef offsetof
-#define offsetof(s,m)	(size_t)&(((s *)0)->m)
-#endif
 
 #ifndef ARRAYSIZE
 #define ARRAYSIZE(p)	(sizeof(p)/sizeof(p[0]))
@@ -339,6 +337,15 @@ public:
 
 	static vgui::Panel *InstancePanel( char const *className );
 	static void GetFactoryNames( CUtlVector< char const * >& list );
+
+	static CDmxElement *CreatePanelDmxElement( vgui::Panel *pPanel );
+	static Panel* UnserializeDmxElementPanel( CDmxElement *pElement );
+
+	// DMX serializer fxns
+	static bool Serialize( CUtlBuffer &buf, vgui::Panel *pPanel );
+	static bool Unserialize( Panel **ppPanel, CUtlBuffer &buf, const char *pFileName = NULL );
+
+
 private:
 
 	static bool HasFactory( char const *className );
@@ -356,19 +363,19 @@ private:
 // It them hooks that function up to the helper list so that the CHud objects can create
 //  the elements by name, with no header file dependency, etc.
 #define DECLARE_BUILD_FACTORY( className )										\
-	static vgui::Panel *Create_##className##( void )							\
+	static vgui::Panel *Create_##className( void )							\
 		{																		\
 			return new className( NULL, NULL );									\
 		};																		\
-		static vgui::CBuildFactoryHelper g_##className##_Helper( #className, Create_##className## );\
+		static vgui::CBuildFactoryHelper g_##className##_Helper( #className, Create_##className );\
 	className *g_##className##LinkerHack = NULL;
 
 #define DECLARE_BUILD_FACTORY_DEFAULT_TEXT( className, defaultText )			\
-	static vgui::Panel *Create_##className##( void )							\
+	static vgui::Panel *Create_##className( void )							\
 		{																		\
 			return new className( NULL, NULL, #defaultText );					\
 		};																		\
-	static vgui::CBuildFactoryHelper g_##className##_Helper( #className, Create_##className## );\
+	static vgui::CBuildFactoryHelper g_##className##_Helper( #className, Create_##className );\
 	className *g_##className##LinkerHack = NULL;
 
 // This one allows passing in a special function with calls new panel( xxx ) with arbitrary default parameters

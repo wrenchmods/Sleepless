@@ -120,11 +120,16 @@ protected:
 	// custom message handlers
 	MESSAGE_FUNC_WCHARPTR( OnSetText, "SetText", text );
 	virtual void OnSetFocus();						// called after the panel receives the keyboard focus
+#ifdef _X360
+	virtual void OnKeyCodePressed(KeyCode code);
+#endif
     virtual void OnKeyCodeTyped(KeyCode code);
 	virtual void OnKeyTyped(wchar_t unichar);
 
+	void SelectMenuItem(int itemToSelect);
     void MoveAlongMenuItemList(int direction);
-
+	void MoveToFirstMenuItem();
+	void MoveToLastMenuItem();
 
 private:
 	void DoMenuLayout();

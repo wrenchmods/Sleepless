@@ -18,6 +18,11 @@
 #include "tf_hud_freezepanel.h"
 #include "tf_hud_objectivestatus.h"
 
+// NOTE: This has to be the last file included!
+#include "tier0/memdbgon.h"
+
+using namespace vgui;
+
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
@@ -112,7 +117,7 @@ void CControlPointIconPulseable::StopPulsing( void )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-CControlPointIcon::CControlPointIcon( Panel *parent, const char *pName, int iIndex ) : vgui::EditablePanel( parent, "ControlPointIcon" ), CHudElement( pName )
+CControlPointIcon::CControlPointIcon( Panel *parent, const char *pName, int iIndex ) : EditablePanel( parent, "ControlPointIcon" ), CHudElement( pName )
 {
 	SetHiddenBits( HIDEHUD_MISCSTATUS );
 
@@ -140,7 +145,7 @@ void CControlPointIcon::ApplySchemeSettings( IScheme *pScheme )
 	if ( !m_pCapHighlightImage )
 	{
 		m_pCapHighlightImage = new CControlPointIconSwoop( this, "CapHighlightImage" );
-		m_pCapHighlightImage->SetParent( g_pClientMode->GetViewport() );
+		m_pCapHighlightImage->SetParent( GetClientMode()->GetViewport() );
 		m_pCapHighlightImage->SetZPos( 10 );
 		m_pCapHighlightImage->SetShouldScaleImage( true );
 	}
@@ -148,7 +153,7 @@ void CControlPointIcon::ApplySchemeSettings( IScheme *pScheme )
 	if ( !m_pCapPulseImage )
 	{
 		m_pCapPulseImage = new CControlPointIconCapturePulse( this, "CapPulse" );
-		m_pCapPulseImage->SetParent( g_pClientMode->GetViewport() );
+		m_pCapPulseImage->SetParent( GetClientMode()->GetViewport() );
 		m_pCapPulseImage->SetZPos( -1 );
 		m_pCapPulseImage->SetVisible( false );
 		m_pCapPulseImage->SetShouldScaleImage( true );
@@ -169,9 +174,9 @@ void CControlPointIcon::ApplySchemeSettings( IScheme *pScheme )
 
 	LoadControlSettings( "resource/UI/ControlPointIcon.res" );
 
-	m_pCapPlayerImage = dynamic_cast<vgui::ImagePanel *>( FindChildByName("CapPlayerImage") );
-	m_pCapNumPlayers = dynamic_cast<vgui::Label *>( FindChildByName("CapNumPlayers") );
-	m_pOverlayImage = dynamic_cast<vgui::ImagePanel *>( FindChildByName("OverlayImage") );
+	m_pCapPlayerImage = dynamic_cast<ImagePanel *>( FindChildByName("CapPlayerImage") );
+	m_pCapNumPlayers = dynamic_cast<Label *>( FindChildByName("CapNumPlayers") );
+	m_pOverlayImage = dynamic_cast<ImagePanel *>( FindChildByName("OverlayImage") );
 
 	UpdateImage();
 	UpdateCapImage();
@@ -200,6 +205,9 @@ CControlPointIcon::~CControlPointIcon( void )
 //-----------------------------------------------------------------------------
 void CControlPointIcon::UpdateImage( void )
 {
+	if ( !ObjectiveResource() )
+		return;
+
 	int iOwner = ObjectiveResource()->GetOwningTeam( m_iCPIndex );
 
 	if ( m_pBaseImage )
@@ -392,8 +400,11 @@ void CControlPointIcon::PerformLayout( void )
 {
 	BaseClass::PerformLayout();
 
-	int iBaseXPos, iBaseYPos;
-	ipanel()->GetAbsPos(GetVPanel(), iBaseXPos, iBaseYPos );
+	if ( !ObjectiveResource() )
+		return;
+
+	int iBaseXPos = 0, iBaseYPos = 0;
+	LocalToScreen( iBaseXPos, iBaseYPos );
 
 	m_pBaseImage->SetBounds( 0, 0, GetWide(), GetTall() );
 
@@ -459,17 +470,17 @@ void CControlPointIcon::PerformLayout( void )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-CHudControlPointIcons::CHudControlPointIcons( const char *pName ) : vgui::Panel( NULL, "HudControlPointIcons" ), CHudElement( pName )
+CHudControlPointIcons::CHudControlPointIcons( const char *pName ) : Panel( NULL, "HudControlPointIcons" ), CHudElement( pName )
 {
-	SetParent( g_pClientMode->GetViewport() );
+	SetParent( GetClientMode()->GetViewport() );
 	SetHiddenBits( HIDEHUD_MISCSTATUS );
 
-	m_iBackgroundTexture = vgui::surface()->DrawGetTextureId( "vgui/white" );
+	m_iBackgroundTexture = surface()->DrawGetTextureId( "vgui/white" );
 	if ( m_iBackgroundTexture == -1 )
 	{
-		m_iBackgroundTexture = vgui::surface()->CreateNewTextureID();
+		m_iBackgroundTexture = surface()->CreateNewTextureID();
 	}
-	vgui::surface()->DrawSetTextureFile( m_iBackgroundTexture, "vgui/white", true, true );
+	surface()->DrawSetTextureFile( m_iBackgroundTexture, "vgui/white", true, true );
 
 	Reset();
 }
@@ -491,13 +502,14 @@ void CHudControlPointIcons::Init( void )
 {
 	for( int i = 0 ; i < 8 ; i++ )
 	{
-		m_iCPTextures[i] = vgui::surface()->CreateNewTextureID();
-		m_iCPCappingTextures[i] = vgui::surface()->CreateNewTextureID();
+		m_iCPTextures[i] = surface()->CreateNewTextureID();
+		m_iCPCappingTextures[i] = surface()->CreateNewTextureID();
 	}
 
 	for( int i = FIRST_GAME_TEAM; i < MAX_TEAMS; i++ )
 	{
-		m_iTeamBaseTextures[i] = vgui::surface()->CreateNewTextureID();
+		m_iTeamBaseTextures[i].m_nMaterialIndex = INT_MAX;
+		m_iTeamBaseTextures[i].m_nTextureId = surface()->CreateNewTextureID();
 	}
 
 	ListenForGameEvent( "controlpoint_initialized" );
@@ -529,6 +541,8 @@ void CHudControlPointIcons::Reset( void )
 //-----------------------------------------------------------------------------
 bool CHudControlPointIcons::IsVisible( void )
 {
+	ACTIVE_SPLITSCREEN_PLAYER_GUARD_VGUI( GetSplitScreenPlayerSlot() );
+
 	if ( IsInFreezeCam() == true )
 		return false;
 
@@ -551,6 +565,8 @@ void CHudControlPointIcons::LevelShutdown( void )
 //-----------------------------------------------------------------------------
 void CHudControlPointIcons::FireGameEvent( IGameEvent *event )
 {
+	ACTIVE_SPLITSCREEN_PLAYER_GUARD_VGUI( GetSplitScreenPlayerSlot() );
+
 	const char *eventname = event->GetName();
 	C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
 
@@ -734,6 +750,8 @@ void CHudControlPointIcons::ApplySchemeSettings( IScheme *pScheme )
 //-----------------------------------------------------------------------------
 void CHudControlPointIcons::PerformLayout( void )
 {
+	ACTIVE_SPLITSCREEN_PLAYER_GUARD_VGUI( GetSplitScreenPlayerSlot() );
+
 	BaseClass::PerformLayout();
 
 	int iCapPointLines[MAX_CONTROL_POINTS][MAX_CONTROL_POINTS];
@@ -991,7 +1009,7 @@ void CHudControlPointIcons::InitIcons( void )
 		if ( ObjectiveResource()->IsInMiniRound(i) && ObjectiveResource()->IsCPVisible(i) )
 		{
 			CControlPointIcon *pIcon = new CControlPointIcon( this, VarArgs( "ControlPointIcon%d", i ), i );
-			m_Icons.AddToTail( vgui::SETUP_PANEL(pIcon) );
+			m_Icons.AddToTail( SETUP_PANEL(pIcon) );
 		}
 	}
 
@@ -1016,7 +1034,7 @@ void CHudControlPointIcons::ShutdownIcons( void )
 void CHudControlPointIcons::DrawBackgroundBox( int xpos, int ypos, int nBoxWidth, int nBoxHeight, bool bCutCorner )
 {
 	int nCornerCutSize = bCutCorner ? m_nCornerCutSize : 0;
-	vgui::Vertex_t verts[5];
+	Vertex_t verts[5];
 
 	verts[0].Init( Vector2D( xpos, ypos ) );
 	verts[1].Init( Vector2D( xpos + nBoxWidth, ypos ) );
@@ -1024,11 +1042,11 @@ void CHudControlPointIcons::DrawBackgroundBox( int xpos, int ypos, int nBoxWidth
 	verts[3].Init( Vector2D( xpos + nBoxWidth - nCornerCutSize + 1, ypos + nBoxHeight + 1 ) );
 	verts[4].Init( Vector2D( xpos, ypos + nBoxHeight ) );
 
-	vgui::surface()->DrawSetTexture( m_iBackgroundTexture );
-	vgui::surface()->DrawSetColor( Color( m_clrBackground ) );
-	vgui::surface()->DrawTexturedPolygon( 5, verts );
+	surface()->DrawSetTexture( m_iBackgroundTexture );
+	surface()->DrawSetColor( Color( m_clrBackground ) );
+	surface()->DrawTexturedPolygon( 5, verts );
 
-	vgui::Vertex_t borderverts[5];
+	Vertex_t borderverts[5];
 
 	borderverts[0].Init( Vector2D( xpos, ypos ) );
 	borderverts[1].Init( Vector2D( xpos + nBoxWidth, ypos ) );
@@ -1036,8 +1054,8 @@ void CHudControlPointIcons::DrawBackgroundBox( int xpos, int ypos, int nBoxWidth
 	borderverts[3].Init( Vector2D( xpos + nBoxWidth - nCornerCutSize, ypos + nBoxHeight ) );
 	borderverts[4].Init( Vector2D( xpos, ypos + nBoxHeight ) );
 
-	vgui::surface()->DrawSetColor( Color( m_clrBorder ) );
-	vgui::surface()->DrawTexturedPolyLine( borderverts, 5 );
+	surface()->DrawSetColor( Color( m_clrBorder ) );
+	surface()->DrawTexturedPolyLine( borderverts, 5 );
 }
 
 //-----------------------------------------------------------------------------
@@ -1056,24 +1074,31 @@ bool CHudControlPointIcons::PaintTeamBaseIcon( int index, float flXPos, float fl
 			int iTeamBaseIcon = ObjectiveResource()->GetBaseIconForTeam(i);
 			if ( iTeamBaseIcon )
 			{
-				// Draw the Team's Base texture
-				const char *szMatName = GetMaterialNameFromIndex( iTeamBaseIcon );
+				TeamBaseTexture_t &tbt = m_iTeamBaseTextures[ i ];
 
-				vgui::surface()->DrawSetTextureFile( m_iTeamBaseTextures[i], szMatName, true, false );
+				if ( tbt.m_nMaterialIndex != iTeamBaseIcon )
+				{
+					tbt.m_nMaterialIndex = iTeamBaseIcon;
+					// Draw the Team's Base texture
+					const char *szMatName = GetMaterialNameFromIndex( iTeamBaseIcon );
+					surface()->DrawSetTextureFile( tbt.m_nTextureId, szMatName, true, false );
+				}
+
+				surface()->DrawSetTexture( tbt.m_nTextureId );
 
 				Vector2D uv11( uv1, uv1 );
 				Vector2D uv21( uv2, uv1 );
 				Vector2D uv22( uv2, uv2 );
 				Vector2D uv12( uv1, uv2 );
 
-				vgui::Vertex_t vert[4];	
+				Vertex_t vert[4];	
 				vert[0].Init( Vector2D( flXPos,					flYPos              ), uv11 );
 				vert[1].Init( Vector2D( flXPos + flIconSize,	flYPos              ), uv21 );
 				vert[2].Init( Vector2D( flXPos + flIconSize,	flYPos + flIconSize ), uv22 );				
 				vert[3].Init( Vector2D( flXPos,					flYPos + flIconSize ), uv12 );
 
-				vgui::surface()->DrawSetColor( Color(255,255,255,255) );	
-				vgui::surface()->DrawTexturedPolygon( 4, vert );
+				surface()->DrawSetColor( Color(255,255,255,255) );	
+				surface()->DrawTexturedPolygon( 4, vert );
 
 				return true;
 			}
@@ -1106,7 +1131,7 @@ void CHudControlPointIcons::Paint()
 //========================================================================================================================
 // CONTROL POINT PROGRESS BAR
 //========================================================================================================================
-CControlPointProgressBar::CControlPointProgressBar(Panel *parent) : vgui::EditablePanel( parent, "ControlPointProgressBar" )
+CControlPointProgressBar::CControlPointProgressBar(Panel *parent) : EditablePanel( parent, "ControlPointProgressBar" )
 {
 	m_pAttachedToIcon = NULL;
 	m_pBar = NULL;
@@ -1127,14 +1152,14 @@ void CControlPointProgressBar::ApplySchemeSettings( IScheme *pScheme )
 
 	LoadControlSettings( "resource/UI/ControlPointProgressBar.res" );
 
-	m_pBar = dynamic_cast<vgui::CircularProgressBar *>( FindChildByName("ProgressBar") );
-	m_pBarText = dynamic_cast<vgui::Label *>( FindChildByName("ProgressText") );
+	m_pBar = dynamic_cast<CircularProgressBar *>( FindChildByName("ProgressBar") );
+	m_pBarText = dynamic_cast<Label *>( FindChildByName("ProgressText") );
 	m_pTeardrop = dynamic_cast<CIconPanel *>( FindChildByName("Teardrop") );
 	m_pTeardropSide = dynamic_cast<CIconPanel *>( FindChildByName("TeardropSide") );
 	m_pBlocked = dynamic_cast<CIconPanel *>( FindChildByName("Blocked") );
 	m_iOrgHeight = GetTall();
 
-	m_iMidGroupIndex = gHUD.LookupRenderGroupIndexByName( "mid" );
+	m_iMidGroupIndex = GetHud().LookupRenderGroupIndexByName( "mid" );
 }
 
 //-----------------------------------------------------------------------------
@@ -1146,8 +1171,8 @@ void CControlPointProgressBar::PerformLayout( void )
 
 	if ( m_pAttachedToIcon && m_pTeardrop && m_pTeardropSide )
 	{
-		int iIconX, iIconY;
-		ipanel()->GetAbsPos(m_pAttachedToIcon->GetVPanel(), iIconX, iIconY );
+		int iIconX = 0, iIconY = 0;
+		m_pAttachedToIcon->LocalToScreen( iIconX, iIconY );
 		int iDir = m_pAttachedToIcon->GetCapProgressDir();
 		int iXPos = 0;
 		int iYPos = 0;
@@ -1205,7 +1230,7 @@ bool CControlPointProgressBar::IsVisible( void )
 	if ( IsInFreezeCam() == true )
 		return false;
 
-	if ( m_iMidGroupIndex != -1 && gHUD.IsRenderGroupLockedFor( NULL, m_iMidGroupIndex ) )
+	if ( m_iMidGroupIndex != -1 && GetHud().IsRenderGroupLockedFor( NULL, m_iMidGroupIndex ) )
 		return false;
 
 	return BaseClass::IsVisible();
@@ -1384,7 +1409,7 @@ void CControlPointProgressBar::UpdateBarText( void )
 // Purpose: 
 //-----------------------------------------------------------------------------
 CControlPointIconCapArrow::CControlPointIconCapArrow( CControlPointIcon *pIcon, Panel *parent, const char *name) 
-	: vgui::Panel( parent, name )
+	: Panel( parent, name )
 {
 	m_pArrowMaterial = NULL;
 	m_pAttachedToIcon = pIcon;
@@ -1403,12 +1428,19 @@ bool CControlPointIconCapArrow::IsVisible( void )
 //-----------------------------------------------------------------------------
 void CControlPointIconCapArrow::Paint( void )
 {
+	int nSlot = ipanel()->GetMessageContextId( GetVPanel() );
+
 	if ( !m_pArrowMaterial || !m_pAttachedToIcon )
 		return;
 
 	int x = 0;
 	int y = 0;
-	ipanel()->GetAbsPos(GetVPanel(), x,y );
+	{
+		// We have to do this if we ever render using a meshbuilder, since we're rendering this view into a viewport which is 
+		//  not full screen in height for splitscreen players
+		VGUI_ABSPOS_SPLITSCREEN_GUARD_INVERT( nSlot );
+		LocalToScreen( x, y );
+	}
 	int iWidth = GetWide();
 	int iHeight = GetTall();
 
@@ -1466,28 +1498,30 @@ void CControlPointIconCapArrow::Paint( void )
 	pRenderContext->Bind( m_pArrowMaterial );
 	IMesh* pMesh = pRenderContext->GetDynamicMesh( true );
 
+	float zpos = surface()->GetZPos();
+
 	CMeshBuilder meshBuilder;
 	meshBuilder.Begin( pMesh, MATERIAL_QUADS, 1 );
 
-	meshBuilder.Position3f( x, y, 0.0f );
+	meshBuilder.Position3f( x, y, zpos );
 	meshBuilder.TexCoord2f( 0, flXa, flYa );
 	meshBuilder.TexCoord2f( 1, 0.0f, 0.0f );
 	meshBuilder.Color4ub( 255, 255, 255, 255 );
 	meshBuilder.AdvanceVertex();
 
-	meshBuilder.Position3f( x + iWidth, y, 0.0f );
+	meshBuilder.Position3f( x + iWidth, y, zpos );
 	meshBuilder.TexCoord2f( 0, flXb, flYa );
 	meshBuilder.TexCoord2f( 1, 1.0f, 0.0f );
 	meshBuilder.Color4ub( 255, 255, 255, 255 );
 	meshBuilder.AdvanceVertex();
 
-	meshBuilder.Position3f( x + iWidth, y + iHeight, 0.0f );
+	meshBuilder.Position3f( x + iWidth, y + iHeight, zpos );
 	meshBuilder.TexCoord2f( 0, flXb, flYb );
 	meshBuilder.TexCoord2f( 1, 1.0f, 1.0f );
 	meshBuilder.Color4ub( 255, 255, 255, 255 );
 	meshBuilder.AdvanceVertex();
 
-	meshBuilder.Position3f( x, y + iHeight, 0.0f );
+	meshBuilder.Position3f( x, y + iHeight, zpos );
 	meshBuilder.TexCoord2f( 0, flXa, flYb );
 	meshBuilder.TexCoord2f( 1, 0.0f, 1.0f );
 	meshBuilder.Color4ub( 255, 255, 255, 255 );

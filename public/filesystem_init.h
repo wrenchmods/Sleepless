@@ -19,6 +19,8 @@
 #define CMDLINEOPTION_NOVCONFIG	"-NoVConfig"
 
 #define	GAMEDIR_TOKEN		"VProject"
+#define	GAMEROOT_TOKEN		"VGame"
+#define	CONTENTROOT_TOKEN	"VContent"
 
 
 #if defined( _WIN32 ) || defined( WIN32 )
@@ -215,5 +217,7 @@ FSReturnCode_t FileSystem_SetupSteamInstallPath();
 const char *FileSystem_GetLastErrorString();
 
 void Q_getwd( char *out, int outSize );
+
+KeyValues* ReadKeyValuesFile( const char *pFilename );
 
 #endif // FILESYSTEM_INIT_H

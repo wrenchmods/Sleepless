@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright ï¿½ 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose:
 //
@@ -107,6 +107,7 @@ private:
 	void	SetLayerNoRestore( int iLayer, bool bNoRestore )				{ GetOuter()->SetLayerNoRestore( iLayer, bNoRestore );			}
 	void	SetLayerCycle( int iLayer, float flCycle )						{ GetOuter()->SetLayerCycle( iLayer, flCycle );					}
 	void	SetLayerCycle( int iLayer, float flCycle, float flPrevCycle )	{ GetOuter()->SetLayerCycle( iLayer, flCycle, flPrevCycle );	}
+	void	SetLayerNoEvents( int iLayer, bool bNoEvents = true )			{ GetOuter()->SetLayerNoEvents( iLayer, bNoEvents );	}
 	void	RemoveLayer( int iLayer, float flKillRate, float flKillDelay )	{ GetOuter()->RemoveLayer( iLayer, flKillRate, flKillDelay );	}
 
 	// --------------------------------
@@ -214,8 +215,8 @@ class CAI_BlendingHost : public BASE_NPC
 {
 	DECLARE_CLASS_NOFRIEND( CAI_BlendingHost, BASE_NPC );
 public:
-	const CAI_BlendedMotor *GetBlendedMotor() const { return assert_cast<const CAI_BlendedMotor *>(GetMotor()); }
-	CAI_BlendedMotor *		GetBlendedMotor()		{ return assert_cast<CAI_BlendedMotor *>(GetMotor()); }
+	const CAI_BlendedMotor *GetBlendedMotor() const { return assert_cast<const CAI_BlendedMotor *>(this->GetMotor()); }
+	CAI_BlendedMotor *		GetBlendedMotor()		{ return assert_cast<CAI_BlendedMotor *>(this->GetMotor()); }
 
 	CAI_Motor *CreateMotor()
 	{
@@ -232,7 +233,7 @@ public:
 
 	float MaxYawSpeed( void )
 	{
-		float override = GetBlendedMotor()->OverrideMaxYawSpeed( GetActivity() );
+		float override = GetBlendedMotor()->OverrideMaxYawSpeed( this->GetActivity() );
 		if ( override != -1 )
 			return override;
 		return BaseClass::MaxYawSpeed();

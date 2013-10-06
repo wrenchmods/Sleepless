@@ -16,7 +16,7 @@
 
 #include "materialsystem/imaterial.h"
 #include "appframework/IAppSystem.h"
-
+#include "shaderapi/ishaderapi.h"
 
 //-----------------------------------------------------------------------------
 // forward declarations
@@ -32,6 +32,16 @@ struct ShaderColorCorrectionInfo_t;
 
 #define SHADER_UTIL_INTERFACE_VERSION "VShaderUtil001"
 
+enum shaderthreadevent_t
+{
+	SHADER_THREAD_RELEASE_RESOURCES =	1,
+	SHADER_THREAD_ACQUIRE_RESOURCES =	2,
+	SHADER_THREAD_DEVICE_LOST =			3,
+	SHADER_THREAD_EVICT_RESOURCES =		4,
+	SHADER_THREAD_OTHER_APP_START =		5,
+	SHADER_THREAD_OTHER_APP_END =		6,
+	SHADER_THREAD_RESET_RENDER_STATE =	7,
+};
 
 abstract_class IShaderUtil : public IAppSystem
 {
@@ -57,7 +67,7 @@ public:
 	virtual void GetLightmapDimensions( int *w, int *h ) = 0;
 
 	// These methods are called when the shader must eject + restore HW memory
-	virtual void ReleaseShaderObjects() = 0;
+	virtual void ReleaseShaderObjects( int nChangeFlags = 0 ) = 0;
 	virtual void RestoreShaderObjects( CreateInterfaceFn shaderFactory, int nChangeFlags = 0 ) = 0;
 
 	// Used to prevent meshes from drawing.
@@ -75,13 +85,10 @@ public:
 	// Are we rendering through the editor?
 	virtual bool InEditorMode() const = 0;
 
-	// Gets the bound morph's vertex format; returns 0 if no morph is bound
-	virtual MorphFormat_t GetBoundMorphFormat() = 0;
-
 	virtual ITexture *GetRenderTargetEx( int nRenderTargetID ) = 0;
 
 	// Tells the material system to draw a buffer clearing quad
-	virtual void DrawClearBufferQuad( unsigned char r, unsigned char g, unsigned char b, unsigned char a, bool bClearColor, bool bClearDepth ) = 0;
+	virtual void DrawClearBufferQuad( unsigned char r, unsigned char g, unsigned char b, unsigned char a, bool bClearColor, bool bClearAlpha, bool bClearDepth ) = 0;
 
 #if defined( _X360 )
 	virtual void ReadBackBuffer( Rect_t *pSrcRect, Rect_t *pDstRect, unsigned char *pData, ImageFormat dstFormat, int nDstStride ) = 0;
@@ -101,10 +108,29 @@ public:
 
 	virtual void BindStandardVertexTexture( VertexTextureSampler_t sampler, StandardTextureId_t id ) = 0;
 	virtual void GetStandardTextureDimensions( int *pWidth, int *pHeight, StandardTextureId_t id ) = 0;
+
 	virtual int MaxHWMorphBatchCount() const = 0;
 
 	// Interface for mat system to tell shaderapi about color correction
 	virtual void GetCurrentColorCorrection( ShaderColorCorrectionInfo_t* pInfo ) = 0;
+
+	// Gets texture handles for ITextures
+	virtual ShaderAPITextureHandle_t GetShaderAPITextureBindHandle( ITexture *pTexture, int nFrame, int nTextureChannel ) = 0;
+
+	virtual float GetSubDHeight() = 0;
+
+	virtual bool OnDrawMeshModulated( IMesh *pMesh, const Vector4D &diffuseModulation, int firstIndex, int numIndices ) = 0;
+
+	// received an event while not in owning thread, handle this outside
+	virtual void OnThreadEvent( uint32 threadEvent ) = 0;
+
+	virtual MaterialThreadMode_t GetThreadMode() = 0;
+
+	// Remove any materials from memory that aren't in use as determined
+	// by the IMaterial's reference count.
+	virtual void UncacheUnusedMaterials( bool bRecomputeStateSnapshots = false ) = 0;
+
+	virtual bool IsInFrame( ) const = 0;
 };
 
 #endif // ISHADERUTIL_H

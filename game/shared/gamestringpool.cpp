@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright ï¿½ 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose:
 //
@@ -24,14 +24,15 @@ class CGameStringPool : public CStringPool,	public CBaseGameSystem
 	virtual void LevelShutdownPostEntity() 
 	{
 		FreeAll();
+		CGameString::IncrementSerialNumber();
 	}
 
 public:
-	void CGameStringPool::Dump( void )
+	void Dump( void )
 	{
 		for ( int i = m_Strings.FirstInorder(); i != m_Strings.InvalidIndex(); i = m_Strings.NextInorder(i) )
 		{
-			DevMsg( "  %d (0x%x) : %s\n", i, m_Strings[i], m_Strings[i] );
+			DevMsg( "  %d (0x%p) : %s\n", i, m_Strings[i], m_Strings[i] );
 		}
 		DevMsg( "\n" );
 		DevMsg( "Size:  %d items\n", m_Strings.Count() );
@@ -64,6 +65,8 @@ string_t FindPooledString( const char *pszValue )
 {
 	return MAKE_STRING( g_GameStringPool.Find( pszValue ) );
 }
+
+int CGameString::gm_iSerialNumber = 1;
 
 #ifndef CLIENT_DLL
 //------------------------------------------------------------------------------

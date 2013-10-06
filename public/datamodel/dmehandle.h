@@ -25,7 +25,8 @@
 //-----------------------------------------------------------------------------
 // Purpose: CDmeHandle is a templatized wrapper around DmElementHandle_t
 //-----------------------------------------------------------------------------
-template< class DmeType, bool Counted = false >
+
+template< class DmeType, HandleType_t HandleType = HT_WEAK >
 class CDmeHandle : public CDmeElementRefHelper
 {
 public:
@@ -43,13 +44,13 @@ public:
 		Set( h );
 	}
 
-	CDmeHandle( const CDmeHandle< DmeType, Counted > &handle ) : m_handle( DMELEMENT_HANDLE_INVALID )
+	CDmeHandle( const CDmeHandle< DmeType, HandleType > &handle ) : m_handle( DMELEMENT_HANDLE_INVALID )
 	{
 		Set( handle.m_handle );
 	}
 
-	template < class T, bool B >
-	CDmeHandle( const CDmeHandle< T, B > &handle ) : m_handle( DMELEMENT_HANDLE_INVALID )
+	template < class T, HandleType_t HT >
+	CDmeHandle( const CDmeHandle< T, HT > &handle ) : m_handle( DMELEMENT_HANDLE_INVALID )
 	{
 		DmeType *p = ( T* )NULL; // triggers compiler error if converting from invalid handle type
 		NOTE_UNUSED( p );
@@ -62,11 +63,11 @@ public:
 		if ( !g_pDataModel )
 			return; // some handles are static, and don't get destroyed until program termination
 
-		Unref( m_handle, Counted );
+		Unref( m_handle, HandleType );
 	}
 
-	template < class T, bool B >
-	CDmeHandle& operator=( const CDmeHandle< T, B > &handle )
+	template < class T, HandleType_t HT >
+	CDmeHandle& operator=( const CDmeHandle< T, HT > &handle )
 	{
 		DmeType *p = ( T* )NULL; // triggers compiler error if converting from invalid handle type
 		NOTE_UNUSED( p );
@@ -100,7 +101,7 @@ public:
 		if ( h == m_handle )
 			return;
 
-		Unref( m_handle, Counted );
+		Unref( m_handle, HandleType );
 
 		m_handle = h;
 		if ( h != DMELEMENT_HANDLE_INVALID )
@@ -113,7 +114,7 @@ public:
 			}
 		}
 
-		Ref( m_handle, Counted );
+		Ref( m_handle, HandleType );
 	}
 
 	operator DmeType*()
@@ -203,7 +204,8 @@ private:
 	DmElementHandle_t m_handle;
 };
 
-typedef CDmeHandle< CDmElement, true > CDmeCountedHandle;
+typedef CDmeHandle< CDmElement, HT_STRONG > CDmeCountedHandle;
+typedef CDmeHandle< CDmElement, HT_UNDO > CDmeUndoHandle;
 
 
 //-----------------------------------------------------------------------------
@@ -211,6 +213,26 @@ typedef CDmeHandle< CDmElement, true > CDmeCountedHandle;
 //-----------------------------------------------------------------------------
 typedef CUtlVector< CDmeHandle<CDmElement> > DmeHandleVec_t;
 
+// NOTE: these methods only append, so if there is already data in the list, it will remain
+template< typename T >
+inline void ConvertHandleToPtrVector( const CUtlVector< CDmeHandle< T > > &in, CUtlVector< T * > &out )
+{
+	int c = in.Count();
+	for ( int i = 0; i < c; ++i )
+	{
+		out.AddToTail( in[ i ].Get() );
+	}
+}
+
+template< typename T >
+inline void ConvertPtrToHandleVector( const CUtlVector< T * > &in, CUtlVector< CDmeHandle< T > > &out )
+{
+	int c = in.Count();
+	for ( int i = 0; i < c; ++i )
+	{
+		out.AddToTail( CDmeHandle< T >( in[ i ] ) );
+	}
+}
 
 
 //-----------------------------------------------------------------------------
@@ -228,14 +250,14 @@ template<>
 class CDmAttributeUndoStorageType< DmElementHandle_t >
 {
 public:
-	typedef CDmeCountedHandle UndoStorageType;
+	typedef CDmeUndoHandle UndoStorageType;
 };
 
 template<>
 class CDmAttributeUndoStorageType< CUtlVector< DmElementHandle_t > >
 {
 public:
-	typedef CUtlVector< CDmeCountedHandle > UndoStorageType;
+	typedef CUtlVector< CDmeUndoHandle > UndoStorageType;
 };
 
 #endif // DMEHANDLE_H

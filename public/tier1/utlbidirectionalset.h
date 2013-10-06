@@ -102,6 +102,8 @@ public:
 	// Deallocate....
 	void	Purge();
 
+	int		NumAllocated( void ) const;
+
 private:
 	struct BucketListInfo_t
 	{
@@ -321,6 +323,17 @@ void CBidirectionalSet<CBucketHandle,CElementHandle,S,I>::Purge()
 {
 	m_ElementsInBucket.Purge( );
 	m_BucketsUsedByElement.Purge( );
+}
+
+
+//-----------------------------------------------------------------------------
+// Number of elements allocated in each linked list (should be the same)
+//-----------------------------------------------------------------------------
+template< class CBucketHandle, class CElementHandle, class S, class I >
+int CBidirectionalSet<CBucketHandle,CElementHandle,S,I>::NumAllocated( void ) const
+{
+	Assert( m_ElementsInBucket.NumAllocated() == m_BucketsUsedByElement.NumAllocated() );
+	return m_ElementsInBucket.NumAllocated();
 }
 
 

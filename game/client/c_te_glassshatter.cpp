@@ -23,15 +23,17 @@
 #define GLASS_SHARD_NOISE	 0.3
 #define GLASS_SHARD_GRAVITY  500
 #define GLASS_SHARD_DAMPING	 0.3
+ 
+#include "precache_register.h"
 
-#include "ClientEffectPrecacheSystem.h"
+PRECACHE_REGISTER_BEGIN( GLOBAL, PrecacheEffectGlassShatter )
+PRECACHE( MATERIAL, "effects/fleck_glass1" )
+PRECACHE( MATERIAL, "effects/fleck_glass2" )
+PRECACHE( MATERIAL, "effects/fleck_tile1" )
+PRECACHE( MATERIAL, "effects/fleck_tile2" )
+PRECACHE_REGISTER_END()
 
-CLIENTEFFECT_REGISTER_BEGIN( PrecacheEffectGlassShatter )
-CLIENTEFFECT_MATERIAL( "effects/fleck_glass1" )
-CLIENTEFFECT_MATERIAL( "effects/fleck_glass2" )
-CLIENTEFFECT_MATERIAL( "effects/fleck_tile1" )
-CLIENTEFFECT_MATERIAL( "effects/fleck_tile2" )
-CLIENTEFFECT_REGISTER_END()
+ConVar fx_glass_velocity_cap("fx_glass_velocity_cap", "0", 0, "Maximum downwards speed of shattered glass particles");
 
 //###################################################
 // > C_TEShatterSurface
@@ -202,7 +204,7 @@ void C_TEShatterSurface::PostDataUpdate( DataUpdateType_t updateType )
 	vCurPos.x += 0.5*m_flShardSize;
 	vCurPos.z += 0.5*m_flShardSize;
 
-	float flMinSpeed = 9999999999;
+	float flMinSpeed = 9999999999.0f;
 	float flMaxSpeed = 0;
 
 	Particle3D *pParticle = NULL;
@@ -222,6 +224,12 @@ void C_TEShatterSurface::PostDataUpdate( DataUpdateType_t updateType )
 				{
 					vForceVel *= ( 40.0f / flForceDistSqr );
 				}
+			}
+
+			// cap the Z velocity of the shards
+			if (fx_glass_velocity_cap.GetFloat() > 0 && vForceVel.z < -fx_glass_velocity_cap.GetFloat())
+			{
+				vForceVel.z = random->RandomFloat(-fx_glass_velocity_cap.GetFloat(), -(fx_glass_velocity_cap.GetFloat() * 0.66f));
 			}
 
 			if (pParticle)

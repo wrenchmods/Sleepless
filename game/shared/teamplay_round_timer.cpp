@@ -80,7 +80,11 @@ static void RecvProxy_TimerPaused( const CRecvProxyData *pData, void *pStruct, v
 
 	if ( bTimerPaused == false )
 	{
-		g_pClientMode->GetViewportAnimationController()->StartAnimationSequence( "TimerFlash" ); 
+		FOR_EACH_VALID_SPLITSCREEN_PLAYER( hh )
+		{
+			ACTIVE_SPLITSCREEN_PLAYER_GUARD( hh );
+			GetClientMode()->GetViewportAnimationController()->StartAnimationSequence( "TimerFlash" ); 
+		}
 	}
 
 	if ( pTimer )
@@ -618,6 +622,8 @@ void CTeamRoundTimer::SendTimeWarning( int nWarning )
 	// don't play sounds if the level designer has turned them off or if it's during the WaitingForPlayers time
 	if ( !m_bTimerPaused && m_bAutoCountdown && !TeamplayRoundBasedRules()->IsInWaitingForPlayers() )
 	{
+		HACK_GETLOCALPLAYER_GUARD( "CTeamRoundTimer::SendTimeWarning" );
+
 		C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
 		if ( pPlayer )
 		{

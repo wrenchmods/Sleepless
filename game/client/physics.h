@@ -20,8 +20,10 @@ struct solid_t;
 
 // HACKHACK: Make this part of IClientSystem somehow???
 extern bool PhysicsDLLInit( CreateInterfaceFn physicsFactory );
+
 extern void PhysicsReset();
 extern void PhysicsSimulate();
 extern float PhysGetSyncCreateTime();
+extern void VPhysicsShadowDataChanged( bool bCreate, C_BaseEntity *pEntity );
 
 #endif // PHYSICS_H

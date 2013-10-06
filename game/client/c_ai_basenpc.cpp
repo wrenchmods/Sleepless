@@ -37,8 +37,7 @@ extern ConVar cl_npc_speedmod_intime;
 
 bool NPC_IsImportantNPC( C_BaseAnimating *pAnimating )
 {
-	C_AI_BaseNPC *pBaseNPC = dynamic_cast < C_AI_BaseNPC* > ( pAnimating );
-
+	C_AI_BaseNPC *pBaseNPC = pAnimating->MyNPCPointer();
 	if ( pBaseNPC == NULL )
 		return false;
 
@@ -153,7 +152,7 @@ void C_AI_BaseNPC::OnDataChanged( DataUpdateType_t type )
 	}
 }
 
-void C_AI_BaseNPC::GetRagdollInitBoneArrays( matrix3x4_t *pDeltaBones0, matrix3x4_t *pDeltaBones1, matrix3x4_t *pCurrentBones, float boneDt )
+void C_AI_BaseNPC::GetRagdollInitBoneArrays( matrix3x4a_t *pDeltaBones0, matrix3x4a_t *pDeltaBones1, matrix3x4a_t *pCurrentBones, float boneDt )
 {
 	ForceSetupBonesAtTime( pDeltaBones0, gpGlobals->curtime - boneDt );
 	GetRagdollCurSequenceWithDeathPose( this, pDeltaBones1, gpGlobals->curtime, m_iDeathPose, m_iDeathFrame );

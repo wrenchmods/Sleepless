@@ -1,4 +1,4 @@
-//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
+//===== Copyright 1996-2005, Valve Corporation, All rights reserved. ======//
 //
 // Purpose: 
 //
@@ -12,6 +12,7 @@
 
 #include "shareddefs.h"
 #include "tier1/utlstack.h"
+#include "tier2/tier2.h"
 #include "iviewrender.h"
 #include "view_shared.h"
 
@@ -25,7 +26,6 @@ class IClientVehicle;
 class C_PointCamera;
 class C_EnvProjectedTexture;
 class IScreenSpaceEffect;
-enum ScreenSpaceEffectType_t;
 class CClientViewSetup;
 class CViewRender;
 struct ClientWorldListInfo_t;
@@ -82,7 +82,7 @@ enum view_id_t
 
 	VIEW_ID_COUNT
 };
-
+view_id_t CurrentViewID();
 
 //-----------------------------------------------------------------------------
 // Purpose: Stored pitch drifting variables
@@ -174,15 +174,31 @@ public:
 	VPlane *		GetFrustum();
 	virtual int		GetDrawFlags() { return 0; }
 
-#ifdef PORTAL
-	virtual	void	EnableWorldFog() {};
-#endif
+
 
 protected:
 	// @MULTICORE (toml 8/11/2006): need to have per-view frustum. Change when move view stack to client
 	VPlane			*m_Frustum;
 	CViewRender *m_pMainView;
+	int				m_nSlot;
 };
+
+// Frustum cache.
+struct FrustumCache_t
+{
+	int			m_nFrameCount;
+	Frustum_t	m_Frustums[MAX_SPLITSCREEN_PLAYERS];
+
+	FrustumCache_t() { m_nFrameCount = 0; }
+
+	bool IsValid( void ) { return ( m_nFrameCount == gpGlobals->framecount ); }
+	void SetUpdated( void ) { m_nFrameCount = gpGlobals->framecount; }
+
+	void Add( const CViewSetup *pView, int iSlot );
+};
+
+FrustumCache_t *FrustumCache( void );
+
 
 //-----------------------------------------------------------------------------
 // Base class for 3d views
@@ -210,8 +226,6 @@ protected:
 	// Draw setup
 	void			SetupRenderablesList( int viewID );
 
-	void			UpdateRenderablesOpacity();
-
 	// If iForceViewLeaf is not -1, then it uses the specified leaf as your starting area for setting up area portal culling.
 	// This is used by water since your reflected view origin is often in solid space, but we still want to treat it as though
 	// the first portal we're looking out of is a water portal, so our view effectively originates under the water.
@@ -232,6 +246,9 @@ protected:
 	// Renders all translucent entities in the render list
 	void			DrawTranslucentRenderablesNoWorld( bool bInSkybox );
 
+	// Renders all translucent entities in the render list that ignore the z-buffer
+	void			DrawNoZBufferTranslucentRenderables( void );
+
 	// Renders all translucent world surfaces in a particular set of leaves
 	void			DrawTranslucentWorldInLeaves( bool bShadowDepth );
 
@@ -241,9 +258,11 @@ protected:
 	// Purpose: Computes the actual world list info based on the render flags
 	void			PruneWorldListInfo();
 
-#ifdef PORTAL
-	virtual bool	ShouldDrawPortals() { return true; }
-#endif
+	// Sets up automatic z-prepass on the 360. No-op on PC.
+	void			Begin360ZPass();
+	void			End360ZPass();
+
+
 
 	void ReleaseLists();
 
@@ -300,7 +319,7 @@ public:
 	virtual void	Init( void );
 	virtual void	Shutdown( void );
 
-	const CViewSetup *GetPlayerViewSetup( ) const;
+	const CViewSetup *GetPlayerViewSetup( int nSlot = -1 ) const;
 
 	virtual void	StartPitchDrift( void );
 	virtual void	StopPitchDrift( void );
@@ -314,6 +333,11 @@ public:
 	static CViewRender *	GetMainView() { return assert_cast<CViewRender *>( view ); }
 
 	void			AddViewToScene( CRendering3dView *pView ) { m_SimpleExecutor.AddView( pView ); }
+
+	CMaterialReference &GetWhite();
+
+	virtual void	InitFadeData( void );
+
 protected:
 	// Sets up the view parameters
 	void			SetUpView();
@@ -326,10 +350,18 @@ protected:
 	void			WriteSaveGameScreenshot( const char *filename );
 
 	// This stores all of the view setup parameters that the engine needs to know about
-	CViewSetup		m_View;
 
+	CViewSetup				&GetView( int nSlot = -1 );
+	const CViewSetup		&GetView( int nSlot = -1 ) const;
+
+	CViewSetup		m_UserView[ MAX_SPLITSCREEN_PLAYERS ];
+	bool			m_bAllowViewAccess;
 	// Pitch drifting data
 	CPitchDrift		m_PitchDrift;
+
+	virtual void	RenderPreScene( const CViewSetup &view ) { }
+	virtual void	PreViewDrawScene( const CViewSetup &view ) {}
+	virtual void	PostViewDrawScene( const CViewSetup &view ) {}
 
 public:
 					CViewRender();
@@ -343,7 +375,7 @@ public:
 
 	// Render functions
 	virtual	void	Render( vrect_t *rect );
-	virtual void	RenderView( const CViewSetup &view, int nClearFlags, int whatToDraw );
+	virtual void	RenderView( const CViewSetup &view, const CViewSetup &hudViewSetup, int nClearFlags, int whatToDraw );
 	virtual void	RenderPlayerSprites();
 	virtual void	Render2DEffectsPreHUD( const CViewSetup &view );
 	virtual void	Render2DEffectsPostHUD( const CViewSetup &view );
@@ -378,6 +410,7 @@ public:
 	virtual void	QueueOverlayRenderView( const CViewSetup &view, int nClearFlags, int whatToDraw );
 
 	virtual void	GetScreenFadeDistances( float *min, float *max );
+	virtual bool	AllowScreenspaceFade( void ) { return true; }
 
 	virtual C_BaseEntity *GetCurrentlyDrawingEntity();
 	virtual void		  SetCurrentlyDrawingEntity( C_BaseEntity *pEnt );
@@ -406,7 +439,7 @@ public:
 	{
 		m_UnderWaterOverlayMaterial.Init( pMaterial );
 	}
-private:
+protected:
 	int				m_BuildWorldListsNumber;
 
 
@@ -437,22 +470,22 @@ private:
 
 	virtual void			ViewDrawScene_Intro( const CViewSetup &view, int nClearFlags, const IntroData_t &introData );
 
-#ifdef PORTAL 
-	// Intended for use in the middle of another ViewDrawScene call, this allows stencils to be drawn after opaques but before translucents are drawn in the main view.
-	void			ViewDrawScene_PortalStencil( const CViewSetup &view, ViewCustomVisibility_t *pCustomVisibility );
-	void			Draw3dSkyboxworld_Portal( const CViewSetup &view, int &nClearFlags, bool &bDrew3dSkybox, SkyboxVisibility_t &nSkyboxVisible, ITexture *pRenderTarget = NULL );
-#endif // PORTAL
+
+
+
 
 	// Determines what kind of water we're going to use
 	void			DetermineWaterRenderInfo( const VisibleFogVolumeInfo_t &fogVolumeInfo, WaterRenderInfo_t &info );
 
-	bool			UpdateRefractIfNeededByList( CUtlVector< IClientRenderable * > &list );
-	void			DrawRenderablesInList( CUtlVector< IClientRenderable * > &list, int flags = 0 );
+	bool			UpdateRefractIfNeededByList( CViewModelRenderablesList::RenderGroups_t &list );
+	void			DrawRenderablesInList( CViewModelRenderablesList::RenderGroups_t &list, int flags = 0 );
 
 	// Sets up, cleans up the main 3D view
-	void			SetupMain3DView( const CViewSetup &view, int &nClearFlags );
+	void			SetupMain3DView( int nSlot, const CViewSetup &view, const CViewSetup &hudViewSetup, int &nClearFlags, ITexture *pRenderTarget );
 	void			CleanupMain3DView( const CViewSetup &view );
 
+	void			GetLetterBoxRectangles( int nSlot, const CViewSetup &view, CUtlVector< vrect_t >& vecLetterBoxRectangles );
+	void			DrawLetterBoxRectangles( int nSlot, const CUtlVector< vrect_t >& vecLetterBoxRectangles );
 
 	// This stores the current view
  	CViewSetup		m_CurrentView;
@@ -471,9 +504,9 @@ private:
 	CMaterialReference	m_ScreenOverlayMaterial;
 	CMaterialReference m_UnderWaterOverlayMaterial;
 
-	Vector			m_vecLastFacing;
-	float			m_flCheapWaterStartDistance;
-	float			m_flCheapWaterEndDistance;
+	Vector				m_vecLastFacing;
+	float				m_flCheapWaterStartDistance;
+	float				m_flCheapWaterEndDistance;
 
 	CViewSetup			m_OverlayViewSetup;
 	int					m_OverlayClearFlags;
@@ -483,10 +516,7 @@ private:
 	int					m_BaseDrawFlags;	// Set in ViewDrawScene and OR'd into m_DrawFlags as it goes.
 	C_BaseEntity		*m_pCurrentlyDrawingEntity;
 
-#ifdef PORTAL
-	friend class CPortalRender; //portal drawing needs muck with views in weird ways
-	friend class CPortalRenderable;
-#endif
+
 	int				m_BuildRenderableListsNumber;
 
 	friend class CBase3dView;
@@ -496,8 +526,22 @@ private:
 	CBase3dView *m_pActiveRenderer;
 	CSimpleRenderExecutor m_SimpleExecutor;
 
-	bool			m_bTakeFreezeFrame;
-	float			m_flFreezeFrameUntil;
+	struct FreezeParams_t
+	{
+		FreezeParams_t() : m_bTakeFreezeFrame( false ), m_flFreezeFrameUntil( 0.0f ) {}
+
+		bool			m_bTakeFreezeFrame;
+		float			m_flFreezeFrameUntil;
+	};
+
+	FreezeParams_t		m_FreezeParams[ MAX_SPLITSCREEN_PLAYERS ];
+
+	FadeData_t			m_FadeData;
+
+	CMaterialReference	m_WhiteMaterial;
+
+	CON_COMMAND_MEMBER_F( CViewRender, "screenfademinsize", OnScreenFadeMinSize, "Modify global screen fade min size in pixels", FCVAR_CHEAT | FCVAR_DEVELOPMENTONLY );
+	CON_COMMAND_MEMBER_F( CViewRender, "screenfademaxsize", OnScreenFadeMaxSize, "Modify global screen fade max size in pixels", FCVAR_CHEAT | FCVAR_DEVELOPMENTONLY );
 };
 
 #endif // VIEWRENDER_H

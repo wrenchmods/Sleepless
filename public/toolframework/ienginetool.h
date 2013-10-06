@@ -53,6 +53,9 @@ public:
 	// Take over input
 	virtual void		ShowCursor( bool show ) = 0;
 	virtual bool		IsCursorVisible() const = 0;
+
+	// If module not already loaded, loads it and optionally switches to first tool in module.  Returns false if load failed or tool already loaded
+	virtual bool		LoadToolModule( char const *pToolModule, bool bSwitchToFirst ) = 0;
 };
 
 #define VENGINETOOLFRAMEWORK_INTERFACE_VERSION	"VENGINETOOLFRAMEWORK003"
@@ -89,6 +92,8 @@ public:
 		int speakerentity = -1 ) = 0;
 
 	virtual void		StopSoundByGuid( int guid ) = 0;
+
+	virtual void		SetVolumeByGuid( int guid, float flVolume ) = 0;
 
 	// Returns how long the sound is
 	virtual float		GetSoundDuration( int guid ) = 0;
@@ -170,7 +175,7 @@ public:
 	// Get the current game directory (hl2, tf2, hl1, cstrike, etc.)
 	virtual void        GetGameDir( char *szGetGameDir, int maxlength ) = 0;
 
-// Do we need separate rects for the 3d "viewport" vs. the tools surface??? and can we control viewports from
+	// Do we need separate rects for the 3d "viewport" vs. the tools surface??? and can we control viewports from
 	virtual void		GetScreenSize( int& width, int &height ) = 0;
 
 	// GetRootPanel(VPANEL)
@@ -226,6 +231,14 @@ public:
 	virtual void RemovePartitionQueryCallback( IPartitionQueryCallback *pQuery ) = 0;
 	virtual void ElementMoved( SpatialPartitionHandle_t handle, 
 		const Vector& mins, const Vector& maxs ) = 0;
+    virtual void		OnModeChanged( bool bGameMode ) = 0;
+	// Get the engine's window.
+	virtual void* GetEngineHwnd() = 0;
+
+	// Returns the actual elapsed time of the samples
+	virtual float		GetSoundElapsedTime( int guid ) = 0;
+	virtual void		ValidateSoundCache( char const *pchSoundName ) = 0;
+	virtual void		PrefetchSound( char const *pchSoundName ) = 0;
 };
 
 #define VENGINETOOL_INTERFACE_VERSION	"VENGINETOOL003"

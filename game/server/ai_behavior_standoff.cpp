@@ -386,6 +386,8 @@ void CAI_StandoffBehavior::GatherConditions()
 	{
 		m_TimePreventForceNewEnemy.Reset();
 		GetOuter()->SetEnemy( NULL );
+
+		DevMsg(2, "Forcing lose enemy from standoff\n");
 	}
 	BaseClass::GatherConditions();
 	m_fForceNewEnemy = false;

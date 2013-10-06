@@ -69,7 +69,7 @@ bool SwapClosecaptionFile( void *pData )
 	return true;
 }
 
-#if defined( CLIENT_DLL )
+#if defined( CLIENT_DLL ) || defined( GAME_DLL )
 //-----------------------------------------------------------------------------
 // Callback for UpdateOrCreate - generates .360 file
 //-----------------------------------------------------------------------------

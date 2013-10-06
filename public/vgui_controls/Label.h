@@ -16,6 +16,7 @@
 #include "vgui/VGUI.h"
 #include "vgui_controls/Panel.h"
 #include "vgui_controls/PHandle.h"
+#include "dmxloader/dmxelement.h"
 
 namespace vgui
 {
@@ -27,8 +28,10 @@ namespace vgui
 class Label : public Panel
 {
 	DECLARE_CLASS_SIMPLE( Label, Panel );
+	DECLARE_DMXELEMENT_UNPACK_NAMESPACE(vgui);
 
 public:
+
 	// Constructors
 	Label(Panel *parent, const char *panelName, const char *text);
 	Label(Panel *parent, const char *panelName, const wchar_t *wszText);
@@ -95,6 +98,7 @@ public:
 	// Hotkey
 	virtual Panel *HasHotkey(wchar_t key);
 	virtual void SetHotkey(wchar_t key);
+	virtual wchar_t GetHotKey();
 
 	// Labels can be associated with controls, and alter behaviour based on the associates behaviour
 	// If the associate is disabled, so are we
@@ -106,6 +110,7 @@ public:
 	// Images are drawn from left to right across the label, ordered by index
 	// By default there is a TextImage in position 0 (see GetTextImage()/SetTextImageIndex())
 	virtual int AddImage(IImage *image, int preOffset);  // Return the index the image was placed in
+	virtual void SetImage(IImage *image, int preOffset ); // Clears all images and sets the only remaining image to the passed in image
 	virtual void SetImageAtIndex(int index, IImage *image, int preOffset);	
 	virtual void SetImagePreOffset(int index, int preOffset);  // Set the offset in pixels before the image
 	virtual IImage *GetImageAtIndex(int index);
@@ -152,6 +157,10 @@ public:
 	void SetWrap( bool bWrap );
 	void SetCenterWrap( bool bWrap );
 
+	void SetAllCaps( bool bAllCaps );
+
+	virtual void GetSizerMinimumSize(int &wide, int &tall);
+
 protected:
 	virtual void PerformLayout();
 	virtual wchar_t CalculateHotkey(const char *text);
@@ -170,16 +179,27 @@ protected:
 
 	// editing
 	virtual void ApplySchemeSettings(IScheme *pScheme);
+
+public:
 	virtual void GetSettings( KeyValues *outResourceData );
 	virtual void ApplySettings( KeyValues *inResourceData );
+
+protected:
 	virtual const char *GetDescription( void );
 
 	MESSAGE_FUNC_PARAMS( OnDialogVariablesChanged, "DialogVariables", dialogVariables );
 
-private:
-	void Init();
+	void HandleAutoSizing( void );
+
+	// Derived can override to, e.g., recenter text image text if there is space.
+	virtual void RepositionTextImage( int &x, int &y, TextImage *pTextImage ) {}
 
 	Alignment  _contentAlignment;
+
+private:
+
+	void Init();
+
 	TextImage *_textImage; // this is the textImage, if the full text will not
 							// fit we put as much as we can and add an elipsis (...)
 	struct TImageInfo
@@ -207,6 +227,9 @@ private:
 
 	bool	m_bWrap;
 	bool	m_bCenterWrap;
+	bool	m_bAllCaps;
+	bool	m_bAutoWideToContents;
+	bool	m_bAutoWideDirty;
 };
 
 } // namespace vgui

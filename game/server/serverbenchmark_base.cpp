@@ -369,7 +369,7 @@ public:
 
 private:
 	
-	typedef enum EBenchmarkState
+	enum EBenchmarkState
 	{
 		BENCHMARKSTATE_NOT_RUNNING,
 		BENCHMARKSTATE_START_WAIT,

@@ -8,10 +8,13 @@
 #include "cbase.h"
 #include "mp_shareddefs.h"
 #include "basemultiplayerplayer.h"
-#include "steam/steam_api.h"
+#include "cdll_int.h"
+#include "gameinterface.h"
 
-// Minimum interval between rate-limited commands that players can run.
-#define COMMAND_MAX_RATE  0.3
+ConVar sv_allchat("sv_allchat", "1", FCVAR_NOTIFY, "Players can receive all other players' text chat, no death restrictions");
+
+// NOTE: This has to be the last file included!
+#include "tier0/memdbgon.h"
 
 CBaseMultiplayerPlayer::CBaseMultiplayerPlayer()
 {
@@ -19,6 +22,7 @@ CBaseMultiplayerPlayer::CBaseMultiplayerPlayer()
 	m_flLastForcedChangeTeamTime = -1;
 	m_iBalanceScore = 0;
 	m_flConnectionTime = gpGlobals->curtime;
+	m_pExpresser = NULL;
 
 	// per life achievement counters
 	m_pAchievementKV = new KeyValues( "achievement_counts" );
@@ -29,6 +33,7 @@ CBaseMultiplayerPlayer::CBaseMultiplayerPlayer()
 CBaseMultiplayerPlayer::~CBaseMultiplayerPlayer()
 {
 	m_pAchievementKV->deleteThis();
+	delete m_pExpresser;
 }
 
 //-----------------------------------------------------------------------------
@@ -66,7 +71,7 @@ void CBaseMultiplayerPlayer::ModifyOrAppendCriteria( AI_CriteriaSet& criteriaSet
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-bool CBaseMultiplayerPlayer::SpeakIfAllowed( AIConcept_t concept, const char *modifiers, char *pszOutResponseChosen, size_t bufsize, IRecipientFilter *filter ) 
+bool CBaseMultiplayerPlayer::SpeakIfAllowed( AIConcept_t concept, SpeechPriorityType priority, const char *modifiers, char *pszOutResponseChosen, size_t bufsize, IRecipientFilter *filter ) 
 { 
 	if ( !IsAlive() )
 		return false;
@@ -76,23 +81,15 @@ bool CBaseMultiplayerPlayer::SpeakIfAllowed( AIConcept_t concept, const char *mo
 }
 
 //-----------------------------------------------------------------------------
-// Purpose: 
+// Purpose: Fill out given response with the appropriate one for this concept
 //-----------------------------------------------------------------------------
-IResponseSystem *CBaseMultiplayerPlayer::GetResponseSystem()
-{
-	return BaseClass::GetResponseSystem();
-	// NOTE: This is where you would hook your custom responses.
-//	return <*>GameRules()->m_ResponseRules[iIndex].m_ResponseSystems[m_iCurrentConcept];
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-AI_Response *CBaseMultiplayerPlayer::SpeakConcept( int iConcept )
+void CBaseMultiplayerPlayer::SpeakConcept( AI_Response &outResponse, int iConcept )
 {
 	m_iCurrentConcept = iConcept;
-	return SpeakFindResponse( g_pszMPConcepts[iConcept] );
+	AIConcept_t concept( g_pszMPConcepts[iConcept] );
+	FindResponse( outResponse, concept );
 }
+
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -101,7 +98,7 @@ bool CBaseMultiplayerPlayer::SpeakConceptIfAllowed( int iConcept, const char *mo
 {
 	// Save the current concept.
 	m_iCurrentConcept = iConcept;
-	return SpeakIfAllowed( g_pszMPConcepts[iConcept], modifiers, pszOutResponseChosen, bufsize, filter );
+	return SpeakIfAllowed( g_pszMPConcepts[iConcept], SPEECH_PRIORITY_NORMAL, modifiers, pszOutResponseChosen, bufsize, filter );
 }
 
 //-----------------------------------------------------------------------------
@@ -128,57 +125,26 @@ bool CBaseMultiplayerPlayer::CanHearAndReadChatFrom( CBasePlayer *pPlayer )
 	return true;
 }
 
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-bool CBaseMultiplayerPlayer::ShouldRunRateLimitedCommand( const CCommand &args )
-{
-	const char *pcmd = args[0];
-
-	int i = m_RateLimitLastCommandTimes.Find( pcmd );
-	if ( i == m_RateLimitLastCommandTimes.InvalidIndex() )
-	{
-		m_RateLimitLastCommandTimes.Insert( pcmd, gpGlobals->curtime );
-		return true;
-	}
-	else if ( (gpGlobals->curtime - m_RateLimitLastCommandTimes[i]) < COMMAND_MAX_RATE )
-	{
-		// Too fast.
-		return false;
-	}
-	else
-	{
-		m_RateLimitLastCommandTimes[i] = gpGlobals->curtime;
-		return true;
-	}
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
 bool CBaseMultiplayerPlayer::ClientCommand( const CCommand &args )
 {
 	const char *pcmd = args[0];
 
 	if ( FStrEq( pcmd, "ignoremsg" ) )
 	{
-		if ( ShouldRunRateLimitedCommand( args ) )
+		m_iIgnoreGlobalChat = (m_iIgnoreGlobalChat + 1) % 3;
+		switch( m_iIgnoreGlobalChat )
 		{
-			m_iIgnoreGlobalChat = (m_iIgnoreGlobalChat + 1) % 3;
-			switch( m_iIgnoreGlobalChat )
-			{
-			case CHAT_IGNORE_NONE:
-				ClientPrint( this, HUD_PRINTTALK, "#Accept_All_Messages" );
-				break;
-			case CHAT_IGNORE_ALL:
-				ClientPrint( this, HUD_PRINTTALK, "#Ignore_Broadcast_Messages" );
-				break;
-			case CHAT_IGNORE_TEAM:
-				ClientPrint( this, HUD_PRINTTALK, "#Ignore_Broadcast_Team_Messages" );
-				break;
-			default:
-				break;
-			}
+		case CHAT_IGNORE_NONE:
+			ClientPrint( this, HUD_PRINTTALK, "#Accept_All_Messages" );
+			break;
+		case CHAT_IGNORE_ALL:
+			ClientPrint( this, HUD_PRINTTALK, "#Ignore_Broadcast_Messages" );
+			break;
+		case CHAT_IGNORE_TEAM:
+			ClientPrint( this, HUD_PRINTTALK, "#Ignore_Broadcast_Team_Messages" );
+			break;
+		default:
+			break;
 		}
 		return true;
 	}

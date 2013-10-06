@@ -462,7 +462,7 @@ LINK_ENTITY_TO_CLASS( phys_bone_follower, CBoneFollower );
 // create a manager and a list of followers directly from a ragdoll
 void CreateBoneFollowersFromRagdoll( CBaseAnimating *pEntity, CBoneFollowerManager *pManager, vcollide_t *pCollide )
 {
-	IVPhysicsKeyParser *pParse = physcollision->VPhysicsKeyParserCreate( pCollide->pKeyValues );
+	IVPhysicsKeyParser *pParse = physcollision->VPhysicsKeyParserCreate( pCollide );
 	while ( !pParse->Finished() )
 	{
 		const char *pBlock = pParse->GetCurrentBlockName();

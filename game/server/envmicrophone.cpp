@@ -305,7 +305,7 @@ bool CEnvMicrophone::CanHearSound( int entindex, soundlevel_t soundlevel, float 
 	CBaseEntity *pEntity = NULL;
 	if ( entindex )
 	{
-		pEntity = CBaseEntity::Instance( engine->PEntityOfEntIndex(entindex) );
+		pEntity = CBaseEntity::Instance( INDEXENT(entindex) );
 	}
 			    
 	// Cull out sounds except from specific entities
@@ -366,12 +366,28 @@ void CEnvMicrophone::SetSensitivity( float flSensitivity )
 	m_flSensitivity = flSensitivity;
 }
 
+void CEnvMicrophone::SetMaxRange( float flMaxRange )
+{
+	m_flMaxRange = flMaxRange;
+}
+
 void CEnvMicrophone::SetSpeakerName( string_t iszSpeakerName )
 {
 	m_iszSpeakerName = iszSpeakerName;
 
 	// Set the speaker to null. This will force it to find the speaker next time a sound is routed.
 	m_hSpeaker = NULL;
+	ActivateSpeaker();
+}
+
+
+//--------------------------------------------------------------------------------------------------
+// Same as above, but skips the speaker name lookup
+//--------------------------------------------------------------------------------------------------
+void CEnvMicrophone::SetSpeaker( string_t iszSpeakerName, EHANDLE hSpeaker )
+{
+	m_iszSpeakerName = iszSpeakerName;
+	m_hSpeaker = hSpeaker;
 	ActivateSpeaker();
 }
 
@@ -512,6 +528,14 @@ MicrophoneResult_t CEnvMicrophone::SoundPlayed( int entindex, const char *soundn
 	return MicrophoneResult_Ok;
 }
 
+void CEnvMicrophone::SoundStopped( const char *soundname )
+{
+	if ( m_hSpeaker )
+	{
+		CBaseEntity::StopSound( m_hSpeaker->entindex(), CHAN_STATIC, soundname, true );
+	}
+}
+
 
 //-----------------------------------------------------------------------------
 // Purpose: Called by the sound system whenever a sound is played so that
@@ -557,4 +581,20 @@ bool CEnvMicrophone::OnSoundPlayed( int entindex, const char *soundname, soundle
 	}
 
 	return bSwallowed;
+}
+
+void CEnvMicrophone::OnSoundStopped( const char *soundname )
+{
+	// Loop through all registered microphones and tell them which sound to stop
+	int iCount = s_Microphones.Count();
+	if ( iCount > 0 )
+	{
+		for ( int i = iCount - 1; i >= 0; i-- )
+		{
+			if ( s_Microphones[i] )
+			{
+				s_Microphones[i]->SoundStopped( soundname );
+			}
+		}
+	}
 }

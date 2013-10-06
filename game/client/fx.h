@@ -95,8 +95,6 @@ public:
 void FX_Tesla( const CTeslaInfo &teslaInfo );
 extern ConVar r_decals;
 
-extern void FX_CacheMaterialHandles( void );
-
 extern PMaterialHandle g_Mat_Fleck_Wood[2];
 extern PMaterialHandle g_Mat_Fleck_Cement[2];
 extern PMaterialHandle g_Mat_Fleck_Antlion[2];

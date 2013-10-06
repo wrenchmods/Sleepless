@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -33,6 +33,7 @@ namespace vgui
 #define CHATLINE_FLASH_TIME 5.0f
 #define CHATLINE_FADE_TIME 1.0f
 
+#define CHAT_HISTORY_ONE_OVER_FADE_TIME 4.0f;
 #define CHAT_HISTORY_FADE_TIME 0.25f
 #define CHAT_HISTORY_IDLE_TIME 15.0f
 #define CHAT_HISTORY_IDLE_FADE_TIME 2.5f
@@ -66,6 +67,8 @@ enum TextColor
 	COLOR_PLAYERNAME = 3,
 	COLOR_LOCATION = 4,
 	COLOR_ACHIEVEMENT = 5,
+	COLOR_MOD_CUSTOM = 6, 
+	COLOR_MOD_CUSTOM2 = 7,	
 	COLOR_MAX
 };
 
@@ -83,8 +86,19 @@ void StripEndNewlineFromString( wchar_t *str );
 char* ConvertCRtoNL( char *str );
 wchar_t* ConvertCRtoNL( wchar_t *str );
 wchar_t* ReadLocalizedString( bf_read &msg, wchar_t *pOut, int outSize, bool bStripNewline, char *originalString = NULL, int originalSize = 0 );
-wchar_t* ReadChatTextString( bf_read &msg, wchar_t *pOut, int outSize );
+wchar_t* ReadChatTextString( bf_read &msg, wchar_t *pOut, int outSize, bool stripBugData = false );
 char* RemoveColorMarkup( char *str );
+
+//--------------------------------------------------------------------------------------------------------
+/**
+ * Simple utility function to allocate memory and duplicate a wide string
+ */
+inline wchar_t *CloneWString( const wchar_t *str )
+{
+	wchar_t *cloneStr = new wchar_t [ wcslen(str)+1 ];
+	wcscpy( cloneStr, str );
+	return cloneStr;
+}
 
 //-----------------------------------------------------------------------------
 // Purpose: An output/display line of the chat interface
@@ -156,6 +170,7 @@ public:
 	CHudChatHistory( vgui::Panel *pParent, const char *panelName );
 
 	virtual void	ApplySchemeSettings(vgui::IScheme *pScheme);
+	virtual void Paint();
 };
 
 class CHudChatFilterButton : public vgui::Button
@@ -201,6 +216,9 @@ public:
 	};
 
 	CBaseHudChat( const char *pElementName );
+	~CBaseHudChat();
+
+	static CBaseHudChat *GetHudChat( void );
 
 	virtual void	CreateChatInputLine( void );
 	virtual void	CreateChatLines( void );
@@ -215,17 +233,16 @@ public:
 	virtual void	Printf( int iFilter, const char *fmt, ... );
 	virtual void	ChatPrintf( int iPlayerIndex, int iFilter, const char *fmt, ... );
 	
-	void			StartMessageMode( int iMessageModeType );
-	void			StopMessageMode( void );
+	virtual void	StartMessageMode( int iMessageModeType );
+	virtual void	StopMessageMode( bool bFade = true );
+	int				GetMessageMode() { return m_nMessageMode; }
 	void			Send( void );
 
 	virtual void	ApplySchemeSettings(vgui::IScheme *pScheme);
 	virtual void	Paint( void );
 	virtual void	OnTick( void );
 	virtual void	Reset();
-#ifdef _XBOX
-	virtual bool	ShouldDraw();
-#endif
+
 	vgui::Panel		*GetInputPanel( void );
 
 	static int		m_nLineCounter;
@@ -237,7 +254,7 @@ public:
 
 	CHudChatHistory			*GetChatHistory();
 
-	void					FadeChatHistory();
+	virtual void			FadeChatHistory();
 	float					m_flHistoryFadeTime;
 	float					m_flHistoryIdleTime;
 
@@ -252,6 +269,8 @@ public:
 
 	virtual int				GetFilterFlags( void ) { return m_iFilterFlags; }
 	void					SetFilterFlag( int iFilter );
+
+	virtual void		SetChatPrompt( int iMessageModeType );
 
 	//-----------------------------------------------------------------------------
 	virtual Color	GetDefaultTextColor( void );
@@ -270,7 +289,7 @@ protected:
 
 	CBaseHudChatInputLine	*m_pChatInput;
 	CBaseHudChatLine		*m_ChatLine;
-	int					m_iFontHeight;
+	int						m_iFontHeight;
 
 	CHudChatHistory			*m_pChatHistory;
 
@@ -283,8 +302,6 @@ private:
 	int				ComputeBreakChar( int width, const char *text, int textlen );
 
 	int				m_nMessageMode;
-
-	int				m_nVisibleHeight;
 
 	vgui::HFont		m_hChatFont;
 

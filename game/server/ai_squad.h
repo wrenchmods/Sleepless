@@ -112,6 +112,8 @@ public:
 	bool					IsLeader( CAI_BaseNPC *pLeader );
 	CAI_BaseNPC				*GetLeader( void );
 
+	Vector					ComputeSquadCentroid( bool bIncludeSilentMembers, CBaseCombatCharacter *pExcludeMember );
+
 	int						BroadcastInteraction( int interactionType, void *data, CBaseCombatCharacter *sender = NULL );
 
 	void					AddToSquad(CAI_BaseNPC *pNPC);

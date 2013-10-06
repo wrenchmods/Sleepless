@@ -41,10 +41,7 @@ public:
 	virtual const matrix3x4_t &RenderableToWorldTransform();
 	virtual void			GetRenderBounds( Vector& mins, Vector& maxs );
 	virtual bool			ShouldDraw( void );
-	virtual bool			IsTransparent( void );
-	virtual int				DrawModel( int flags );
-	virtual void			ComputeFxBlend( );
-	virtual int				GetFxBlend( );
+	virtual int				DrawModel( int flags, const RenderableInstance_t &instance );
 
 	// Resets the beam state
 	void			Reset();
@@ -121,10 +118,7 @@ public:
 
 	float			m_flHDRColorScale;
 
-#ifdef PORTAL
-	bool m_bDrawInMainRender;
-	bool m_bDrawInPortalRender;
-#endif //#ifdef PORTAL
+
 };
 
 

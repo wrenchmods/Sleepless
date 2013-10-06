@@ -10,6 +10,8 @@
 #pragma once
 #endif
 
+#include "tier0/basetypes.h"
+
 // Standard maximum +/- value of a joystick axis
 #define MAX_BUTTONSAMPLE			32768
 
@@ -25,7 +27,7 @@
 
 enum
 {
-	MAX_JOYSTICKS = 1,
+	MAX_JOYSTICKS = MAX_SPLITSCREEN_CLIENTS,
 	MOUSE_BUTTON_COUNT = 5,
 };
 
@@ -40,6 +42,11 @@ enum JoystickAxis_t
 	MAX_JOYSTICK_AXES,
 };
 
+enum JoystickDeadzoneMode_t
+{
+	JOYSTICK_DEADZONE_CROSS = 0,
+	JOYSTICK_DEADZONE_SQUARE = 1,
+};
 
 
 //-----------------------------------------------------------------------------
@@ -68,6 +75,23 @@ enum InputEventType_t
 	IE_Quit = IE_FirstSystemEvent,
 	IE_ControllerInserted,	// m_nData contains the controller ID
 	IE_ControllerUnplugged,	// m_nData contains the controller ID
+	IE_Close,
+	IE_WindowSizeChanged,	// m_nData contains width, m_nData2 contains height, m_nData3 = 0 if not minimized, 1 if minimized
+
+	IE_FirstUIEvent = 200,
+	IE_LocateMouseClick = IE_FirstUIEvent,
+	IE_SetCursor,
+	IE_KeyTyped,
+	IE_KeyCodeTyped,
+	IE_InputLanguageChanged,
+	IE_IMESetWindow,
+	IE_IMEStartComposition,
+	IE_IMEComposition,
+	IE_IMEEndComposition,
+	IE_IMEShowCandidates,
+	IE_IMEChangeCandidates,
+	IE_IMECloseCandidates,
+	IE_IMERecomputeModes,
 
 	IE_FirstVguiEvent = 1000,	// Assign ranges for other systems that post user events here
 	IE_FirstAppEvent = 2000,

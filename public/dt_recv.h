@@ -72,6 +72,7 @@ public:
 	RecvVarProxyFn m_Int32ToInt8;
 	RecvVarProxyFn m_Int32ToInt16;
 	RecvVarProxyFn m_Int32ToInt32;
+	RecvVarProxyFn m_Int64ToInt64;
 	RecvVarProxyFn m_FloatToFloat;
 	RecvVarProxyFn m_VectorToVector;
 };
@@ -295,11 +296,14 @@ inline bool RecvTable::IsInMainList() const
 
 void RecvProxy_FloatToFloat  ( const CRecvProxyData *pData, void *pStruct, void *pOut );
 void RecvProxy_VectorToVector( const CRecvProxyData *pData, void *pStruct, void *pOut );
+void RecvProxy_VectorXYToVectorXY( const CRecvProxyData *pData, void *pStruct, void *pOut );
 void RecvProxy_QuaternionToQuaternion( const CRecvProxyData *pData, void *pStruct, void *pOut );
 void RecvProxy_Int32ToInt8   ( const CRecvProxyData *pData, void *pStruct, void *pOut );
 void RecvProxy_Int32ToInt16  ( const CRecvProxyData *pData, void *pStruct, void *pOut );
 void RecvProxy_StringToString( const CRecvProxyData *pData, void *pStruct, void *pOut );
 void RecvProxy_Int32ToInt32  ( const CRecvProxyData *pData, void *pStruct, void *pOut );
+void RecvProxy_Int64ToInt64  ( const CRecvProxyData *pData, void *pStruct, void *pOut );
+void RecvProxy_Int32ToColor32( const CRecvProxyData *pData, void *pStruct, void *pOut );
 
 // StaticDataTable does *pOut = pData.
 void DataTableRecvProxy_StaticDataTable(const RecvProp *pProp, void **pOut, void *pData, int objectID);
@@ -322,6 +326,14 @@ RecvProp RecvPropVector(
 	int sizeofVar=SIZEOF_IGNORE,	// Handled by RECVINFO macro, but set to SIZEOF_IGNORE if you don't want to bother.
 	int flags=0, 
 	RecvVarProxyFn varProxy=RecvProxy_VectorToVector
+	);
+
+RecvProp RecvPropVectorXY(
+	char *pVarName, 
+	int offset, 
+	int sizeofVar=SIZEOF_IGNORE,	// Handled by RECVINFO macro, but set to SIZEOF_IGNORE if you don't want to bother.
+	int flags=0, 
+	RecvVarProxyFn varProxy=RecvProxy_VectorXYToVectorXY
 	);
 
 // This is here so the RecvTable can look more like the SendTable.
@@ -380,6 +392,20 @@ RecvProp InternalRecvPropArray(
 	char *pName,
 	ArrayLengthRecvProxyFn proxy
 	);
+
+
+//
+// Use this to match a SendPropArray_AllAtOnce
+//
+#define RecvPropArray_AllAtOnce( arrayName, propDefinition ) \
+	RecvPropArray( propDefinition, arrayName )
+
+//
+// Use this to match a SendPropArray_UniqueElements
+//
+#define RecvPropArray_UniqueElements( arrayName, propDefinition ) \
+	RecvPropArray3( RECVINFO_ARRAY( m_nValues ), propDefinition )
+
 
 
 //

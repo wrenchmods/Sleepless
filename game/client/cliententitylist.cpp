@@ -100,6 +100,20 @@ IClientNetworkable* CClientEntityList::GetClientNetworkable( int entnum )
 }
 
 
+EntityCacheInfo_t *CClientEntityList::GetClientNetworkableArray()
+{
+	PREFETCH360(m_EntityCacheInfo, 0);
+	return m_EntityCacheInfo;
+}
+
+void CClientEntityList::SetDormant( int entityIndex, bool bDormant )
+{
+	Assert( entityIndex >= 0 );
+	Assert( entityIndex < MAX_EDICTS );
+	m_EntityCacheInfo[entityIndex].m_bDormant = bDormant;
+}
+
+
 IClientEntity* CClientEntityList::GetClientEntity( int entnum )
 {
 	IClientUnknown *pEnt = GetListedEntity( entnum );
@@ -322,6 +336,7 @@ void CClientEntityList::OnAddEntity( IHandleEntity *pEnt, CBaseHandle handle )
 		Assert( dynamic_cast< IClientUnknown* >( pEnt ) );
 		Assert( ((IClientUnknown*)pEnt)->GetClientNetworkable() ); // Server entities should all be networkable.
 		pCache->m_pNetworkable = ((IClientUnknown*)pEnt)->GetClientNetworkable();
+		pCache->m_bDormant = true;
 	}
 
 	IClientUnknown *pUnknown = (IClientUnknown*)pEnt;

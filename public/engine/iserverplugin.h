@@ -84,7 +84,10 @@ public:
 
 	// Client is going active
 	virtual void			ClientActive( edict_t *pEntity ) = 0;
-	
+
+	// Client is fully connected ( has received initial baseline of entities )
+	virtual void			ClientFullyConnect( edict_t *pEntity ) = 0;
+
 	// Client is disconnecting from server
 	virtual void			ClientDisconnect( edict_t *pEntity ) = 0;
 	
@@ -158,17 +161,6 @@ public:
 	// Store the return value if you want to match this specific query to the OnQueryCvarValueFinished call.
 	// Returns InvalidQueryCvarCookie if the entity is invalid.
 	virtual QueryCvarCookie_t StartQueryCvarValue( edict_t *pEntity, const char *pName ) = 0;
-
-	// Create a menu on the client
-	// validSlots - a bitfield of keys that are valid input
-	// displayTime - the duration, in seconds, the menu should stay up. -1 means is stays until something is chosen.
-	// needMore - a boolean, true if there is more string yet to be received before displaying the menu, false if it's the last string
-	// szString - menu string to display
-	// returns false if the menu message isn't registered in the game.
-
-	virtual bool SendMenu( edict_t *pEntity, short validSlots, short displayTime, bool needMore, const char *szString ) = 0;
-
-
 };
 
 #endif //ISERVERPLUGIN_H

@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -7,6 +7,10 @@
 #include <tier0/platform.h>
 #ifdef IS_WINDOWS_PC
 #include <windows.h>
+#else
+#define INVALID_HANDLE_VALUE (void *)0
+#define FILE_BEGIN SEEK_SET
+#define FILE_END SEEK_END
 #endif
 #include "utlbuffer.h"
 #include "utllinkedlist.h"
@@ -15,6 +19,10 @@
 #include "checksum_crc.h"
 #include "byteswap.h"
 #include "utlstring.h"
+
+// NOTE: This has to be the last file included!
+#include "tier0/memdbgon.h"
+
 
 // Data descriptions for byte swapping - only needed
 // for structures that are written to file for use by the game.
@@ -49,8 +57,6 @@ BEGIN_BYTESWAP_DATADESC( ZIP_FileHeader )
 	DEFINE_FIELD( relativeOffsetOfLocalHeader, FIELD_INTEGER ),
 END_BYTESWAP_DATADESC()
 
-#if !defined( SWDS )
-
 BEGIN_BYTESWAP_DATADESC( ZIP_LocalFileHeader )
 	DEFINE_FIELD( signature, FIELD_INTEGER ),
 	DEFINE_FIELD( versionNeededToExtract, FIELD_SHORT ),
@@ -77,6 +83,7 @@ BEGIN_BYTESWAP_DATADESC( ZIP_PreloadDirectoryEntry )
 	DEFINE_FIELD( DataOffset, FIELD_INTEGER ),
 END_BYTESWAP_DATADESC()
 
+#ifdef WIN32
 //-----------------------------------------------------------------------------
 // For >2 GB File Support
 //-----------------------------------------------------------------------------
@@ -153,6 +160,70 @@ public:
 		return bSuccess && ( numBytesWritten == size );
 	}
 };
+#else
+class CWin32File
+{
+public:
+	static HANDLE CreateTempFile( CUtlString &WritePath, CUtlString &FileName )
+	{
+		char tempFileName[MAX_PATH];
+		if ( WritePath.IsEmpty() )
+		{
+			// use a safe name in the cwd
+			char *pBuffer = tmpnam( NULL );
+			if ( !pBuffer )
+			{
+				return INVALID_HANDLE_VALUE;
+			}
+			if ( pBuffer[0] == '\\' )
+			{
+				pBuffer++;
+			}
+			if ( pBuffer[strlen( pBuffer )-1] == '.' )
+			{
+				pBuffer[strlen( pBuffer )-1] = '\0';
+			}
+			V_snprintf( tempFileName, sizeof( tempFileName ), "_%s.tmp", pBuffer );
+		}
+		else
+		{
+			char uniqueFilename[MAX_PATH];
+			static int counter = 0;
+			time_t now = time( NULL );
+			struct tm *tm = localtime( &now );
+			sprintf( uniqueFilename, "%d_%d_%d_%d_%d.tmp", tm->tm_wday, tm->tm_hour, tm->tm_min, tm->tm_sec, ++counter );                                                \
+			V_ComposeFileName( WritePath.String(), uniqueFilename, tempFileName, sizeof( tempFileName ) );
+		}
+
+		FileName = tempFileName;
+		FILE *hFile = fopen( tempFileName, "rw+" );
+		
+		return (HANDLE)hFile;
+	}
+
+	static unsigned int FileSeek( HANDLE hFile, unsigned int distance, DWORD MoveMethod )
+	{
+		return fseeko( (FILE *)hFile, distance, MoveMethod );
+	}
+
+	static unsigned int FileTell( HANDLE hFile )
+	{
+		return ftello( (FILE *)hFile );
+	}
+
+	static bool FileRead( HANDLE hFile, void *pBuffer, unsigned int size )
+	{
+		size_t bytesRead = fread( pBuffer, 1, size, (FILE *)hFile );
+		return bytesRead == size;
+	}
+
+	static bool FileWrite( HANDLE hFile, void *pBuffer, unsigned int size )
+	{
+		size_t bytesWrtitten = fwrite( pBuffer, 1, size, (FILE *)hFile );
+		return bytesWrtitten == size;
+	}
+};
+#endif
 
 //-----------------------------------------------------------------------------
 // Purpose: Interface to allow abstraction of zip file output methods, and
@@ -199,11 +270,13 @@ public:
 		{
 			fwrite( pMem, size, 1, m_file ); 
 		}
+#ifdef WIN32
 		else
 		{
 			DWORD numBytesWritten;
 			WriteFile( m_hFile, pMem, size, &numBytesWritten, NULL );
 		}
+#endif
 	}
 
 	// Implementing IWriteStream method
@@ -213,10 +286,12 @@ public:
 		{
 			return ftell( m_file );
 		}
+#ifdef WIN32
 		else
 		{
 			return CWin32File::FileTell( m_hFile );
 		} 
+#endif
 	}
 
 private:
@@ -347,6 +422,8 @@ private:
 	HANDLE				m_hDiskCacheWriteFile;
 	CUtlString			m_DiskCacheName;
 	CUtlString			m_DiskCacheWritePath;
+
+	bool				m_bIsUpdateFormat;
 };
 
 //-----------------------------------------------------------------------------
@@ -408,6 +485,7 @@ CZipFile::CZipFile( const char *pDiskCacheWritePath, bool bSortByName )
 	m_AlignmentSize = 0;
 	m_bForceAlignment = false;
 	m_bCompatibleFormat = true;
+	m_bIsUpdateFormat = false;
 
 	m_bUseDiskCacheForWrites = ( pDiskCacheWritePath != NULL );
 	m_DiskCacheWritePath = pDiskCacheWritePath;
@@ -441,8 +519,13 @@ void CZipFile::Reset( void )
 
 	if ( m_hDiskCacheWriteFile != INVALID_HANDLE_VALUE )
 	{
+#ifdef WIN32
 		CloseHandle( m_hDiskCacheWriteFile );
 		DeleteFile( m_DiskCacheName.String() );
+#else
+		fclose( (FILE *)m_hDiskCacheWriteFile );
+		unlink( m_DiskCacheName.String() );
+#endif
 		m_hDiskCacheWriteFile = INVALID_HANDLE_VALUE;
 	}
 
@@ -470,6 +553,15 @@ bool CZipFile::CZipEntry::ZipFileLessFunc_CaselessSort( CZipEntry const& src1, C
 
 void CZipFile::ForceAlignment( bool bAligned, bool bCompatibleFormat, unsigned int alignment )
 {
+	// special update format, force the args as desired
+	m_bIsUpdateFormat = false;
+	if ( alignment == 0xFFFFFFFF )
+	{
+		bAligned = false;
+		alignment = 0;
+		m_bIsUpdateFormat = true;
+	}
+
 	m_bForceAlignment = bAligned;
 	m_AlignmentSize = alignment;
 	m_bCompatibleFormat = bCompatibleFormat;
@@ -641,7 +733,11 @@ void CZipFile::ParseFromBuffer( void *buffer, int bufferlength )
 //-----------------------------------------------------------------------------
 HANDLE CZipFile::ParseFromDisk( const char *pFilename )
 {
+#ifdef WIN32
 	HANDLE hFile = CreateFile( pFilename, GENERIC_READ|GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
+#else
+	HANDLE hFile = fopen( pFilename, "rw+" );
+#endif
 	if ( !hFile )
 	{
 		// not found
@@ -653,7 +749,11 @@ HANDLE CZipFile::ParseFromDisk( const char *pFilename )
 	if ( fileLen < sizeof( ZIP_EndOfCentralDirRecord ) )
 	{
 		// bad format
+#ifdef WIN32
 		CloseHandle( hFile );
+#else
+		fclose( (FILE *)hFile );
+#endif
 		return NULL;
 	}
 
@@ -692,7 +792,11 @@ HANDLE CZipFile::ParseFromDisk( const char *pFilename )
 	if ( numZipFiles <= 0 )
 	{
 		// No files
+#ifdef WIN32
 		CloseHandle( hFile );
+#else
+		fclose( (FILE *)hFile );
+#endif
 		return NULL;
 	}
 
@@ -713,7 +817,11 @@ HANDLE CZipFile::ParseFromDisk( const char *pFilename )
 		if ( zipFileHeader.signature != PKID( 1, 2 ) ||  zipFileHeader.compressionMethod != 0 )
 		{
 			// bad contents
+#ifdef WIN32
 			CloseHandle( hFile );
+#else
+			fclose( (FILE *)hFile );
+#endif
 			return NULL;
 		}
 		
@@ -805,7 +913,7 @@ static void CopyTextData( char *pDst, const char *pSrc, int dstSize, int srcSize
 	const char *pSrcEnd = pSrc + srcSize;
 	char *pDstScan = pDst;
 
-#ifdef _DEBUG
+#ifdef DBGFLAG_ASSERT
 	char *pDstEnd = pDst + dstSize;
 #endif
 
@@ -1085,7 +1193,23 @@ int CZipFile::MakeXZipCommentString( char *pCommentString )
 	char tempString[XZIP_COMMENT_LENGTH];
 
 	memset( tempString, 0, sizeof( tempString ) );
-	V_snprintf( tempString, sizeof( tempString ), "XZP%c %d", m_bCompatibleFormat ? '1' : '2', m_AlignmentSize );
+
+	char cFormat = m_bCompatibleFormat ? '1' : '2';
+	if ( m_bCompatibleFormat )
+	{
+		cFormat = '1';
+	}
+	else if ( !m_bIsUpdateFormat )
+	{
+		cFormat = '2';
+	}
+	else
+	{
+		// update format
+		cFormat = '3';
+	}
+
+	V_snprintf( tempString, sizeof( tempString ), "XZP%c %d", cFormat, m_AlignmentSize );
 	if ( pCommentString )
 	{
 		memcpy( pCommentString, tempString, sizeof( tempString ) );
@@ -1106,6 +1230,11 @@ void CZipFile::ParseXZipCommentString( const char *pCommentString )
 		if ( pCommentString[3] == '2' )
 		{
 			m_bCompatibleFormat = false;
+		}
+		else if ( pCommentString[3] == '3' )
+		{
+			m_bCompatibleFormat = false;
+			m_bIsUpdateFormat = true;
 		}
 
 		// parse out the alignement configuration
@@ -1246,9 +1375,14 @@ void CZipFile::SaveDirectory( IWriteStream& stream )
 
 	if ( m_hDiskCacheWriteFile != INVALID_HANDLE_VALUE )
 	{
+#ifdef WIN32
 		FlushFileBuffers( m_hDiskCacheWriteFile );
+#else
+		fflush( (FILE *)m_hDiskCacheWriteFile );
+#endif
 	}
 
+	bool bDataWritten = false;
 	int i;
 	for ( i = m_Files.FirstInorder(); i != m_Files.InvalidIndex(); i = m_Files.NextInorder( i ) )
 	{
@@ -1296,7 +1430,16 @@ void CZipFile::SaveDirectory( IWriteStream& stream )
 			stream.Put( &hdr, sizeof( hdr ) );
 			stream.Put( pFilename, strlen( pFilename ) );
 			stream.Put( pPaddingBuffer, extraFieldLength );
-			stream.Put( e->m_pData, e->m_Length );
+
+			// An update format specifically does not place any files
+			// except the first file which should be the preload section.
+			// All files in an update zip, exist compressed in the preload section.
+			if ( m_bCompatibleFormat || !m_bIsUpdateFormat || !bDataWritten )
+			{
+				// write the data
+				stream.Put( e->m_pData, e->m_Length );
+				bDataWritten = true;
+			}
 
 			if ( m_hDiskCacheWriteFile != INVALID_HANDLE_VALUE )
 			{
@@ -1596,4 +1739,3 @@ unsigned int CZip::GetAlignment()
 	return m_ZipFile.GetAlignment();
 }
 
-#endif // SWDS

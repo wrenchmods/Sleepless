@@ -234,6 +234,9 @@ void CBreakableSurface::Precache(void)
 		PrecacheMaterial( "models/brokenglass/glassbroken_03d" );
 	}
 
+	PrecacheEffect( "GlassImpact" );
+	PrecacheEffect( "Impact" );
+
 	BaseClass::Precache();
 }
 
@@ -275,11 +278,11 @@ void CBreakableSurface::SurfaceTouch( CBaseEntity *pOther )
 	float flMaxsWidth,flMaxsHeight;
 	PanePos(vTouchPos, &flMaxsWidth, &flMaxsHeight);
 
-	int nMinWidth = Floor2Int(max(0,		min(flMinsWidth,flMaxsWidth)));
-	int nMaxWidth = Ceil2Int(min(m_nNumWide,max(flMinsWidth,flMaxsWidth)));
+	int nMinWidth = Floor2Int(MAX(0,		MIN(flMinsWidth,flMaxsWidth)));
+	int nMaxWidth = Ceil2Int( fpmin(m_nNumWide, MAX(flMinsWidth,flMaxsWidth)));
 
-	int nMinHeight = Floor2Int(max(0,		min(flMinsHeight,flMaxsHeight)));
-	int nMaxHeight = Ceil2Int(min(m_nNumHigh,max(flMinsHeight,flMaxsHeight)));
+	int nMinHeight = Floor2Int(MAX(0,		MIN(flMinsHeight,flMaxsHeight)));
+	int nMaxHeight = Ceil2Int( fpmin(m_nNumHigh, MAX(flMinsHeight,flMaxsHeight)));
 
 	Vector vHitVel;
 	pOther->GetVelocity( &vHitVel, NULL );
@@ -340,7 +343,14 @@ int CBreakableSurface::OnTakeDamage( const CTakeDamageInfo &info )
 		Die( info.GetAttacker(), info.GetDamageForce() );
 		return 0;
 	}
-	
+
+#ifdef INFESTED_DLL
+	if ( m_nSurfaceType == SHATTERSURFACE_GLASS && (info.GetDamageType() & DMG_CLUB) )
+	{
+		Die( info.GetAttacker(), info.GetDamageForce() );
+		return 0;
+	}
+#endif
 
 	return 0;
 }
@@ -383,7 +393,7 @@ void CBreakableSurface::TraceAttack( const CTakeDamageInfo &info, const Vector &
 			// client cannot trace against triggers
 			filter.SetIgnorePredictionCull( true );
 
-			te->DispatchEffect( filter, 0.0, data.m_vOrigin, "GlassImpact", data );
+			DispatchEffect( filter, 0.0, "GlassImpact", data );
 		}
 
 		if (m_nSurfaceType == SHATTERSURFACE_GLASS)
@@ -460,11 +470,9 @@ void CBreakableSurface::TraceAttack( const CTakeDamageInfo &info, const Vector &
 		{
 			float flDot = DotProduct(m_vNormal,vecDir);
 
-#ifdef CSTRIKE_DLL
-			float damageMultiplier = info.GetDamage();
-#else
+
 			float damageMultiplier = 1.0f;
-#endif
+
 
 			Vector vBlastDir;
 			if (flDot > 0)
@@ -783,7 +791,7 @@ void CBreakableSurface::SetSupport( int w, int h, float support )
 //------------------------------------------------------------------------------
 float CBreakableSurface::GetSupport(int nWidth, int nHeight)
 {
-	return max(0,m_flSupport[nWidth][nHeight]);
+	return MAX(0,m_flSupport[nWidth][nHeight]);
 }
 
 //------------------------------------------------------------------------------
@@ -1144,19 +1152,25 @@ void CBreakableSurface::Spawn(void)
 
 	if (m_nQuadError == QUAD_ERR_MULT_FACES)
 	{
-		Warning("Rejecting func_breakablesurf.  Has multiple faces that aren't NODRAW.\n");
+		Vector center = WorldSpaceCenter();
+		Warning( "Rejecting func_breakablesurf at (%2.2f, %2.2f, %2.2f).  Has multiple faces that aren't NODRAW.\n",
+			center.x, center.y, center.z );
 		UTIL_Remove(this);
 	}
 	else if (m_nQuadError == QUAD_ERR_NOT_QUAD)
 	{
-		Warning("Rejecting func_breakablesurf.  Drawn face isn't a quad.\n");
+		Vector center = WorldSpaceCenter();
+		Warning( "Rejecting func_breakablesurf at (%2.2f, %2.2f, %2.2f).  Drawn face isn't a quad.\n",
+			center.x, center.y, center.z );
 		UTIL_Remove(this);
 	}
 
 	int materialCount = modelinfo->GetModelMaterialCount( const_cast<model_t*>(GetModel()) );
 	if( materialCount != 1 )
 	{
-		Warning( "Encountered func_breakablesurf that has a material applied to more than one surface!\n" );
+		Vector center = WorldSpaceCenter();
+		Warning( "Encountered func_breakablesurf at (%2.2f, %2.2f, %2.2f) that has a material applied to more than one surface!\n",
+			center.x, center.y, center.z );
 		UTIL_Remove(this);
 	}
 
@@ -1167,7 +1181,7 @@ void CBreakableSurface::Spawn(void)
 	// The material should point to a cracked version of itself
 	bool foundVar;
 	IMaterialVar* pCrackName = pMaterial->FindVar( "$crackmaterial", &foundVar, false );
-	if (foundVar)
+	if ( foundVar && IsPrecacheAllowed() )
 	{
 		PrecacheMaterial( pCrackName->GetStringValue() );
 	}

@@ -32,8 +32,9 @@
 #include "IEffects.h"
 #include "vstdlib/random.h"
 #include "ndebugoverlay.h"
-#include "tier0/vcrmode.h"
 #include "env_debughistory.h"
+#include "ai_behavior.h"
+#include "global_event_log.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -161,6 +162,8 @@ bool CAI_BaseNPC::SetSchedule( int localScheduleID )
 void CAI_BaseNPC::SetSchedule( CAI_Schedule *pNewSchedule )
 {
 	Assert( pNewSchedule != NULL );
+
+	OnSetSchedule();
 	
 	m_ScheduleState.timeCurTaskStarted = m_ScheduleState.timeStarted = gpGlobals->curtime;
 	m_ScheduleState.bScheduleWasInterrupted = false;
@@ -192,6 +195,16 @@ void CAI_BaseNPC::SetSchedule( CAI_Schedule *pNewSchedule )
 	if (m_debugOverlays & OVERLAY_TASK_TEXT_BIT)
 	{
 		DevMsg(this, AIMF_IGNORE_SELECTED, "Schedule: %s (time: %.2f)\n", pNewSchedule->GetName(), gpGlobals->curtime );
+	}
+	if ( m_pEvent != NULL )
+	{
+		if ( m_pScheduleEvent != NULL )
+		{
+			GlobalEventLog.RemoveEvent( m_pScheduleEvent );
+		}
+		m_pScheduleEvent = GlobalEventLog.CreateEvent( "Schedule", false, m_pEvent );
+
+		GlobalEventLog.AddKeyValue( m_pScheduleEvent, false, "Schedule", pNewSchedule->GetName() );
 	}
 
 	ADD_DEBUG_HISTORY( HISTORY_AI_DECISIONS, UTIL_VarArgs("%s(%d): Schedule: %s (time: %.2f)\n", GetDebugName(), entindex(), pNewSchedule->GetName(), gpGlobals->curtime ) );
@@ -698,7 +711,7 @@ void CAI_BaseNPC::MaintainSchedule ( void )
 			return;
 		}
 		
-		AI_PROFILE_SCOPE_BEGIN_( CAI_BaseNPC::GetSchedulingSymbols()->ScheduleIdToSymbol( GetCurSchedule()->GetId() ) );
+		AI_PROFILE_SCOPE_BEGIN_( GetCurSchedule() ? CAI_BaseNPC::GetSchedulingSymbols()->ScheduleIdToSymbol( GetCurSchedule()->GetId() ) : "NULL SCHEDULE" );
 
 		if ( GetTaskStatus() == TASKSTATUS_NEW )
 		{	
@@ -718,6 +731,12 @@ void CAI_BaseNPC::MaintainSchedule ( void )
 			if (m_debugOverlays & OVERLAY_TASK_TEXT_BIT)
 			{
 				DevMsg(this, AIMF_IGNORE_SELECTED, "  Task: %s\n", pszTaskName );
+			}
+			if ( m_pScheduleEvent != NULL )
+			{
+				CGlobalEvent	*pEvent = GlobalEventLog.CreateTempEvent( "New Task", m_pScheduleEvent );
+
+				GlobalEventLog.AddKeyValue( pEvent, false, "Task", pszTaskName );
 			}
 
 			ADD_DEBUG_HISTORY( HISTORY_AI_DECISIONS, UTIL_VarArgs("%s(%d):  Task: %s\n", GetDebugName(), entindex(), pszTaskName ) );
@@ -747,7 +766,7 @@ void CAI_BaseNPC::MaintainSchedule ( void )
 		// UNDONE: Twice?!!!
 		MaintainActivity();
 		
-		AI_PROFILE_SCOPE_BEGIN_( CAI_BaseNPC::GetSchedulingSymbols()->ScheduleIdToSymbol( GetCurSchedule()->GetId() ) );
+		AI_PROFILE_SCOPE_BEGIN_( GetCurSchedule() ? CAI_BaseNPC::GetSchedulingSymbols()->ScheduleIdToSymbol( GetCurSchedule()->GetId() ) : "NULL SCHEDULE" );
 
 		if ( !TaskIsComplete() && GetTaskStatus() != TASKSTATUS_NEW )
 		{
@@ -811,6 +830,11 @@ void CAI_BaseNPC::MaintainSchedule ( void )
 		// Decide if we should continue on this frame
 		if ( !bStopProcessing && ShouldStopProcessingTasks( this, Plat_MSTime() - taskTime, timeLimit ) )
 			bStopProcessing = true;
+	}
+
+	for ( i = 0; i < m_Behaviors.Count(); i++ )
+	{
+		m_Behaviors[i]->MaintainChannelSchedules();
 	}
 
 	// UNDONE: We have to do this so that we have an animation set to blend to if RunTask changes the animation
@@ -895,11 +919,11 @@ bool CAI_BaseNPC::FindCoverPos( CSound *pSound, Vector *pResult )
 {
 	if ( !GetTacticalServices()->FindCoverPos( pSound->GetSoundReactOrigin(), 
 												pSound->GetSoundReactOrigin(), 
-												min( pSound->Volume(), 120.0 ), 
+												MIN( pSound->Volume(), 120.0 ), 
 												CoverRadius(), 
 												pResult ) )
 	{
-		return GetTacticalServices()->FindLateralCover( pSound->GetSoundReactOrigin(), min( pSound->Volume(), 60.0 ), pResult );
+		return GetTacticalServices()->FindLateralCover( pSound->GetSoundReactOrigin(), MIN( pSound->Volume(), 60.0 ), pResult );
 	}
 
 	return true;
@@ -1088,7 +1112,7 @@ float CAI_BaseNPC::GetReasonableFacingDist( void )
 		if ( GetEnemy() )
 		{
 			float distEnemy = ( GetEnemy()->GetAbsOrigin().AsVector2D() - GetAbsOrigin().AsVector2D() ).Length() - 1.0; 
-			return min( distEnemy, dist );
+			return MIN( distEnemy, dist );
 		}
 
 		return dist;
@@ -1862,7 +1886,7 @@ void CAI_BaseNPC::StartTask( const Task_t *pTask )
 				}
 				else if ( GetActiveWeapon() )
 				{
-					flRange = max( GetActiveWeapon()->m_fMaxRange1, GetActiveWeapon()->m_fMaxRange2 );
+					flRange = MAX( GetActiveWeapon()->m_fMaxRange1, GetActiveWeapon()->m_fMaxRange2 );
 				}
 				else
 				{
@@ -1905,8 +1929,8 @@ void CAI_BaseNPC::StartTask( const Task_t *pTask )
 			
 			if ( GetActiveWeapon() )
 			{
-				flMaxRange = max( GetActiveWeapon()->m_fMaxRange1, GetActiveWeapon()->m_fMaxRange2 );
-				flMinRange = min( GetActiveWeapon()->m_fMinRange1, GetActiveWeapon()->m_fMinRange2 );
+				flMaxRange = MAX( GetActiveWeapon()->m_fMaxRange1, GetActiveWeapon()->m_fMaxRange2 );
+				flMinRange = MIN( GetActiveWeapon()->m_fMinRange1, GetActiveWeapon()->m_fMinRange2 );
 			}
 			else if ( CapabilitiesGet() & bits_CAP_INNATE_RANGE_ATTACK1 )
 			{
@@ -1914,7 +1938,7 @@ void CAI_BaseNPC::StartTask( const Task_t *pTask )
 				flMinRange = InnateRange1MinRange();
 			}
 
-			//Check against NPC's max range
+			//Check against NPC's MAX range
 			if ( flMaxRange > m_flDistTooFar )
 			{
 				flMaxRange = m_flDistTooFar;
@@ -2073,8 +2097,8 @@ void CAI_BaseNPC::StartTask( const Task_t *pTask )
 
 					if ( GetActiveWeapon() )
 					{
-						flMaxRange = max( GetActiveWeapon()->m_fMaxRange1, GetActiveWeapon()->m_fMaxRange2 );
-						flMinRange = min( GetActiveWeapon()->m_fMinRange1, GetActiveWeapon()->m_fMinRange2 );
+						flMaxRange = MAX( GetActiveWeapon()->m_fMaxRange1, GetActiveWeapon()->m_fMaxRange2 );
+						flMinRange = MIN( GetActiveWeapon()->m_fMinRange1, GetActiveWeapon()->m_fMinRange2 );
 					}
 					else if ( CapabilitiesGet() & bits_CAP_INNATE_RANGE_ATTACK1 )
 					{
@@ -2082,7 +2106,7 @@ void CAI_BaseNPC::StartTask( const Task_t *pTask )
 						flMinRange = InnateRange1MinRange();
 					}
 
-					// Check against NPC's max range
+					// Check against NPC's MAX range
 					if ( flMaxRange > m_flDistTooFar )
 					{
 						flMaxRange = m_flDistTooFar;
@@ -2229,8 +2253,8 @@ void CAI_BaseNPC::StartTask( const Task_t *pTask )
 		float flMinRange = 0;
 		if ( GetActiveWeapon() )
 		{
-			flMaxRange = max(GetActiveWeapon()->m_fMaxRange1,GetActiveWeapon()->m_fMaxRange2);
-			flMinRange = min(GetActiveWeapon()->m_fMinRange1,GetActiveWeapon()->m_fMinRange2);
+			flMaxRange = MAX(GetActiveWeapon()->m_fMaxRange1,GetActiveWeapon()->m_fMaxRange2);
+			flMinRange = MIN(GetActiveWeapon()->m_fMinRange1,GetActiveWeapon()->m_fMinRange2);
 		}
 		else if ( CapabilitiesGet() & bits_CAP_INNATE_RANGE_ATTACK1 )
 		{
@@ -2238,7 +2262,7 @@ void CAI_BaseNPC::StartTask( const Task_t *pTask )
 			flMinRange = InnateRange1MinRange();
 		}
 
-		// Check against NPC's max range
+		// Check against NPC's MAX range
 		if (flMaxRange > m_flDistTooFar)
 		{
 			flMaxRange = m_flDistTooFar;
@@ -2343,6 +2367,14 @@ void CAI_BaseNPC::StartTask( const Task_t *pTask )
 					}
 				}
 			}
+		}
+		break;
+
+	case TASK_GET_PATH_OFF_OF_NPC:
+		{
+			Assert( ( GetGroundEntity() && ( GetGroundEntity()->IsPlayer() || ( GetGroundEntity()->IsNPC() && IRelationType( GetGroundEntity() ) == D_LI ) ) ) );
+			GetNavigator()->SetAllowBigStep( GetGroundEntity() );
+			ChainStartTask( TASK_MOVE_AWAY_PATH, 48 );
 		}
 		break;
 
@@ -2623,6 +2655,12 @@ void CAI_BaseNPC::StartTask( const Task_t *pTask )
 
 	case TASK_WAIT_FOR_MOVEMENT_STEP:
 		{
+			if ( IsMovementFrozen() )
+			{
+				TaskFail(FAIL_FROZEN);
+				break;
+			}
+
 			if(!GetNavigator()->IsGoalActive())
 			{
 				TaskComplete();
@@ -2640,6 +2678,12 @@ void CAI_BaseNPC::StartTask( const Task_t *pTask )
 
 	case TASK_WAIT_FOR_MOVEMENT:
 		{
+			if ( IsMovementFrozen() )
+			{
+				TaskFail(FAIL_FROZEN);
+				break;
+			}
+
 			if (GetNavigator()->GetGoalType() == GOALTYPE_NONE)
 			{
 				TaskComplete();
@@ -3142,6 +3186,7 @@ void CAI_BaseNPC::RunDieTask()
 		}
 		else // !!!HACKHACK - put NPC in a thin, wide bounding box until we fix the solid type/bounding volume problem
 			UTIL_SetSize ( this, WorldAlignMins(), Vector ( WorldAlignMaxs().x, WorldAlignMaxs().y, WorldAlignMins().z + 1 ) );
+
 	}
 }
 
@@ -3354,7 +3399,7 @@ void CAI_BaseNPC::RunTask( const Task_t *pTask )
 
 			GetMotor()->UpdateYaw();
 			
-			if ( FacingIdeal() )
+			if ( FacingIdeal( m_flFaceEnemyTolerance ) )
 			{
 				TaskComplete();
 			}
@@ -3636,6 +3681,16 @@ void CAI_BaseNPC::RunTask( const Task_t *pTask )
 		break;
 	}	
 
+	case TASK_GET_PATH_OFF_OF_NPC:
+		{
+			if ( AI_IsSinglePlayer() )
+			{
+				GetNavigator()->SetAllowBigStep( UTIL_GetLocalPlayer() );
+			}
+			ChainRunTask( TASK_MOVE_AWAY_PATH, 48 );
+		}
+		break;
+
 	case TASK_MOVE_AWAY_PATH:
 		{
 			QAngle ang = GetLocalAngles();
@@ -3654,7 +3709,7 @@ void CAI_BaseNPC::RunTask( const Task_t *pTask )
 
 						hintCriteria.AddHintType( HINT_PLAYER_ALLY_MOVE_AWAY_DEST );
 						hintCriteria.SetFlag( bits_HINT_NODE_NEAREST );
-						hintCriteria.AddIncludePosition( GetAbsOrigin(), (20.0f * 12.0f) ); // 20 feet max
+						hintCriteria.AddIncludePosition( GetAbsOrigin(), (20.0f * 12.0f) ); // 20 feet MAX
 						hintCriteria.AddExcludePosition( GetAbsOrigin(), 28.0f ); // don't plant on an hint that you start on
 
 						pHint = CAI_HintManager::FindHint( this, hintCriteria );
@@ -3693,7 +3748,7 @@ void CAI_BaseNPC::RunTask( const Task_t *pTask )
 #else
 					AngleVectors( ang, &move );
 #endif	//HL2_EPISODIC
-					if ( GetNavigator()->SetVectorGoal( move, (float)pTask->flTaskData, min(36,pTask->flTaskData), true ) && IsValidMoveAwayDest( GetNavigator()->GetGoalPos() ))
+					if ( GetNavigator()->SetVectorGoal( move, (float)pTask->flTaskData, MIN(36,pTask->flTaskData), true ) && IsValidMoveAwayDest( GetNavigator()->GetGoalPos() ))
 					{
 						TaskComplete();
 					}
@@ -3702,7 +3757,7 @@ void CAI_BaseNPC::RunTask( const Task_t *pTask )
 						ang.y = GetMotor()->GetIdealYaw() + 91;
 						AngleVectors( ang, &move );
 
-						if ( GetNavigator()->SetVectorGoal( move, (float)pTask->flTaskData, min(24,pTask->flTaskData), true ) && IsValidMoveAwayDest( GetNavigator()->GetGoalPos() ) )
+						if ( GetNavigator()->SetVectorGoal( move, (float)pTask->flTaskData, MIN(24,pTask->flTaskData), true ) && IsValidMoveAwayDest( GetNavigator()->GetGoalPos() ) )
 						{
 							TaskComplete();
 						}
@@ -3719,7 +3774,7 @@ void CAI_BaseNPC::RunTask( const Task_t *pTask )
 					ang.y = GetMotor()->GetIdealYaw() + 271;
 					AngleVectors( ang, &move );
 
-					if ( GetNavigator()->SetVectorGoal( move, (float)pTask->flTaskData, min(24,pTask->flTaskData), true ) && IsValidMoveAwayDest( GetNavigator()->GetGoalPos() ) )
+					if ( GetNavigator()->SetVectorGoal( move, (float)pTask->flTaskData, MIN(24,pTask->flTaskData), true ) && IsValidMoveAwayDest( GetNavigator()->GetGoalPos() ) )
 					{
 						TaskComplete();
 					}
@@ -3741,7 +3796,7 @@ void CAI_BaseNPC::RunTask( const Task_t *pTask )
 
 						AngleVectors( ang, &move );
 
-						if ( GetNavigator()->SetVectorGoal( move, (float)pTask->flTaskData, min(6,pTask->flTaskData), false ) && IsValidMoveAwayDest( GetNavigator()->GetGoalPos() ) )
+						if ( GetNavigator()->SetVectorGoal( move, (float)pTask->flTaskData, MIN(6,pTask->flTaskData), false ) && IsValidMoveAwayDest( GetNavigator()->GetGoalPos() ) )
 						{
 							TaskComplete();
 						}
@@ -3800,6 +3855,12 @@ void CAI_BaseNPC::RunTask( const Task_t *pTask )
 	case TASK_WAIT_FOR_MOVEMENT_STEP:
 	case TASK_WAIT_FOR_MOVEMENT:
 		{
+			if ( IsMovementFrozen() )
+			{
+				TaskFail(FAIL_FROZEN);
+				break;
+			}
+
 			bool fTimeExpired = ( pTask->flTaskData != 0 && pTask->flTaskData < gpGlobals->curtime - GetTimeTaskStarted() );
 			
 			if (fTimeExpired || GetNavigator()->GetGoalType() == GOALTYPE_NONE)
@@ -4111,7 +4172,7 @@ void CAI_BaseNPC::RunTask( const Task_t *pTask )
 				vecDown.z -= 0.2;
 
 				trace_t trace;
-				m_pMoveProbe->TraceHull( vecStart, vecDown, mins, maxs, MASK_NPCSOLID, &trace );
+				m_pMoveProbe->TraceHull( vecStart, vecDown, mins, maxs, GetAITraceMask(), &trace );
 
 				if( trace.m_pEnt )
 				{
@@ -4132,6 +4193,10 @@ void CAI_BaseNPC::RunTask( const Task_t *pTask )
 		break;
 
 	case TASK_FREEZE:
+		if ( m_flFrozen < 1.0f )
+		{
+			Unfreeze();
+		}
 		break;
 
 	default:
@@ -4342,6 +4407,52 @@ const Task_t *CAI_BaseNPC::GetTask( void )
 		return NULL;
 
 	return &GetCurSchedule()->GetTaskList()[ iScheduleIndex ];
+}
+
+
+void CAI_BaseNPC::TranslateAddOnAttachment( char *pchAttachmentName, int iCount )
+{
+#ifdef HL2_DLL
+	if( Classify() == CLASS_ZOMBIE || ClassMatches( "npc_combine*" ) )
+	{
+		if ( Q_strcmp( pchAttachmentName, "addon_rear" ) == 0 || 
+			 Q_strcmp( pchAttachmentName, "addon_front" ) == 0 || 
+			 Q_strcmp( pchAttachmentName, "addon_rear_or_front" ) == 0 )
+		{
+			if ( iCount == 0 )
+			{
+				Q_strcpy( pchAttachmentName, "eyes" );
+			}
+			else
+			{
+				Q_strcpy( pchAttachmentName, "" );
+			}
+
+			return;
+		}
+	}
+#endif
+
+	if( Q_strcmp( pchAttachmentName, "addon_baseshooter" ) == 0 )
+	{
+		switch ( iCount )
+		{
+		case 0:
+			Q_strcpy( pchAttachmentName, "anim_attachment_lh" );
+			break;
+
+		case 1:
+			Q_strcpy( pchAttachmentName, "anim_attachment_rh" );
+			break;
+
+		default:
+			Q_strcpy( pchAttachmentName, "" );
+		}
+
+		return;
+	}
+
+	Q_strcpy( pchAttachmentName, "" );
 }
 
 

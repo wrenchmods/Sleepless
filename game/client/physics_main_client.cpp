@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -6,7 +6,9 @@
 //=============================================================================//
 #include "cbase.h"
 #include "c_baseentity.h"
-#include "typeinfo.h"
+#ifdef WIN32
+#include <typeinfo.h>
+#endif
 #include "tier0/vprof.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -267,7 +269,10 @@ void C_BaseEntity::SetCheckUntouch( bool check )
 	if ( check )
 	{
 		touchStamp++;
-		AddEFlags( EFL_CHECK_UNTOUCH );
+		if ( !IsEFlagSet( EFL_CHECK_UNTOUCH ) )
+		{
+			AddEFlags( EFL_CHECK_UNTOUCH );
+		}
 	}
 	else
 	{
@@ -307,7 +312,7 @@ void C_BaseEntity::PhysicsDispatchThink( BASEPTR thinkFunc )
 
 	if ( thinkLimit )
 	{
-		startTime = engine->Time();
+		startTime = Plat_FloatTime();
 	}
 	
 	if ( thinkFunc )
@@ -318,7 +323,7 @@ void C_BaseEntity::PhysicsDispatchThink( BASEPTR thinkFunc )
 	if ( thinkLimit )
 	{
 		// calculate running time of the AI in milliseconds
-		float time = ( engine->Time() - startTime ) * 1000.0f;
+		float time = ( Plat_FloatTime() - startTime ) * 1000.0f;
 		if ( time > thinkLimit )
 		{
 #if 0
@@ -331,7 +336,11 @@ void C_BaseEntity::PhysicsDispatchThink( BASEPTR thinkFunc )
 			else
 #endif
 			{
+#ifdef WIN32
 				Msg( "CLIENT:  %s(%s) thinking for %.02f ms!!!\n", GetClassname(), typeid(this).raw_name(), time );
+#else
+				Msg( "CLIENT:  %s(%s) thinking for %.02f ms!!!\n", GetClassname(), typeid(this).name(), time );				
+#endif
 			}
 		}
 	}
