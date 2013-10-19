@@ -776,6 +776,7 @@ if exist "$(TargetDir)"$(ProjectName).pdb copy "$(TargetDir)"$(ProjectName).pdb 
     <ClCompile Include="trains.cpp" />
     <ClCompile Include="triggers.cpp" />
     <ClCompile Include="..\shared\usercmd.cpp" />
+    <ClCompile Include="trigger_portal_cleanser.cpp" />
     <ClCompile Include="util.cpp" />
     <ClCompile Include="..\shared\util_shared.cpp" />
     <ClCompile Include="variant_t.cpp" />

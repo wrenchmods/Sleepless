@@ -1,6 +1,10 @@
 //========= Copyright © 1996-2008, Valve Corporation, All rights reserved. ====
+//=====================================================================================//
+//====================== Modified for Sleeples Mod by kaitek666 =======================//
 //
-//=============================================================================
+// kaitek666:	Added view bob - cvars and values
+//
+//=====================================================================================//
 #include "cbase.h"
 #include "gamemovement.h"
 #include "in_buttons.h"
@@ -59,6 +63,14 @@ ConVar player_limit_jump_speed( "player_limit_jump_speed", "1", FCVAR_REPLICATED
 // convar which is ONLY set by the X360 controller menu to tell us which way to bind the
 // duck controls. Its value is meaningless anytime we don't have the options window open.
 ConVar option_duck_method("option_duck_method", "1", FCVAR_REPLICATED|FCVAR_ARCHIVE );// 0 = HOLD to duck, 1 = Duck is a toggle
+
+/////////////////////////////////////////////////////////////////////
+// kaitek666:	View Bob convars
+//
+ConVar cl_viewbob_enabled	( "cl_viewbob_enabled", "1", 0, "Oscillation Toggle", true, 0, true, 1 );
+ConVar cl_viewbob_timer		( "cl_viewbob_timer", "10", 0, "Speed of Oscillation");
+ConVar cl_viewbob_scale		( "cl_viewbob_scale", "0.05", 0, "Magnitude of Oscillation");
+
 
 // [MD] I'll remove this eventually. For now, I want the ability to A/B the optimizations.
 bool g_bMovementOptimizations = true;
@@ -2079,11 +2091,20 @@ void CGameMovement::StayOnGround( void )
 	}
 }
 
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
 void CGameMovement::WalkMove( void )
 {
+	/////////////////////////////////////////////////////////////////////
+	// kaitek666:	View Bob stuff
+	//
+	 if ( cl_viewbob_enabled.GetInt() == 1 && !engine->IsPaused() )
+		{
+			float xoffset = sin( gpGlobals->curtime * cl_viewbob_timer.GetFloat() ) * player->GetAbsVelocity().Length() * cl_viewbob_scale.GetFloat() / 200; //was 100
+			float yoffset = sin( 2 * gpGlobals->curtime * cl_viewbob_timer.GetFloat() ) * player->GetAbsVelocity().Length() * cl_viewbob_scale.GetFloat() / 500; //was 400
+			player->ViewPunch( QAngle( xoffset, yoffset, 0));
+ 
+		}
+	//till here
+
 	int i;
 
 	Vector wishvel;

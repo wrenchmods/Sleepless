@@ -1,9 +1,11 @@
-//========= Copyright © 1996-2001, Valve LLC, All rights reserved. ============
+//============= Copyright © 1996-2001, Valve LLC, All rights reserved. ================//
+//=====================================================================================//
+//====================== Modified for Sleeples Mod by kaitek666 =======================//
 //
-// Purpose:		Player for SDK
+// kaitek666:	To make weapons work, I had to add them here too. Also, I want
+//				player to have no weapons at spawn, so I commented out some lines.
 //
-// $NoKeywords: $
-//=============================================================================
+//=====================================================================================//
 
 #include "cbase.h"
 #include "sdk_player.h"
@@ -191,11 +193,20 @@ void CSDK_Player::GiveDefaultItems()
 {
 	CBasePlayer::GiveAmmo( 30,	"pistol");
 	CBasePlayer::GiveAmmo( 60,	"mp5");
+	CBasePlayer::GiveAmmo( 60,	"pistol1");
 	CBasePlayer::GiveAmmo( 60,	"magnum");
 
-	GiveNamedItem( "weapon_pistol" );
+
+/////////////////////////////////////////////////////////////////////
+// kaitek666:	After commenting this out, player will spawn
+//				with no weapons.
+//
+//
+
+/*	GiveNamedItem( "weapon_pistol" );
 	GiveNamedItem( "weapon_mp5" );
 	GiveNamedItem( "weapon_magnum" );
+	GiveNamedItem( "weapon_pistol1" );*/
 }
 
 void CSDK_Player::CreateViewModel( int index /*=0*/ )

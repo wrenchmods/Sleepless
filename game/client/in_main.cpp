@@ -1,11 +1,10 @@
-//========= Copyright � 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright 1996-2005, Valve Corporation, All rights reserved. ============//
+//=====================================================================================//
+//====================== Modified for Sleeples Mod by kaitek666 =======================//
 //
-// Purpose: builds an intended movement command to send to the server
+// kaitek666:	Movement speed change (49)
 //
-// $Workfile:     $
-// $Date:         $
-// $NoKeywords: $
-//=============================================================================//
+//=====================================================================================//
 
 
 #include "cbase.h"
@@ -46,10 +45,10 @@ ConVar cl_yawspeed( "cl_yawspeed", "210", 0 );
 ConVar cl_pitchspeed( "cl_pitchspeed", "225", 0 );
 ConVar cl_pitchdown( "cl_pitchdown", "89", FCVAR_CHEAT );
 ConVar cl_pitchup( "cl_pitchup", "89", FCVAR_CHEAT );
-ConVar cl_sidespeed( "cl_sidespeed", "450", FCVAR_CHEAT );
-ConVar cl_upspeed( "cl_upspeed", "320", FCVAR_CHEAT );
-ConVar cl_forwardspeed( "cl_forwardspeed", "450", FCVAR_CHEAT );
-ConVar cl_backspeed( "cl_backspeed", "450", FCVAR_CHEAT );
+ConVar cl_sidespeed( "cl_sidespeed", "140", FCVAR_CHEAT ); //was 450
+ConVar cl_upspeed( "cl_upspeed", "140", FCVAR_CHEAT ); //was 320
+ConVar cl_forwardspeed( "cl_forwardspeed", "140", FCVAR_CHEAT ); //was 450
+ConVar cl_backspeed( "cl_backspeed", "100", FCVAR_CHEAT ); //was 400
 ConVar lookspring( "lookspring", "0", FCVAR_ARCHIVE );
 ConVar lookstrafe( "lookstrafe", "0", FCVAR_ARCHIVE );
 

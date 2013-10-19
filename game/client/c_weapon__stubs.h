@@ -37,5 +37,6 @@
 	END_RECV_TABLE()
 
 STUB_WEAPON_CLASS( weapon_magnum, WeaponMagnum,C_BaseHLCombatWeapon );
+STUB_WEAPON_CLASS( weapon_pistol1, WeaponPISTOL1,C_BaseHLCombatWeapon );
 
 #endif // C_WEAPON__STUBS_H

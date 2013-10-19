@@ -68,6 +68,7 @@ CAmmoDef* GetAmmoDef()
 		bInitted = true;
 
 		def.AddAmmoType( "mp5", DMG_BULLET, TRACER_LINE_AND_WHIZ, 0, 0, 200/*max carry*/, 1, 0 );
+		def.AddAmmoType( "pistol1", DMG_BULLET, TRACER_LINE_AND_WHIZ, 0, 0, 200/*max carry*/, 1, 0 );
 		def.AddAmmoType( "pistol", DMG_BULLET, TRACER_LINE_AND_WHIZ, 0, 0, 200/*max carry*/, 1, 0 );
 		def.AddAmmoType( "magnum", DMG_BULLET, TRACER_LINE_AND_WHIZ, 0, 0, 200/*max carry*/, 1, 0 );
 		

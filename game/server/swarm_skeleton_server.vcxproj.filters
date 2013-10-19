@@ -1571,6 +1571,9 @@
     <ClCompile Include="..\shared\weapon_magnum.cpp">
       <Filter>Source Files\Sleepless</Filter>
     </ClCompile>
+    <ClCompile Include="trigger_portal_cleanser.cpp">
+      <Filter>Source Files\Sleepless</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\shared\achievement_saverestore.h">
