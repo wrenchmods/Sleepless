@@ -315,6 +315,9 @@ protected:
 		// Set until polled by CreateMove and cleared
 		CHandle< C_BaseCombatWeapon > m_hSelectedWeapon;
 
+		// Cinematic mode setpoint angle
+		QAngle m_angCinematicSetpoint;
+
 #if defined( HL2_CLIENT_DLL )
 		CUtlVector< CEntityGroundContact > m_EntityGroundContact;
 #endif

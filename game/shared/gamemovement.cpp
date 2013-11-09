@@ -1,8 +1,8 @@
-//========= Copyright © 1996-2008, Valve Corporation, All rights reserved. ====
+//========= Copyright © 1996-2008, Valve Corporation, All rights reserved. ============//
 //=====================================================================================//
 //====================== Modified for Sleeples Mod by kaitek666 =======================//
 //
-// kaitek666:	Added view bob - cvars and values
+// kaitek666:	Added view bob - cvars (l 67) and values (l 2096).
 //
 //=====================================================================================//
 #include "cbase.h"
@@ -2098,12 +2098,12 @@ void CGameMovement::WalkMove( void )
 	//
 	 if ( cl_viewbob_enabled.GetInt() == 1 && !engine->IsPaused() )
 		{
-			float xoffset = sin( gpGlobals->curtime * cl_viewbob_timer.GetFloat() ) * player->GetAbsVelocity().Length() * cl_viewbob_scale.GetFloat() / 200; //was 100
-			float yoffset = sin( 2 * gpGlobals->curtime * cl_viewbob_timer.GetFloat() ) * player->GetAbsVelocity().Length() * cl_viewbob_scale.GetFloat() / 500; //was 400
+			float xoffset = sin( gpGlobals->curtime * cl_viewbob_timer.GetFloat() ) * player->GetAbsVelocity().Length() * cl_viewbob_scale.GetFloat() / 400; //was 100 (tried 150. weird)
+			float yoffset = sin( 2 * gpGlobals->curtime * cl_viewbob_timer.GetFloat() ) * player->GetAbsVelocity().Length() * cl_viewbob_scale.GetFloat() / 450; //was 400 (tried 450. can be)
 			player->ViewPunch( QAngle( xoffset, yoffset, 0));
  
 		}
-	//till here
+	// till here
 
 	int i;
 

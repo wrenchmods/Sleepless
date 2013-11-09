@@ -1,11 +1,10 @@
-//===== Copyright 1996-2005, Valve Corporation, All rights reserved. ======//
+//============ Copyright 1996-2005, Valve Corporation, All rights reserved. =============//
+//=======================================================================================//
+//================ Modified for Sleeples Mod by Wolf480pl and kaitek666 =================//
 //
-// Purpose: Mouse input routines
+// Changes:	Smooth mouse, Cinematic view
 //
-// $Workfile:     $
-// $Date:         $
-// $NoKeywords: $
-//===========================================================================//
+//=======================================================================================//
 #if defined( WIN32 ) && !defined( _X360 )
 #include <windows.h>
 #endif
@@ -112,6 +111,8 @@ ConVar cl_mouselook( "cl_mouselook", "1", FCVAR_ARCHIVE | FCVAR_NOT_CONNECTED | 
 
 ConVar cl_mouseenable( "cl_mouseenable", "1", FCVAR_RELEASE );
 
+ConVar m_cinematic( "m_cinematic", "0");
+ConVar m_cinematic_depth( "m_cinematic_depth", "0.9", 0, "Intensity of the cinematic effect, between 0 and 1", true, 0, true, 1);
 
 //-----------------------------------------------------------------------------
 // Purpose: Hides cursor and starts accumulation/re-centering
@@ -605,9 +606,18 @@ void CInput::MouseMove( int nSlot, CUserCmd *cmd )
 	float	mouse_x, mouse_y;
 	float	mx, my;
 	QAngle	viewangles;
+	QAngle actual_viewangles;
 
 	// Get view angles from engine
-	engine->GetViewAngles( viewangles );
+	engine->GetViewAngles( actual_viewangles );
+
+	PerUserInput_t perUser = GetPerUser(nSlot);
+
+	if (m_cinematic.GetBool()) {
+		viewangles = perUser.m_angCinematicSetpoint;
+	} else {
+		viewangles = actual_viewangles;
+	}
 
 	// Validate mouse speed/acceleration settings
 	CheckMouseAcclerationVars();
@@ -641,8 +651,17 @@ void CInput::MouseMove( int nSlot, CUserCmd *cmd )
 		ResetMouse();
 	}
 
+	GetPerUser(nSlot).m_angCinematicSetpoint = viewangles;
+
+	if (m_cinematic.GetBool()) {
+		float k = m_cinematic_depth.GetFloat();
+		actual_viewangles = viewangles * (1 - k) + actual_viewangles * k;
+	} else {
+		actual_viewangles = viewangles;
+	}
+
 	// Store out the new viewangles.
-	engine->SetViewAngles( viewangles );
+	engine->SetViewAngles( actual_viewangles );
 }
 
 //-----------------------------------------------------------------------------

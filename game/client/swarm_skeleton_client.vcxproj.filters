@@ -85,6 +85,9 @@
     <Filter Include="Source Files\Sleepless">
       <UniqueIdentifier>{5dcb3952-9e1f-4149-89ad-b0fad7afeafb}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\Sleepless\GUI">
+      <UniqueIdentifier>{b41f366f-2ce2-43b0-9532-68ed96ded615}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="client_base.vpc">
