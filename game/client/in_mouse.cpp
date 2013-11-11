@@ -2,7 +2,7 @@
 //=======================================================================================//
 //================ Modified for Sleeples Mod by Wolf480pl and kaitek666 =================//
 //
-// Changes:	Smooth mouse, Cinematic view
+// Changes:	Smooth mouse, Cinematic view (656) (114)
 //
 //=======================================================================================//
 #if defined( WIN32 ) && !defined( _X360 )
@@ -655,7 +655,13 @@ void CInput::MouseMove( int nSlot, CUserCmd *cmd )
 
 	if (m_cinematic.GetBool()) {
 		float k = m_cinematic_depth.GetFloat();
-		actual_viewangles = viewangles * (1 - k) + actual_viewangles * k;
+		QAngle steering;
+		steering.x = UTIL_AngleDiff(viewangles.x, actual_viewangles.x);
+		steering.y = UTIL_AngleDiff(viewangles.y, actual_viewangles.y);
+		steering.z = UTIL_AngleDiff(viewangles.z, actual_viewangles.z);
+
+		actual_viewangles += steering * (1-k);
+
 	} else {
 		actual_viewangles = viewangles;
 	}

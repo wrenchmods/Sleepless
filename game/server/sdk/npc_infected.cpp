@@ -1,7 +1,13 @@
-//==== Copyright © 2012, Sandern Corporation, All rights reserved. =========
+//========== Copyright © 2012, Sandern Corporation, All rights reserved. ============//
+//===================================================================================//
+//===================== Modified for Sleeples Mod by kaitek666 ======================//
 //
+// kaitek666:	Precache all
+//				More infected models (11)
+//				Female infected
+//				Precache all
 //
-//=============================================================================
+//===================================================================================//
 
 #include "cbase.h"
 #include "ai_baseactor.h"
@@ -115,24 +121,18 @@ CNPC_Infected::~CNPC_Infected()
 
 void CNPC_Infected::Precache()
 {
-#ifndef INFECTED_ALLMODELS
 	PrecacheModel( "models/infected/common_male01.mdl" );
-#else
-	PrecacheModel( "models/infected/common_female_rural01.mdl");
-	PrecacheModel( "models/infected/common_worker_male01.mdl");
-	PrecacheModel( "models/infected/common_tsaagent_male01.mdl");
-	PrecacheModel( "models/infected/common_worker_male01.mdl");
-	PrecacheModel( "models/infected/common_surgeon_male01.mdl");
-	PrecacheModel( "models/infected/common_police_male01.mdl");
-	PrecacheModel( "models/infected/common_surgeon_male01.mdl");
-	PrecacheModel( "models/infected/common_patient_male01.mdl");
-	PrecacheModel( "models/infected/common_military_male01.mdl");
-	PrecacheModel( "models/infected/common_male_suit.mdl");
-	PrecacheModel( "models/infected/common_male_rural01.mdl");
-	PrecacheModel( "models/infected/common_male_pilot.mdl");
-	PrecacheModel( "models/infected/common_male_baggagehandler_01.mdl");
-	PrecacheModel( "models/infected/common_female01.mdl");
-	PrecacheModel( "models/infected/common_female_nurse01.mdl");
+	PrecacheModel( "models/infected/common_male_ceda.mdl");
+	PrecacheModel( "models/infected/common_male_clown.mdl");
+	PrecacheModel( "models/infected/common_male_dresshirt_jeans.mdl");
+	PrecacheModel( "models/infected/common_male_fallen_survivor.mdl");
+	PrecacheModel( "models/infected/common_male_jimmy.mdl");
+	PrecacheModel( "models/infected/common_male_mud.mdl");
+	PrecacheModel( "models/infected/common_male_polo_jeans.mdl");
+	PrecacheModel( "models/infected/common_male_riot.mdl");
+	PrecacheModel( "models/infected/common_female_tanktop_jeans.mdl");
+	PrecacheModel( "models/infected/common_female_tshirt_skirt.mdl");
+	PrecacheModel( "models/infected/common_female_tshirt_skirt_swamp.mdl");
 
     PrecacheScriptSound("Zombie.Sleeping");
     PrecacheScriptSound("Zombie.Wander");
@@ -151,7 +151,6 @@ void CNPC_Infected::Precache()
     PrecacheScriptSound("Zombie.ClawScrape");
     PrecacheScriptSound("Zombie.Punch");
     PrecacheScriptSound("MegaMobIncoming");
-#endif // INFECTED_ALLMODELS
 
 	BaseClass::Precache();
 }
@@ -204,7 +203,6 @@ Class_T CNPC_Infected::Classify()
 //---------------------------------------------------------
 void CNPC_Infected::SetZombieModel( void )
 {
-#ifndef INFECTED_ALLMODELS
 	SetModel( "models/infected/common_male01.mdl" );
 	SetHullType( HULL_HUMAN );
 		
@@ -213,8 +211,8 @@ void CNPC_Infected::SetZombieModel( void )
 	//SetBodygroup ( 2, RandomInt (0, 3 ) ); // Lower body, changes the number of legs cut off
 		
 	m_nSkin = random->RandomInt( 0, INFECTED_SKIN_COUNT-1 );
-#else
-	const int numberOfModels = 16;
+
+	const int numberOfModels = 11;
 	int modelIndex = RandomInt(0,numberOfModels-1);
 
 	switch (modelIndex) {
@@ -233,7 +231,7 @@ void CNPC_Infected::SetZombieModel( void )
 
 		case 1:
 		{
-			SetModel( "models/infected/common_female_rural01.mdl");
+			SetModel( "models/infected/common_male_ceda.mdl");
 			SetHullType( HULL_HUMAN );
 
 			SetBodygroup ( 0, RandomInt (0, 3 ) );
@@ -246,7 +244,7 @@ void CNPC_Infected::SetZombieModel( void )
 
 		case 2:
 		{
-			SetModel( "models/infected/common_worker_male01.mdl");
+			SetModel( "models/infected/common_male_clown.mdl");
 			SetHullType( HULL_HUMAN );
 
 			SetBodygroup ( 0, RandomInt (0, 3 ) );
@@ -259,7 +257,7 @@ void CNPC_Infected::SetZombieModel( void )
 	
 		case 3:
 		{
-			SetModel( "models/infected/common_tsaagent_male01.mdl");
+			SetModel( "models/infected/common_male_dresshirt_jeans.mdl");
 			SetHullType( HULL_HUMAN );
 
 			SetBodygroup ( 0, RandomInt (0, 3 ) );
@@ -272,7 +270,7 @@ void CNPC_Infected::SetZombieModel( void )
 
 		case 4:
 		{
-			SetModel( "models/infected/common_worker_male01.mdl");
+			SetModel( "models/infected/male_fallen_survivor.mdl");
 			SetHullType( HULL_HUMAN );
 
 			SetBodygroup ( 0, RandomInt (0, 3 ) );
@@ -285,7 +283,7 @@ void CNPC_Infected::SetZombieModel( void )
 	
 		case 5:
 		{
-			SetModel( "models/infected/common_surgeon_male01.mdl");
+			SetModel( "models/infected/common_male_jimmy.mdl");
 			SetHullType( HULL_HUMAN );
 
 			SetBodygroup ( 0, RandomInt (0, 3 ) );
@@ -298,7 +296,7 @@ void CNPC_Infected::SetZombieModel( void )
 
 		case 6:
 		{
-			SetModel( "models/infected/common_police_male01.mdl");
+			SetModel( "models/infected/common_male_mud.mdl");
 			SetHullType( HULL_HUMAN );
 
 			SetBodygroup ( 0, RandomInt (0, 3 ) );
@@ -311,7 +309,7 @@ void CNPC_Infected::SetZombieModel( void )
 
 		case 7:
 		{
-			SetModel( "models/infected/common_surgeon_male01.mdl");
+			SetModel( "models/infected/common_male_polo_jeans.mdl");
 			SetHullType( HULL_HUMAN );
 
 			SetBodygroup ( 0, RandomInt (0, 3 ) );
@@ -324,7 +322,7 @@ void CNPC_Infected::SetZombieModel( void )
 
 		case 8:
 		{
-			SetModel( "models/infected/common_patient_male01.mdl");
+			SetModel( "models/infected/common_male_riot.mdl");
 			SetHullType( HULL_HUMAN );
 
 			SetBodygroup ( 0, RandomInt (0, 3 ) );
@@ -337,7 +335,7 @@ void CNPC_Infected::SetZombieModel( void )
 
 		case 9:
 		{
-			SetModel( "models/infected/common_military_male01.mdl");
+			SetModel( "models/infected/common_female_tanktop_jeans.mdl");
 			SetHullType( HULL_HUMAN );
 
 			SetBodygroup ( 0, RandomInt (0, 3 ) );
@@ -350,7 +348,7 @@ void CNPC_Infected::SetZombieModel( void )
 
 		case 10:
 		{
-			SetModel( "models/infected/common_male_suit.mdl");
+			SetModel( "models/infected/common_female_tshirt_skirt.mdl");
 			SetHullType( HULL_HUMAN );
 
 			SetBodygroup ( 0, RandomInt (0, 3 ) );
@@ -363,59 +361,7 @@ void CNPC_Infected::SetZombieModel( void )
 
 		case 11:
 		{
-			SetModel( "models/infected/common_male_rural01.mdl");
-			SetHullType( HULL_HUMAN );
-
-			SetBodygroup ( 0, RandomInt (0, 3 ) );
-			SetBodygroup ( 1, RandomInt (0, 3 ) );
-			SetBodygroup ( 2, RandomInt (0, 1 ) );
-
-			m_nSkin = random->RandomInt( 0, 3 );
-			break;
-		}
-
-		case 12:
-		{
-			SetModel( "models/infected/common_male_pilot.mdl");
-			SetHullType( HULL_HUMAN );
-
-			SetBodygroup ( 0, RandomInt (0, 3 ) );
-			SetBodygroup ( 1, RandomInt (0, 3 ) );
-			SetBodygroup ( 2, RandomInt (0, 1 ) );
-
-			m_nSkin = random->RandomInt( 0, 3 );
-			break;
-		}
-
-		case 13:
-		{
-			SetModel( "models/infected/common_male_baggagehandler_01.mdl");
-			SetHullType( HULL_HUMAN );
-
-			SetBodygroup ( 0, RandomInt (0, 3 ) );
-			SetBodygroup ( 1, RandomInt (0, 3 ) );
-			SetBodygroup ( 2, RandomInt (0, 1 ) );
-
-			m_nSkin = random->RandomInt( 0, 3 );
-			break;
-		}
-
-		case 14:
-		{
-			SetModel( "models/infected/common_female01.mdl");
-			SetHullType( HULL_HUMAN );
-
-			SetBodygroup ( 0, RandomInt (0, 3 ) );
-			SetBodygroup ( 1, RandomInt (0, 3 ) );
-			SetBodygroup ( 2, RandomInt (0, 1 ) );
-
-			m_nSkin = random->RandomInt( 0, 3 );
-			break;
-		}
-
-		case 15:
-		{
-			SetModel( "models/infected/common_female_nurse01.mdl");
+			SetModel( "models/infected/common_female_tshirt_skirt_swamp.mdl");
 			SetHullType( HULL_HUMAN );
 
 			SetBodygroup ( 0, RandomInt (0, 3 ) );
@@ -426,7 +372,6 @@ void CNPC_Infected::SetZombieModel( void )
 			break;
 		}
 	}
-#endif // INFECTED_ALLMODELS
 }
 
 
