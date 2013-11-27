@@ -901,6 +901,8 @@ const Vector& CGameMovement::GetPlayerViewOffset( bool ducked ) const
 	return ducked ? VEC_DUCK_VIEW : VEC_VIEW;
 }
 
+
+
 #if 0
 //-----------------------------------------------------------------------------
 // Traces player movement + position
@@ -929,8 +931,13 @@ CBaseHandle CGameMovement::TestPlayerPosition( const Vector& pos, int collisionG
 }
 
 
-/*
+/////////////////////////////////////////////////////////////////////
+// kaitek666:	Footprints. Fix it!
+//
 
+
+
+/*
 // FIXME FIXME:  Does this need to be hooked up?
 bool CGameMovement::IsWet() const
 {
@@ -1044,7 +1051,9 @@ void CBasePlayer::UpdateWetness()
 		}
 	}
 }
+
 */
+
 
 
 //-----------------------------------------------------------------------------

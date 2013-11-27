@@ -39,6 +39,7 @@ public:
 
 	virtual void	ProcessMovement( CBasePlayer *pPlayer, CMoveData *pMove );
 	virtual void	Reset( void );
+//	virtual void	IsWet( void );
 	virtual void	StartTrackPredictionErrors( CBasePlayer *pPlayer );
 	virtual void	FinishTrackPredictionErrors( CBasePlayer *pPlayer );
 	virtual void	DiffPrint( char const *fmt, ... );

@@ -41,11 +41,11 @@ int in_impulse[ MAX_SPLITSCREEN_PLAYERS ];
 static int in_cancel[ MAX_SPLITSCREEN_PLAYERS ];
 
 ConVar cl_anglespeedkey( "cl_anglespeedkey", "0.67", 0 );
-ConVar cl_yawspeed( "cl_yawspeed", "210", 0 );
+ConVar cl_yawspeed( "cl_yawspeed", "140", 0 );
 ConVar cl_pitchspeed( "cl_pitchspeed", "225", 0 );
 ConVar cl_pitchdown( "cl_pitchdown", "89", FCVAR_CHEAT );
 ConVar cl_pitchup( "cl_pitchup", "89", FCVAR_CHEAT );
-ConVar cl_sidespeed( "cl_sidespeed", "140", FCVAR_CHEAT ); //was 450
+ConVar cl_sidespeed( "cl_sidespeed", "100", FCVAR_CHEAT ); //was 450
 ConVar cl_upspeed( "cl_upspeed", "140", FCVAR_CHEAT ); //was 320
 ConVar cl_forwardspeed( "cl_forwardspeed", "140", FCVAR_CHEAT ); //was 450
 ConVar cl_backspeed( "cl_backspeed", "100", FCVAR_CHEAT ); //was 400

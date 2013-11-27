@@ -1,13 +1,9 @@
-//========== Copyright © 2012, Sandern Corporation, All rights reserved. ============//
-//===================================================================================//
-//===================== Modified for Sleeples Mod by kaitek666 ======================//
+//==== Copyright © 2012, Sandern Corporation, All rights reserved. =========
+//================= Modified for Sleepless mod by kaitek666 ================
 //
-// kaitek666:	Precache all
-//				More infected models (11)
-//				Female infected
-//				Precache all
+// kaitek666: Just changed some values and fixed bugs
 //
-//===================================================================================//
+//==========================================================================
 
 #include "cbase.h"
 #include "ai_baseactor.h"
@@ -18,12 +14,12 @@
 ConVar	sk_infected_swipe_damage( "sk_infected_swipe_damage", "5" );
 
 #define INFECTED_SKIN_COUNT 32
-#define	INFECTED_MELEE1_RANGE		100.0f
+#define	INFECTED_MELEE1_RANGE		50.0f
 
 ConVar	sk_infected_health( "sk_infected_health","20");
 
 //-----------------------------------------------------------------------------
-// Custom Activities
+// Activities
 //-----------------------------------------------------------------------------
 Activity ACT_TERROR_IDLE_NEUTRAL;
 Activity ACT_TERROR_IDLE_ALERT;
@@ -37,7 +33,7 @@ Activity ACT_TERROR_JUMP_LANDING;
 Activity ACT_TERROR_JUMP_LANDING_HARD;
 
 //-----------------------------------------------------------------------------
-// Animation events
+// Animations
 //-----------------------------------------------------------------------------
 int AE_FOOTSTEP_RIGHT;
 int AE_FOOTSTEP_LEFT;
@@ -122,18 +118,6 @@ CNPC_Infected::~CNPC_Infected()
 void CNPC_Infected::Precache()
 {
 	PrecacheModel( "models/infected/common_male01.mdl" );
-	PrecacheModel( "models/infected/common_male_ceda.mdl");
-	PrecacheModel( "models/infected/common_male_clown.mdl");
-	PrecacheModel( "models/infected/common_male_dresshirt_jeans.mdl");
-	PrecacheModel( "models/infected/common_male_fallen_survivor.mdl");
-	PrecacheModel( "models/infected/common_male_jimmy.mdl");
-	PrecacheModel( "models/infected/common_male_mud.mdl");
-	PrecacheModel( "models/infected/common_male_polo_jeans.mdl");
-	PrecacheModel( "models/infected/common_male_riot.mdl");
-	PrecacheModel( "models/infected/common_female_tanktop_jeans.mdl");
-	PrecacheModel( "models/infected/common_female_tshirt_skirt.mdl");
-	PrecacheModel( "models/infected/common_female_tshirt_skirt_swamp.mdl");
-
     PrecacheScriptSound("Zombie.Sleeping");
     PrecacheScriptSound("Zombie.Wander");
     PrecacheScriptSound("Zombie.BecomeAlert");
@@ -151,7 +135,6 @@ void CNPC_Infected::Precache()
     PrecacheScriptSound("Zombie.ClawScrape");
     PrecacheScriptSound("Zombie.Punch");
     PrecacheScriptSound("MegaMobIncoming");
-
 	BaseClass::Precache();
 }
 
@@ -200,6 +183,7 @@ Class_T CNPC_Infected::Classify()
 }
 
 //---------------------------------------------------------
+// Zombie model
 //---------------------------------------------------------
 void CNPC_Infected::SetZombieModel( void )
 {
@@ -208,170 +192,9 @@ void CNPC_Infected::SetZombieModel( void )
 		
 	SetBodygroup ( 0, RandomInt (0, 3 ) ); // Head
 	SetBodygroup ( 1, RandomInt (0, 5 ) ); // Upper body
-	//SetBodygroup ( 2, RandomInt (0, 3 ) ); // Lower body, changes the number of legs cut off
+	SetBodygroup ( 2, RandomInt (0, 3 ) ); // Lower body, changes the number of legs cut off (kaitek666: was commented out. Why?)
 		
 	m_nSkin = random->RandomInt( 0, INFECTED_SKIN_COUNT-1 );
-
-	const int numberOfModels = 11;
-	int modelIndex = RandomInt(0,numberOfModels-1);
-
-	switch (modelIndex) {
-		case 0:
-		{
-			SetModel( "models/infected/common_male01.mdl" );
-			SetHullType( HULL_HUMAN );
-		
-			SetBodygroup ( 0, RandomInt (0, 3 ) );
-			SetBodygroup ( 1, RandomInt (0, 5 ) );
-			SetBodygroup ( 2, RandomInt (0, 3 ) );
-		
-			m_nSkin = random->RandomInt( 0, INFECTED_SKIN_COUNT-1 );
-			break;
-		}
-
-		case 1:
-		{
-			SetModel( "models/infected/common_male_ceda.mdl");
-			SetHullType( HULL_HUMAN );
-
-			SetBodygroup ( 0, RandomInt (0, 3 ) );
-			SetBodygroup ( 1, RandomInt (0, 3 ) );
-			SetBodygroup ( 2, RandomInt (0, 1 ) );
-
-			m_nSkin = random->RandomInt( 0, 3 );
-			break;
-		}
-
-		case 2:
-		{
-			SetModel( "models/infected/common_male_clown.mdl");
-			SetHullType( HULL_HUMAN );
-
-			SetBodygroup ( 0, RandomInt (0, 3 ) );
-			SetBodygroup ( 1, RandomInt (0, 3 ) );
-			SetBodygroup ( 2, RandomInt (0, 1 ) );
-
-			m_nSkin = random->RandomInt( 0, 3 );
-			break;
-		}
-	
-		case 3:
-		{
-			SetModel( "models/infected/common_male_dresshirt_jeans.mdl");
-			SetHullType( HULL_HUMAN );
-
-			SetBodygroup ( 0, RandomInt (0, 3 ) );
-			SetBodygroup ( 1, RandomInt (0, 3 ) );
-			SetBodygroup ( 2, RandomInt (0, 1 ) );
-
-			m_nSkin = random->RandomInt( 0, 3 );
-			break;
-		}
-
-		case 4:
-		{
-			SetModel( "models/infected/male_fallen_survivor.mdl");
-			SetHullType( HULL_HUMAN );
-
-			SetBodygroup ( 0, RandomInt (0, 3 ) );
-			SetBodygroup ( 1, RandomInt (0, 3 ) );
-			SetBodygroup ( 2, RandomInt (0, 1 ) );
-
-			m_nSkin = random->RandomInt( 0, 3 );
-			break;
-		}
-	
-		case 5:
-		{
-			SetModel( "models/infected/common_male_jimmy.mdl");
-			SetHullType( HULL_HUMAN );
-
-			SetBodygroup ( 0, RandomInt (0, 3 ) );
-			SetBodygroup ( 1, RandomInt (0, 3 ) );
-			SetBodygroup ( 2, RandomInt (0, 1 ) );
-
-			m_nSkin = random->RandomInt( 0, 3 );
-			break;
-		}
-
-		case 6:
-		{
-			SetModel( "models/infected/common_male_mud.mdl");
-			SetHullType( HULL_HUMAN );
-
-			SetBodygroup ( 0, RandomInt (0, 3 ) );
-			SetBodygroup ( 1, RandomInt (0, 3 ) );
-			SetBodygroup ( 2, RandomInt (0, 1 ) );
-
-			m_nSkin = random->RandomInt( 0, 3 );
-			break;
-		}
-
-		case 7:
-		{
-			SetModel( "models/infected/common_male_polo_jeans.mdl");
-			SetHullType( HULL_HUMAN );
-
-			SetBodygroup ( 0, RandomInt (0, 3 ) );
-			SetBodygroup ( 1, RandomInt (0, 3 ) );
-			SetBodygroup ( 2, RandomInt (0, 1 ) );
-
-			m_nSkin = random->RandomInt( 0, 3 );
-			break;
-		}
-
-		case 8:
-		{
-			SetModel( "models/infected/common_male_riot.mdl");
-			SetHullType( HULL_HUMAN );
-
-			SetBodygroup ( 0, RandomInt (0, 3 ) );
-			SetBodygroup ( 1, RandomInt (0, 3 ) );
-			SetBodygroup ( 2, RandomInt (0, 1 ) );
-
-			m_nSkin = random->RandomInt( 0, 3 );
-			break;
-		}
-
-		case 9:
-		{
-			SetModel( "models/infected/common_female_tanktop_jeans.mdl");
-			SetHullType( HULL_HUMAN );
-
-			SetBodygroup ( 0, RandomInt (0, 3 ) );
-			SetBodygroup ( 1, RandomInt (0, 3 ) );
-			SetBodygroup ( 2, RandomInt (0, 1 ) );
-
-			m_nSkin = random->RandomInt( 0, 3 );
-			break;
-		}
-
-		case 10:
-		{
-			SetModel( "models/infected/common_female_tshirt_skirt.mdl");
-			SetHullType( HULL_HUMAN );
-
-			SetBodygroup ( 0, RandomInt (0, 3 ) );
-			SetBodygroup ( 1, RandomInt (0, 3 ) );
-			SetBodygroup ( 2, RandomInt (0, 1 ) );
-
-			m_nSkin = random->RandomInt( 0, 3 );
-			break;
-		}
-
-		case 11:
-		{
-			SetModel( "models/infected/common_female_tshirt_skirt_swamp.mdl");
-			SetHullType( HULL_HUMAN );
-
-			SetBodygroup ( 0, RandomInt (0, 3 ) );
-			SetBodygroup ( 1, RandomInt (0, 3 ) );
-			SetBodygroup ( 2, RandomInt (0, 1 ) );
-
-			m_nSkin = random->RandomInt( 0, 3 );
-			break;
-		}
-	}
 }
 
 
@@ -388,10 +211,8 @@ void CNPC_Infected::SetupGlobalModelData()
 
 float CNPC_Infected::GetIdealSpeed( ) const
 {
-	// Ensure navigator will move
-	// TODO: Could limit it to move sequences only.
 	float speed = BaseClass::GetIdealSpeed();
-	if( speed <= 0 ) speed = 1.0f;
+	if( speed <= 0 ) speed = 0.5f; //was 1.0f
 	return speed;
 }
 
@@ -400,7 +221,7 @@ float CNPC_Infected::GetSequenceGroundSpeed( CStudioHdr *pStudioHdr, int iSequen
 	// Ensure navigator will move
 	// TODO: Could limit it to move sequences only.
 	float speed = BaseClass::GetSequenceGroundSpeed( pStudioHdr, iSequence );
-	if( speed <= 0 /*&& GetSequenceActivity( iSequence) == ACT_TERROR_RUN_INTENSE*/ ) speed = 1.0f;
+	if( speed <= 0 /* */&& GetSequenceActivity( iSequence) == ACT_TERROR_RUN_INTENSE /* */ ) speed = 0.5f; //was 1.0f
 	return speed;
 }
 
@@ -462,20 +283,20 @@ bool CNPC_Infected::OverrideMoveFacing( const AILocalMoveGoal_t &move, float flI
 		float targetLean = GetPoseParameter( gm_nMoveYPoseParam ) * 30.0f;
 		float curLean = GetPoseParameter( gm_nLeanYawPoseParam );
 		if( curLean < targetLean )
-			curLean += MIN(fabs(targetLean-curLean), GetAnimTimeInterval()*15.0f);
+			curLean += MIN(fabs(targetLean-curLean), GetAnimTimeInterval()*12.0f); //was 15.0f
 		else
-			curLean -= MIN(fabs(targetLean-curLean), GetAnimTimeInterval()*15.0f);
+			curLean -= MIN(fabs(targetLean-curLean), GetAnimTimeInterval()*12.0f); //was 15.0f
 		SetPoseParameter( gm_nLeanYawPoseParam, curLean );
 	}
 
 	if( gm_nLeanPitchPoseParam >= 0 )
 	{
-		float targetLean = GetPoseParameter( gm_nMoveXPoseParam ) * -30.0f;
+		float targetLean = GetPoseParameter( gm_nMoveXPoseParam ) * -20.0f; //was -30.0f
 		float curLean = GetPoseParameter( gm_nLeanPitchPoseParam );
 		if( curLean < targetLean )
-			curLean += MIN(fabs(targetLean-curLean), GetAnimTimeInterval()*15.0f);
+			curLean += MIN(fabs(targetLean-curLean), GetAnimTimeInterval()*10.0f); //was 15.0f
 		else
-			curLean -= MIN(fabs(targetLean-curLean), GetAnimTimeInterval()*15.0f);
+			curLean -= MIN(fabs(targetLean-curLean), GetAnimTimeInterval()*10.0f); //was 15.0f
 		SetPoseParameter( gm_nLeanPitchPoseParam, curLean );
 	}
 
