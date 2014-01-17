@@ -70,7 +70,7 @@ CAmmoDef* GetAmmoDef()
 		def.AddAmmoType( "mp5", DMG_BULLET, TRACER_LINE_AND_WHIZ, 0, 0, 200/*max carry*/, 1, 0 );
 		def.AddAmmoType( "pistol1", DMG_BULLET, TRACER_LINE_AND_WHIZ, 0, 0, 200/*max carry*/, 1, 0 );
 		def.AddAmmoType( "pistol", DMG_BULLET, TRACER_LINE_AND_WHIZ, 0, 0, 200/*max carry*/, 1, 0 );
-		def.AddAmmoType( "magnum", DMG_BULLET, TRACER_LINE_AND_WHIZ, 0, 0, 200/*max carry*/, 1, 0 );
+		def.AddAmmoType( "magnum", DMG_SLASH, TRACER_LINE_AND_WHIZ, 0, 0, 200/*max carry*/, 1, 0 );
 		
 		// def.AddAmmoType( BULLET_PLAYER_50AE,		DMG_BULLET, TRACER_LINE, 0, 0, "ammo_50AE_max",		2400, 0, 10, 14 );
 		def.AddAmmoType( "shotgun", DMG_BUCKSHOT, TRACER_NONE, 0, 0,	200/*max carry*/, 1, 0 );

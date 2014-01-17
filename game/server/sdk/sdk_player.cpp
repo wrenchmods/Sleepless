@@ -5,6 +5,15 @@
 // kaitek666:	To make weapons work, I had to add them here too. Also, I want
 //				player to have no weapons at spawn, so I commented out some lines.
 //
+// kaitek666:	Fuck it. Who even needs weapons in this game? Can't it be like Amnesia
+//				or something? Commenting out.
+//
+// kaitek666:	Well, there is ONE weapon - pickaxe. It is called 'magnum' in code,
+//				cause I started programming this game to have multiple, even live fire
+//				weapons. The last decision was made very quick and I just created a
+//				handed weapon. It can be lowered to run faster to jump over the
+//				obstacles, etc.
+//
 //=====================================================================================//
 
 #include "cbase.h"
@@ -189,25 +198,26 @@ void CSDK_Player::PostThink()
 	m_angEyeAngles = EyeAngles();
 }
 
+/////////////////////////////////////////////////////////////////////
+// kaitek666:	Pickaxe is labeled 'magnum', because.. why not?
+//
+
 void CSDK_Player::GiveDefaultItems()
 {
-	CBasePlayer::GiveAmmo( 30,	"pistol");
-	CBasePlayer::GiveAmmo( 60,	"mp5");
-	CBasePlayer::GiveAmmo( 60,	"pistol1");
+//	CBasePlayer::GiveAmmo( 30,	"pistol");
+//	CBasePlayer::GiveAmmo( 60,	"mp5");
+//	CBasePlayer::GiveAmmo( 60,	"pistol1");
 	CBasePlayer::GiveAmmo( 60,	"magnum");
 
-
-/////////////////////////////////////////////////////////////////////
-// kaitek666:	After commenting this out, player will spawn
-//				with no weapons.
-//
-//
-
-/*	GiveNamedItem( "weapon_pistol" );
-	GiveNamedItem( "weapon_mp5" );
+//	GiveNamedItem( "weapon_pistol" );
+//	GiveNamedItem( "weapon_mp5" );
 	GiveNamedItem( "weapon_magnum" );
-	GiveNamedItem( "weapon_pistol1" );*/
+//	GiveNamedItem( "weapon_pistol1" );
 }
+
+//
+// oh, seriously its called like that, because im lazy as fuck
+////////////////////////////////////////////////////////////////////
 
 void CSDK_Player::CreateViewModel( int index /*=0*/ )
 {
