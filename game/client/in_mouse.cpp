@@ -111,7 +111,7 @@ ConVar cl_mouselook( "cl_mouselook", "1", FCVAR_ARCHIVE | FCVAR_NOT_CONNECTED | 
 
 ConVar cl_mouseenable( "cl_mouseenable", "1", FCVAR_RELEASE );
 
-ConVar m_cinematic( "m_cinematic", "0");
+ConVar m_cinematic( "m_cinematic", "1", FCVAR_CHEAT, "Enables or disables the cinematic camera" );
 ConVar m_cinematic_depth( "m_cinematic_depth", "0.9", 0, "Intensity of the cinematic effect, between 0 and 1", true, 0, true, 1);
 
 //-----------------------------------------------------------------------------

@@ -1,9 +1,9 @@
 //========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//====================== Modified for Sleeples Mod by kaitek666 =======================//
 //
-// Purpose: 
+// kaitek666:	Forcing player to spawn in first person, not in third. Also, doesnt
 //
-// $NoKeywords: $
-//=============================================================================//
+//=====================================================================================//
 
 
 #include "cbase.h"
@@ -270,12 +270,18 @@ void CInput::CAM_Think( void )
 		sv_cheats = cvar->FindVar( "sv_cheats" );
 	}
 
-	// If cheats have been disabled, pull us back out of third-person view.
-	//if ( sv_cheats && !sv_cheats->GetBool() && !c_thirdpersonshoulder.GetBool() )
-	//{
-	//	CAM_ToFirstPerson();
-	//	return;
-	//}
+	//////////////////////////////////////////////////////////////////////////////////////
+	//
+	// kaitek666: If cheats have been disabled, pull us back out of third-person view.
+	//
+
+	if ( sv_cheats && !sv_cheats->GetBool() && !c_thirdpersonshoulder.GetBool() )
+	{
+		CAM_ToFirstPerson();
+		return;
+	}
+
+	///////////////////////////////////////////////////////////////////////////////////////
 
 	C_BasePlayer* localPlayer = C_BasePlayer::GetLocalPlayer();
 	// In Maya-mode
@@ -946,10 +952,16 @@ static ConCommand endcamin( "-camin", CAM_InUp );
 static ConCommand startcamout( "+camout", CAM_OutDown );
 static ConCommand camout( "-camout", CAM_OutUp );
 #ifdef INFESTED_DLL
-static ConCommand thirdperson( "thirdperson", Cmd_CAM_ToThirdPerson, "Switch to thirdperson camera." );
+////////////////////////////////////////////////////////////////////////
+// kaitek666: Player can not switch to thirdperson anymore. Sorry :(
+//
+//static ConCommand thirdperson( "thirdperson", Cmd_CAM_ToThirdPerson, "Switch to thirdperson camera." );
 static ConCommand firstperson( "firstperson", Cmd_CAM_ToFirstPerson, "Switch to firstperson camera.", FCVAR_CHEAT );
 #else
-static ConCommand thirdperson( "thirdperson", Cmd_CAM_ToThirdPerson, "Switch to thirdperson camera.", FCVAR_CHEAT );
+////////////////////////////////////////////////////////////////////////
+// kaitek666: Same here :(
+//
+//static ConCommand thirdperson( "thirdperson", Cmd_CAM_ToThirdPerson, "Switch to thirdperson camera.", FCVAR_CHEAT );
 static ConCommand firstperson( "firstperson", Cmd_CAM_ToFirstPerson, "Switch to firstperson camera." );
 #endif
 static ConCommand thirdperson_mayamode( "thirdperson_mayamode", ::CAM_ToThirdPerson_MayaMode, "Switch to thirdperson Maya-like camera controls.", FCVAR_CHEAT );
