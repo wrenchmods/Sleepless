@@ -1,7 +1,8 @@
 //========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //====================== Modified for Sleeples Mod by kaitek666 =======================//
 //
-// kaitek666:	Forcing player to spawn in first person, not in third. Also, doesnt
+// kaitek666:	Forcing player to spawn in first person, not in third. Also, doesnt allow
+//				player to
 //
 //=====================================================================================//
 
@@ -952,16 +953,18 @@ static ConCommand endcamin( "-camin", CAM_InUp );
 static ConCommand startcamout( "+camout", CAM_OutDown );
 static ConCommand camout( "-camout", CAM_OutUp );
 #ifdef INFESTED_DLL
+
 ////////////////////////////////////////////////////////////////////////
 // kaitek666: Player can not switch to thirdperson anymore. Sorry :(
 //
 //static ConCommand thirdperson( "thirdperson", Cmd_CAM_ToThirdPerson, "Switch to thirdperson camera." );
-static ConCommand firstperson( "firstperson", Cmd_CAM_ToFirstPerson, "Switch to firstperson camera.", FCVAR_CHEAT );
+static ConCommand firstperson( "firstperson", Cmd_CAM_ToFirstPerson, "Switch to firstperson camera." );
 #else
-////////////////////////////////////////////////////////////////////////
-// kaitek666: Same here :(
+//
 //
 //static ConCommand thirdperson( "thirdperson", Cmd_CAM_ToThirdPerson, "Switch to thirdperson camera.", FCVAR_CHEAT );
+////////////////////////////////////////////////////////////////////////
+
 static ConCommand firstperson( "firstperson", Cmd_CAM_ToFirstPerson, "Switch to firstperson camera." );
 #endif
 static ConCommand thirdperson_mayamode( "thirdperson_mayamode", ::CAM_ToThirdPerson_MayaMode, "Switch to thirdperson Maya-like camera controls.", FCVAR_CHEAT );
