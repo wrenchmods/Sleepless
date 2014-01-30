@@ -1,7 +1,13 @@
+//========= Copyright © 1996-2008, Valve Corporation, All rights reserved. ============//
+//======================= Modified for Sleepless by kaitek666 =========================//
+//
+// kaitek666:	No more ASW implementations I don't realy need. Byebye!
+//
+//=====================================================================================//
 #ifndef _INCLUDED_ASW_CLIENT_USABLE_ENTITY_H
 #define _INCLUDED_ASW_CLIENT_USABLE_ENTITY_H
 
-#include "asw_shareddefs.h"
+//#include "asw_shareddefs.h"
 
 #define MAX_USE_ACTION_TEXT 128
 

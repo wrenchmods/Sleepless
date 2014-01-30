@@ -1,10 +1,16 @@
+//========= Copyright © 1996-2008, Valve Corporation, All rights reserved. ============//
+//======================= Modified for Sleepless by kaitek666 =========================//
+//
+// kaitek666:	No more ASW implementations I don't realy need. Byebye!
+//
+//=====================================================================================//
 #ifndef _INCLUDED_C_ASW_WEAPON_H
 #define _INCLUDED_C_ASW_WEAPON_H
 #ifdef _WIN32
 #pragma once
 #endif
 
-#include "asw_weapon_shared.h"
+// #include "asw_weapon_shared.h"
 #include "iasw_client_usable_entity.h"
 #include "basecombatweapon_shared.h"
 #include "glow_outline_effect.h"

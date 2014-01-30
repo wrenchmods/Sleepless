@@ -1,3 +1,9 @@
+//========= Copyright © 1996-2008, Valve Corporation, All rights reserved. ============//
+//======================= Modified for Sleepless by kaitek666 =========================//
+//
+// kaitek666:	No more ASW implementations I don't realy need. Byebye!
+//
+//=====================================================================================//
 #ifndef C_ASW_SENTRY_BASE_H
 #define C_ASW_SENTRY_BASE_H
 
@@ -51,7 +57,7 @@ public:
 	virtual bool ShouldPaintBoxAround() { return true; }
 	virtual bool NeedsLOSCheck() { return true; }
 
-	virtual Class_T		Classify( void ) { return (Class_T) CLASS_ASW_SENTRY_BASE; }
+//	virtual Class_T		Classify( void ) { return (Class_T) CLASS_ASW_SENTRY_BASE; }
 
 	static vgui::HFont s_hAmmoFont;
 	int m_nUseIconTextureID;

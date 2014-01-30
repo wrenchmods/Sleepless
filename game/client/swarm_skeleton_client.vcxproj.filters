@@ -1937,6 +1937,12 @@
     <ClCompile Include="..\shared\weapon_magnum.cpp">
       <Filter>Source Files\Sleepless</Filter>
     </ClCompile>
+    <ClCompile Include="..\shared\weapon_sdkmelee.cpp">
+      <Filter>Source Files\Sleepless</Filter>
+    </ClCompile>
+    <ClCompile Include="swarm\c_asw_lesson.cpp">
+      <Filter>Source Files\Sleepless</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="achievement_notification_panel.h">
@@ -4200,6 +4206,9 @@
     </ClInclude>
     <ClInclude Include="..\shared\hl2_player_shared.h">
       <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\shared\weapon_sdkmelee.h">
+      <Filter>Source Files\Sleepless</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

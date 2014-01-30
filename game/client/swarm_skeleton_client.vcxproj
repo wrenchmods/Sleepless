@@ -253,6 +253,7 @@ if exist "$(TargetDir)"$(ProjectName).pdb copy "$(TargetDir)"$(ProjectName).pdb 
     <ClCompile Include="..\shared\sdk\weapon_pistol.cpp" />
     <ClCompile Include="..\shared\sdk\weapon_sdkbase.cpp" />
     <ClCompile Include="..\shared\weapon_magnum.cpp" />
+    <ClCompile Include="..\shared\weapon_sdkmelee.cpp" />
     <ClCompile Include="achievement_notification_panel.cpp" />
     <ClCompile Include="..\shared\achievement_saverestore.cpp" />
     <ClCompile Include="..\shared\achievementmgr.cpp" />
@@ -1163,6 +1164,7 @@ if exist "$(TargetDir)"$(ProjectName).pdb copy "$(TargetDir)"$(ProjectName).pdb 
     <ClCompile Include="..\shared\teamplay_gamerules.cpp" />
     <ClCompile Include="..\shared\teamplayroundbased_gamerules.cpp" />
     <ClCompile Include="..\shared\test_ehandle.cpp" />
+    <ClCompile Include="swarm\c_asw_lesson.cpp" />
     <ClCompile Include="text_message.cpp" />
     <ClCompile Include="texturescrollmaterialproxy.cpp" />
     <ClCompile Include="timematerialproxy.cpp" />
@@ -1327,6 +1329,7 @@ if exist "$(TargetDir)"$(ProjectName).pdb copy "$(TargetDir)"$(ProjectName).pdb 
     <ClInclude Include="..\shared\sdk\sdk_player_shared.h" />
     <ClInclude Include="..\shared\sdk\sdk_weapon_parse.h" />
     <ClInclude Include="..\shared\sdk\weapon_sdkbase.h" />
+    <ClInclude Include="..\shared\weapon_sdkmelee.h" />
     <ClInclude Include="achievement_notification_panel.h" />
     <ClInclude Include="..\shared\achievement_saverestore.h" />
     <ClInclude Include="..\shared\achievementmgr.h" />

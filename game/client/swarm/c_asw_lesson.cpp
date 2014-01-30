@@ -1,24 +1,27 @@
 //========= Copyright © 1996-2008, Valve Corporation, All rights reserved. ============//
+//======================= Modified for Sleepless by kaitek666 =========================//
 //
-// Purpose:		Client handler implementations for instruction players how to play
+// kaitek666:	I modified some client implementation of instructor hint, so it doesn't
+//				require any asw_*.h/.cpp files I didn't realy need so much, I deleted
+//				them. Still dunno if instructor hint will work, so.. fuck.
 //
-//=============================================================================//
+//=====================================================================================//
 
 #include "cbase.h"
 
 #include "c_gameinstructor.h"
 #include "c_baselesson.h"
 
-#include "asw_gamerules.h"
+// #include "asw_gamerules.h"
 #include "c_asw_player.h"
 #include "c_asw_marine.h"
-#include "asw_marine_profile.h"
+// #include "asw_marine_profile.h"
 #include "c_asw_weapon.h"
 #include "c_asw_pickup.h"
 #include "c_asw_pickup_weapon.h"
-#include "asw_weapon_parse.h"
+// #include "asw_weapon_parse.h"
 #include "c_asw_sentry_base.h"
-#include "asw_hud_master.h"
+// #include "asw_hud_master.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -51,7 +54,7 @@ enum Mod_LessonAction
 	LESSON_ACTION_TOTAL
 };
 
-void CScriptedIconLesson::Mod_PreReadLessonsFromFile( void )
+/*void CScriptedIconLesson::Mod_PreReadLessonsFromFile( void )
 {
 	// Add custom actions to the map
 	CScriptedIconLesson::LessonActionMap.Insert( "is allowed item", LESSON_ACTION_IS_ALLOWED_ITEM );
@@ -70,9 +73,10 @@ void CScriptedIconLesson::Mod_PreReadLessonsFromFile( void )
 	CScriptedIconLesson::LessonActionMap.Insert( "is tutorial", LESSON_ACTION_IS_TUTORIAL );
 	CScriptedIconLesson::LessonActionMap.Insert( "is singleplayer", LESSON_ACTION_IS_SINGLEPLAYER );
 }
+*/
 
 
-bool CScriptedIconLesson::Mod_ProcessElementAction( int iAction, bool bNot, const char *pchVarName, EHANDLE &hVar, const CGameInstructorSymbol *pchParamName, float fParam, C_BaseEntity *pParam, const char *pchParam, bool &bModHandled )
+/*bool CScriptedIconLesson::Mod_ProcessElementAction( int iAction, bool bNot, const char *pchVarName, EHANDLE &hVar, const CGameInstructorSymbol *pchParamName, float fParam, C_BaseEntity *pParam, const char *pchParam, bool &bModHandled )
 {
 	// Assume we're going to handle the action
 	bModHandled = true;
@@ -230,6 +234,11 @@ bool CScriptedIconLesson::Mod_ProcessElementAction( int iAction, bool bNot, cons
 				return false;
 			}
 
+			///////////////////////////////
+			// kaitek666: Hacking? Nope!
+			//
+
+			
 			bool bCanHack = pMarine->GetMarineProfile()->CanHack();
 
 			if ( gameinstructor_verbose.GetInt() > 0 && ShouldShowSpew() )
@@ -240,6 +249,10 @@ bool CScriptedIconLesson::Mod_ProcessElementAction( int iAction, bool bNot, cons
 			}
 
 			return ( bNot ) ? ( !bCanHack ) : ( bCanHack );
+			
+
+			// end
+			//////////////////////////
 		}
 
 		case LESSON_ACTION_CAN_OFFHAND:
@@ -258,6 +271,10 @@ bool CScriptedIconLesson::Mod_ProcessElementAction( int iAction, bool bNot, cons
 				return false;
 			}
 
+			//////////////////////////////////////////////
+			// kaitek666: Weapon instructor hint? Nope!
+			//
+
 			bool bCanOffhand = pWeapon->GetWeaponInfo()->m_bOffhandActivate;
 
 			if ( gameinstructor_verbose.GetInt() > 0 && ShouldShowSpew() )
@@ -268,6 +285,7 @@ bool CScriptedIconLesson::Mod_ProcessElementAction( int iAction, bool bNot, cons
 			}
 
 			return ( bNot ) ? ( !bCanOffhand ) : ( bCanOffhand );
+			
 		}
 
 		case LESSON_ACTION_HAS_SECONDARY:
@@ -329,6 +347,8 @@ bool CScriptedIconLesson::Mod_ProcessElementAction( int iAction, bool bNot, cons
 
 			bool bHasAnySecondary = false;
 
+			
+			// kaitek666: Equip slots? Nope!
 			for ( int i = 0; i < ASW_MAX_EQUIP_SLOTS; ++i )
 			{
 				C_ASW_Weapon *pWeapon = static_cast< C_ASW_Weapon* >( pMarine->GetWeapon( i ) );
@@ -461,7 +481,9 @@ bool CScriptedIconLesson::Mod_ProcessElementAction( int iAction, bool bNot, cons
 			}
 
 			int nOffensiveWeaponCount = 0;
-
+			////////////////////////////////
+			// kaitek666: Equip slots? Nope!
+			//
 			for ( int i = 0; i < ASW_MAX_EQUIP_SLOTS; ++i )
 			{
 				C_ASW_Weapon *pWeapon = static_cast< C_ASW_Weapon* >( pMarine->GetWeapon( i ) );
@@ -474,6 +496,9 @@ bool CScriptedIconLesson::Mod_ProcessElementAction( int iAction, bool bNot, cons
 					}
 				}
 			}
+
+			//end
+			//////
 
 			bool bHasSpare = ( nOffensiveWeaponCount > 1 );
 
@@ -531,7 +556,9 @@ bool CScriptedIconLesson::Mod_ProcessElementAction( int iAction, bool bNot, cons
 
 			return ( bNot ) ? ( !bIsOffensive ) : ( bIsOffensive );
 		}
-
+		///////////////////////////////////////////////////////////////
+		// kaitek666: We don't wanna instructor on weapon - nope!
+		//
 		case LESSON_ACTION_WEAPON_LOCAL_HOTBAR_SLOT:
 		{
 			CASW_Hud_Master *pHUDMaster = GET_HUDELEMENT( CASW_Hud_Master );
@@ -549,6 +576,9 @@ bool CScriptedIconLesson::Mod_ProcessElementAction( int iAction, bool bNot, cons
 
 			return true;
 		}
+
+		//end
+		/////////
 
 		case LESSON_ACTION_OWNS_HOTBAR_SLOT:
 		{
@@ -574,6 +604,9 @@ bool CScriptedIconLesson::Mod_ProcessElementAction( int iAction, bool bNot, cons
 
 			bool bOwnsHotBarSlot = false;
 
+			/////////////////////////////////////
+			// kaitek666: Don't wanna this
+			//
 			CASW_Hud_Master *pHUDMaster = GET_HUDELEMENT( CASW_Hud_Master );
 			if ( pHUDMaster )
 			{
@@ -588,8 +621,12 @@ bool CScriptedIconLesson::Mod_ProcessElementAction( int iAction, bool bNot, cons
 					ConColorMsg( CBaseLesson::m_rgbaVerbosePlain, ( bNot ) ? ( "== false\n" ) : ( "== true\n" ) );
 				}
 			}
+			
 
 			return ( bNot ) ? ( !bOwnsHotBarSlot ) : ( bOwnsHotBarSlot );
+
+			//end
+			///////
 		}
 
 		case LESSON_ACTION_SENTRY_WANTS_DISMANTLE:
@@ -619,7 +656,9 @@ bool CScriptedIconLesson::Mod_ProcessElementAction( int iAction, bool bNot, cons
 
 			return ( bNot ) ? ( !bWantsDismantle ) : ( bWantsDismantle );
 		}
-
+		///////////////////////////////////////////////
+		// kaitek666: It isn't Alien Swarm anymore
+		//
 		case LESSON_ACTION_IS_TUTORIAL:
 		{
 			bool bIsTutorial = ASWGameRules()->IsTutorialMap();
@@ -647,6 +686,8 @@ bool CScriptedIconLesson::Mod_ProcessElementAction( int iAction, bool bNot, cons
 
 			return ( bNot ) ? ( !bIsSingleplayer ) : ( bIsSingleplayer );
 		}
+		//end
+		////////
 
 		default:
 			// Didn't handle this action
@@ -656,14 +697,16 @@ bool CScriptedIconLesson::Mod_ProcessElementAction( int iAction, bool bNot, cons
 
 	return false;
 }
+*/
 
-bool C_GameInstructor::Mod_HiddenByOtherElements( void )
+/*bool C_GameInstructor::Mod_HiddenByOtherElements( void )
 {
 	C_ASW_Marine *pLocalMarine = C_ASW_Marine::GetLocalMarine();
 	if ( pLocalMarine && pLocalMarine->IsControllingTurret() )
 	{
 		return true;
 	}
-
+	
 	return false;
 }
+*/

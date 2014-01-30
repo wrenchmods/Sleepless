@@ -1,16 +1,23 @@
+//========= Copyright © 1996-2008, Valve Corporation, All rights reserved. ============//
+//======================= Modified for Sleepless by kaitek666 =========================//
+//
+// kaitek666:	No more ASW implementations I don't realy need. Byebye!
+//
+//=====================================================================================//
+
 #ifndef C_ASW_PLAYER_H
 #define C_ASW_PLAYER_H
 #ifdef _WIN32
 #pragma once
 #endif
 
-#include "asw_shareddefs.h"
-#include "asw_player_shared.h"
-#include "asw_playeranimstate.h"
+//#include "asw_shareddefs.h"
+//#include "asw_player_shared.h"
+//#include "asw_playeranimstate.h"
 #include "c_baseplayer.h"
 #include "c_asw_playerlocaldata.h"
 #include "baseparticleentity.h"
-#include "asw_info_message_shared.h"
+//#include "asw_info_message_shared.h"
 #include "steam/steam_api.h"
 #include <vgui_controls/PHandle.h>
 
@@ -29,7 +36,7 @@ class C_ASW_Marine_Resource;
 class C_EnvAmbientLight;
 class CASW_Map_Builder;
 
-class C_ASW_Player : public C_BasePlayer, public IASWPlayerAnimStateHelpers
+class C_ASW_Player : public C_BasePlayer
 {
 public:
 	DECLARE_CLASS( C_ASW_Player, C_BasePlayer );
@@ -128,9 +135,9 @@ public:
 public:
 	void ItemPostFrame();
 
-	void DoAnimationEvent( PlayerAnimEvent_t event );
+	/*void DoAnimationEvent( PlayerAnimEvent_t event );
 
-	IPlayerAnimState *m_PlayerAnimState;
+	IPlayerAnimState *m_PlayerAnimState;*/
 	
 	virtual const QAngle &EyeAngles();		// Direction of eyes
 	virtual const QAngle& EyeAnglesWithCursorRoll();
@@ -162,11 +169,11 @@ public:
 	void SortUsePair( CBaseEntity **pEnt1, CBaseEntity **pEnt2, int *pnFirstPriority, int *pnSecondPriority );
 	int GetUsePriority(CBaseEntity* pEnt);
 	//void SendUseIconMessage(int UseEntityIndex, int UseIconType);	// send a client cmd to the server
-	CBaseEntity* GetUseEntity(int i) { return m_hUseEntities[i].Get(); }
+//	CBaseEntity* GetUseEntity(int i) { return m_hUseEntities[i].Get(); }
 	virtual C_BaseEntity* GetUseEntity( void ) const;
 	virtual C_BaseEntity* GetPotentialUseEntity( void ) const;
 	int GetNumUseEntities() { return m_iUseEntities; }
-	EHANDLE m_hUseEntities[ ASW_PLAYER_MAX_USE_ENTS ];
+//	EHANDLE m_hUseEntities[ ASW_PLAYER_MAX_USE_ENTS ];
 	int m_iUseEntities;
 	CNetworkVar( float, m_flUseKeyDownTime );
 	CNetworkVar( EHANDLE, m_hUseKeyDownEnt );
@@ -177,9 +184,9 @@ public:
 	void ASWSelectWeapon(C_BaseCombatWeapon* pWeapon, int subtype);	// for switching weapons on the current marine
 
 	// viewing info messages
-	void ShowPreviousInfoMessage(C_ASW_Info_Message *pMessage);
+//	void ShowPreviousInfoMessage(C_ASW_Info_Message *pMessage);
 	void ShowMessageLog();
-	CNetworkHandle(C_ASW_Info_Message, m_pCurrentInfoMessage);	
+//	CNetworkHandle(C_ASW_Info_Message, m_pCurrentInfoMessage);	
 
 	virtual void SetAnimation( PLAYER_ANIM playerAnim );
 
@@ -273,8 +280,8 @@ public:
 	int GetExperienceBeforeDebrief() { return m_iExperienceBeforeDebrief; }
 	int GetPromotion();
 	void AcceptPromotion();
-	int GetEarnedXP( CASW_Earned_XP_t nType ) { return m_iEarnedXP[ nType ]; }
-	int GetStatNumXP( CASW_Earned_XP_t nType ) { return m_iStatNumXP[ nType ]; }
+//	int GetEarnedXP( CASW_Earned_XP_t nType ) { return m_iEarnedXP[ nType ]; }
+//	int GetStatNumXP( CASW_Earned_XP_t nType ) { return m_iStatNumXP[ nType ]; }
 	void CalculateEarnedXP();
 
 	void RequestExperience();				// asks Steam for your current XP
@@ -288,8 +295,8 @@ public:
 	int32 m_iExperience;
 	int32 m_iExperienceBeforeDebrief;
 	int32 m_iPromotion;
-	int32 m_iEarnedXP[ ASW_NUM_XP_TYPES ];
-	int32 m_iStatNumXP[ ASW_NUM_XP_TYPES ];
+//	int32 m_iEarnedXP[ ASW_NUM_XP_TYPES ];
+//	int32 m_iStatNumXP[ ASW_NUM_XP_TYPES ];
 	CNetworkVar( int, m_iNetworkedXP );
 	CNetworkVar( int, m_iNetworkedPromotion );
 

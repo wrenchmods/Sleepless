@@ -1,14 +1,20 @@
+//========= Copyright © 1996-2008, Valve Corporation, All rights reserved. ============//
+//======================= Modified for Sleepless by kaitek666 =========================//
+//
+// kaitek666:	No more ASW implementations I don't realy need. Byebye!
+//
+//=====================================================================================//
 #ifndef _INCLUDED_C_ASW_MARINE_H
 #define _INCLUDED_C_ASW_MARINE_H
 #ifdef WIN_32
 #pragma once
 #endif
 
-#include "asw_shareddefs.h"
-#include "asw_marine_shared.h"
+//#include "asw_shareddefs.h"
+//#include "asw_marine_shared.h"
 #include "c_ai_basenpc.h"
 #include "c_asw_vphysics_npc.h"
-#include "asw_playeranimstate.h"
+//#include "asw_playeranimstate.h"
 #include "beamdraw.h"
 #include "object_motion_blur_effect.h"
 
@@ -32,7 +38,7 @@ class CASW_Melee_Attack;
 
 #define CASW_Remote_Turret C_ASW_Remote_Turret
 
-class C_ASW_Marine : public C_ASW_VPhysics_NPC, public IASWPlayerAnimStateHelpers
+class C_ASW_Marine : public C_ASW_VPhysics_NPC
 {
 public:
 	DECLARE_CLASS( C_ASW_Marine, C_ASW_VPhysics_NPC );
@@ -45,7 +51,7 @@ public:
 	virtual void	ClientThink();
 	void			PostThink();	// called after moving when the marine is being inhabited
 	bool			Simulate();
-	Class_T		Classify( void ) { return (Class_T) CLASS_ASW_MARINE; }
+//	Class_T		Classify( void ) { return (Class_T) CLASS_ASW_MARINE; }
 
 	// Use this in preference to CASW_Marine::AsMarine( pEnt ) :
 	static inline C_ASW_Marine *AsMarine( CBaseEntity *pEnt );
@@ -148,8 +154,8 @@ public:
 	bool IsAnimatingReload();	// are we currently playing our reload anim?
 	bool IsDoingEmoteGesture();	// is the marine doing some arm signal?
 	void FireEvent( const Vector& origin, const QAngle& angles, int event, const char *options );
-	IASWPlayerAnimState *m_PlayerAnimState;
-	void DoAnimationEvent( PlayerAnimEvent_t event );
+//	IASWPlayerAnimState *m_PlayerAnimState;
+//	void DoAnimationEvent( PlayerAnimEvent_t event );
 	virtual bool ASWAnim_CanMove();
 
 	// movement
@@ -173,7 +179,7 @@ public:
 
 	// orders
 	CNetworkVar(int, m_ASWOrders);
-	ASW_Orders GetASWOrders() { return (ASW_Orders) m_ASWOrders.Get(); }
+//	ASW_Orders GetASWOrders() { return (ASW_Orders) m_ASWOrders.Get(); }
 	CHandle<C_ASW_Order_Arrow> m_hOrderArrow;
 
 	// flashlight	
@@ -338,7 +344,7 @@ public:
 	bool m_bMeleeComboTransitionAllowed;
 	bool m_bMeleeMadeContact;
 	int m_iUsableItemsOnMeleePress;
-	ASW_Melee_Movement_t m_iMeleeAllowMovement;
+//	ASW_Melee_Movement_t m_iMeleeAllowMovement;
 	bool m_bMeleeKeyReleased;
 	bool m_bPlayedMeleeHitSound;
 #ifdef MELEE_CHARGE_ATTACKS
@@ -347,9 +353,9 @@ public:
 #endif
 	bool m_bMeleeChargeActivate;
 	virtual void HandlePredictedAnimEvent( int event, const char* options );
-	int m_iPredictedEvent[ASW_MAX_PREDICTED_MELEE_EVENTS];
-	float m_flPredictedEventTime[ASW_MAX_PREDICTED_MELEE_EVENTS];
-	const char* m_szPredictedEventOptions[ASW_MAX_PREDICTED_MELEE_EVENTS];
+//	int m_iPredictedEvent[ASW_MAX_PREDICTED_MELEE_EVENTS];
+//	float m_flPredictedEventTime[ASW_MAX_PREDICTED_MELEE_EVENTS];
+//	const char* m_szPredictedEventOptions[ASW_MAX_PREDICTED_MELEE_EVENTS];
 	int m_iNumPredictedEvents;
 	int m_iOnLandMeleeAttackID;
 	EHANDLE m_hMeleeLockTarget;				// for autoaiming melee attacks
@@ -408,10 +414,10 @@ private:
 };
 
 
-inline C_ASW_Marine *C_ASW_Marine::AsMarine( CBaseEntity *pEnt )
+/*inline C_ASW_Marine *C_ASW_Marine::AsMarine( CBaseEntity *pEnt )
 {
 	return ( pEnt && pEnt->Classify() == CLASS_ASW_MARINE ) ? assert_cast<C_ASW_Marine *>(pEnt) : NULL;
-}
+}*/
 
 
 #endif // _INCLUDED_C_ASW_MARINE_H

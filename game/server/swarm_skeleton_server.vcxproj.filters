@@ -1574,6 +1574,9 @@
     <ClCompile Include="trigger_portal_cleanser.cpp">
       <Filter>Source Files\Sleepless</Filter>
     </ClCompile>
+    <ClCompile Include="..\shared\weapon_sdkmelee.cpp">
+      <Filter>Source Files\Sleepless</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\shared\achievement_saverestore.h">
@@ -3264,6 +3267,9 @@
     </ClInclude>
     <ClInclude Include="..\shared\hl2_player_shared.h">
       <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\shared\weapon_sdkmelee.h">
+      <Filter>Source Files\Sleepless</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

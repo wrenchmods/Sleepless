@@ -261,6 +261,7 @@ if exist "$(TargetDir)"$(ProjectName).pdb copy "$(TargetDir)"$(ProjectName).pdb 
     <ClCompile Include="..\shared\sdk\weapon_pistol.cpp" />
     <ClCompile Include="..\shared\sdk\weapon_sdkbase.cpp" />
     <ClCompile Include="..\shared\weapon_magnum.cpp" />
+    <ClCompile Include="..\shared\weapon_sdkmelee.cpp" />
     <ClCompile Include="ai_activity.cpp" />
     <ClCompile Include="ai_addon.cpp" />
     <ClCompile Include="ai_agent.cpp" />
@@ -908,6 +909,7 @@ if exist "$(TargetDir)"$(ProjectName).pdb copy "$(TargetDir)"$(ProjectName).pdb 
     <ClInclude Include="..\shared\sdk\sdk_shareddefs.h" />
     <ClInclude Include="..\shared\sdk\sdk_weapon_parse.h" />
     <ClInclude Include="..\shared\sdk\weapon_sdkbase.h" />
+    <ClInclude Include="..\shared\weapon_sdkmelee.h" />
     <ClInclude Include="ai_addon.h" />
     <ClInclude Include="ai_agent.h" />
     <ClInclude Include="ai_baseactor.h" />

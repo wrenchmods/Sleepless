@@ -6,6 +6,7 @@
 
 #include "cbase.h"
 #include "weapon_sdkbase.h"
+#include "weapon_sdkmelee.h"
 
 #if defined( CLIENT_DLL )
 
@@ -19,7 +20,7 @@
 #endif
 
 
-class CWeaponMAGNUM : public CWeaponSDKBase
+class CWeaponMAGNUM : public CWeaponSDKMelee
 {
 public:
 	DECLARE_CLASS( CWeaponMAGNUM, CWeaponSDKBase );
